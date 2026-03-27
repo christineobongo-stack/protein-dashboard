@@ -1,0 +1,2479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Dashboard</title>
+<style>
+/* System font stack — no external network request */
+:root{
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;
+  --font-mono: 'SF Mono','Fira Code','Cascadia Code','Consolas','Courier New',monospace;
+}
+</style>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f4f0;--surface:#fff;--surface2:#f0efe9;--border:#e2e0d8;--border2:#ccc9bc;
+  --text:#1a1916;--text2:#6b6860;--text3:#9c9a91;--accent:#1a1916;
+  --crit-bg:#fef0ee;--crit-txt:#c0341d;--crit-bdr:#f5c4b3;
+  --low-bg:#fef9ec;--low-txt:#8a5c0a;--low-bdr:#f5d98a;
+  --ok-bg:#eef6ea;--ok-txt:#2d6b1a;--ok-bdr:#b8d9a8;
+  --c-protein:#185FA5;--c-flavour:#BA7517;--c-active:#0F6E56;--c-excipient:#888780;--c-pkg:#534AB7;
+}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--text);font-size:13px}
+header{background:var(--accent);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.htitle{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.hsub{font-size:10px;color:rgba(255,255,255,.4);margin-top:1px}
+.refresh-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:var(--font-sans);font-size:11px;font-weight:500;padding:5px 12px;border-radius:6px;cursor:pointer}
+.refresh-btn:hover{background:rgba(255,255,255,.2)}
+.refresh-btn:disabled{opacity:.4;cursor:default}
+.sources{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 20px;display:flex;gap:14px;flex-wrap:wrap}
+.src{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot.ok{background:#3a7d22}.dot.loading{background:#d4860e;animation:pulse 1s infinite}.dot.error{background:#c0341d}.dot.idle{background:#ccc}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 20px;gap:2px}
+.tab-btn{padding:10px 16px;font-family:var(--font-sans);font-size:12px;font-weight:500;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--text2)}
+.tab-btn.active{color:var(--text);border-bottom-color:var(--accent)}
+.tab-page{display:none}.tab-page.active{display:block}
+main{padding:14px 20px 40px}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.mlabel{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:4px}
+.mval{font-size:20px;font-weight:600;font-family:var(--font-mono);color:var(--text);line-height:1}
+.mval.danger{color:var(--crit-txt)}.mval.warn{color:var(--low-txt)}
+.toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.filters{display:flex;gap:4px;flex-wrap:wrap}
+.fbtn{padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);font-family:var(--font-sans);font-size:11px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.fbtn:hover{border-color:var(--border2);color:var(--text)}
+.fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.search{padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-sans);font-size:11px;background:var(--surface);color:var(--text);width:160px;outline:none}
+.tcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead th{background:var(--surface2);text-align:left;font-size:9.5px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text3);padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
+.iname{font-weight:600;font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imeta{font-size:9px;color:var(--text3);margin-top:1px}
+.covwrap{display:flex;align-items:center;gap:5px}
+.covbar-bg{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;min-width:28px}
+.covbar-fill{height:100%;border-radius:3px}
+.covlbl{font-family:var(--font-mono);font-size:10px;white-space:nowrap;font-weight:500}
+.mono{font-family:var(--font-mono);font-size:11px;text-align:right;color:var(--text2)}
+.mono.strong{font-weight:600;color:var(--text)}
+.redval{font-family:var(--font-mono);font-size:11px;font-weight:700;text-align:right;color:var(--crit-txt)}
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:.2px;white-space:nowrap}
+.badge.critical{background:var(--crit-bg);color:var(--crit-txt);border:1px solid var(--crit-bdr)}
+.badge.low{background:var(--low-bg);color:var(--low-txt);border:1px solid var(--low-bdr)}
+.badge.ok{background:var(--ok-bg);color:var(--ok-txt);border:1px solid var(--ok-bdr)}
+.dl{display:inline-block;font-family:var(--font-mono);font-size:9.5px;padding:2px 5px;border-radius:3px;white-space:nowrap}
+.dl.past{background:var(--crit-bg);color:var(--crit-txt)}
+.dl.soon{background:var(--low-bg);color:var(--low-txt)}
+.dl.future{color:var(--text3)}
+.editable{background:transparent;border:none;border-bottom:1px dashed var(--border2);font-family:var(--font-mono);font-size:11px;color:var(--text);text-align:right;width:100%;padding:1px 2px;outline:none}
+.editable:focus{border-bottom-color:var(--accent)}
+.tfoot{padding:7px 12px;font-size:10px;color:var(--text3);border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.6}
+.sec-divider td{background:var(--surface2)!important;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:5px 10px;border-top:2px solid var(--border2)}
+.waste-flag{font-size:9px;color:var(--crit-txt);margin-top:2px;font-weight:500}
+.cost-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.cost-note{font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6;background:var(--surface2);border-radius:8px;padding:10px 14px;border:1px solid var(--border)}
+.cost-section-hdr{font-size:11px;font-weight:600;color:var(--text);margin:16px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.stackbar{display:flex;height:6px;border-radius:3px;overflow:hidden;min-width:80px;gap:1px}
+.stackbar-seg{height:100%}
+.cost-big{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text)}
+.cost-sm{font-family:var(--font-mono);font-size:11px;color:var(--text2)}
+/* ── SHIPPING TAB ─────────────────────────────────────── */
+.pg-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.pg-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.pg-title span{font-size:10px;font-weight:400;color:var(--text3)}
+.pg-grid{display:grid;gap:10px}
+.pg-grid.c2{grid-template-columns:1fr 1fr}
+.pg-grid.c3{grid-template-columns:1fr 1fr 1fr}
+.pg-grid.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pg-label{font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:5px}
+.pg-input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:12px;color:var(--text);background:var(--surface);outline:none;transition:border-color .15s}
+.pg-input:focus{border-color:var(--accent)}
+.pg-select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-sans);font-size:11px;color:var(--text);background:var(--surface);outline:none}
+.pg-range{width:100%;accent-color:var(--accent);cursor:pointer}
+.pg-range-val{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--accent)}
+.result-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.result-card{border-radius:8px;padding:12px 14px;border:1px solid var(--border)}
+.result-card.best{background:#eef6ea;border-color:#b8d9a8}
+.result-card.worst{background:#fef0ee;border-color:#f5c4b3}
+.result-card.neutral{background:var(--surface)}
+.result-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:4px}
+.result-val{font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text);line-height:1.2}
+.result-sub{font-size:10px;color:var(--text3);margin-top:3px}
+.comparison-table{width:100%;border-collapse:collapse;font-size:11px}
+.comparison-table th{background:var(--surface2);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.comparison-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.comparison-table tr:last-child td{border-bottom:none}
+.comparison-table tr.highlight-row td{background:#eef6ea;font-weight:600}
+.comparison-table tr:hover td{background:var(--surface2)}
+.calendar-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.cal-event{padding:6px 12px;border-radius:6px;font-size:10px;font-weight:600;white-space:nowrap}
+.cal-event.order{background:#e8f0fb;color:#185FA5;border:1px solid #b5d4f4}
+.cal-event.arrive{background:#eef6ea;color:#0F6E56;border:1px solid #9FE1CB}
+.cal-event.expiry{background:#fef9ec;color:#8a5c0a;border:1px solid #f5d98a}
+.cal-event.gap{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+.mode-toggle{display:flex;gap:4px;background:var(--surface2);padding:3px;border-radius:8px;border:1px solid var(--border)}
+.mode-btn{padding:5px 14px;border-radius:6px;border:none;font-family:var(--font-sans);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;color:var(--text3);background:transparent}
+.mode-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.verdict-box{border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.verdict-box.green{background:#eef6ea;border:1px solid #b8d9a8}
+.verdict-box.amber{background:#fef9ec;border:1px solid #f5d98a}
+.verdict-box.red{background:#fef0ee;border:1px solid #f5c4b3}
+.verdict-title{font-size:13px;font-weight:700;margin-bottom:6px}
+.verdict-body{font-size:11px;line-height:1.8;color:var(--text2)}
+.product-mode-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.product-mode-row:last-child{border-bottom:none}
+.tag{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px}
+.tag.air{background:#e8f0fb;color:#185FA5;border:1px solid #b5d4f4}
+.tag.sea{background:#eef6ea;color:#0F6E56;border:1px solid #9FE1CB}
+.tag.best{background:#eef6ea;color:#2d6b1a;border:1px solid #b8d9a8}
+.tag.warn{background:#fef0ee;color:#c0341d;border:1px solid #f5c4b3}
+
+.debug-box{background:#1a1916;color:#7dd3a8;font-family:var(--font-mono);font-size:10px;padding:12px 14px;border-radius:8px;margin-bottom:12px;line-height:1.8;white-space:pre-wrap;display:none}
+/* Market intelligence tab */
+.signal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.signal-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.signal-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px}
+.signal-value{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3}
+.signal-detail{font-size:10px;color:var(--text3);line-height:1.5}
+.signal-badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.2px;margin-bottom:8px}
+.signal-badge.green{background:#eef6ea;color:#2d6b1a;border:1px solid #b8d9a8}
+.signal-badge.amber{background:#fef9ec;color:#8a5c0a;border:1px solid #f5d98a}
+.signal-badge.red{background:#fef0ee;color:#c0341d;border:1px solid #f5c4b3}
+.signal-badge.grey{background:#f0efe9;color:#6b6860;border:1px solid #e2e0d8}
+.overall-signal{border-radius:10px;padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;gap:16px}
+.overall-signal.green{background:#eef6ea;border:1px solid #b8d9a8}
+.overall-signal.amber{background:#fef9ec;border:1px solid #f5d98a}
+.overall-signal.red{background:#fef0ee;border:1px solid #f5c4b3}
+.overall-signal.grey{background:#f0efe9;border:1px solid #e2e0d8}
+.overall-icon{font-size:28px;flex-shrink:0}
+.overall-title{font-size:14px;font-weight:600;margin-bottom:3px}
+.overall-sub{font-size:11px;line-height:1.6}
+.season-bar{display:flex;gap:2px;margin:10px 0;height:28px}
+.season-seg{flex:1;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;letter-spacing:.3px;position:relative;cursor:default}
+.season-seg.now::after{content:'▼';position:absolute;top:-14px;font-size:10px;color:var(--accent)}
+.intel-section{font-size:11px;font-weight:600;color:var(--text);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.intel-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.intel-headline{font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px}
+.intel-body{font-size:11px;color:var(--text2);line-height:1.7}
+.intel-source{font-size:10px;color:var(--text3);margin-top:6px}
+.intel-loading{text-align:center;padding:32px;color:var(--text3);font-size:12px}
+.intel-spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;margin-right:8px;vertical-align:middle}
+.ordering-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.ordering-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.ordering-region{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px}
+.ordering-verdict{font-size:13px;font-weight:600;margin-bottom:6px}
+.ordering-detail{font-size:10px;color:var(--text3);line-height:1.6}
+.price-table{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:10px}
+.price-table th{background:var(--surface2);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.price-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.price-table tr:last-child td{border-bottom:none}
+.price-table tr:hover td{background:var(--surface2)}
+.price-input{background:transparent;border:none;border-bottom:1px dashed var(--border2);font-family:var(--font-mono);font-size:11px;color:var(--text);text-align:right;width:80px;padding:1px 3px;outline:none}
+.price-input:focus{border-bottom-color:var(--accent)}
+.diff-pill{display:inline-block;font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.diff-pill.cheaper{background:#eef6ea;color:#2d6b1a;border:1px solid #b8d9a8}
+.diff-pill.pricier{background:#fef0ee;color:#c0341d;border:1px solid #f5c4b3}
+.diff-pill.same{background:#f0efe9;color:#6b6860;border:1px solid #e2e0d8}
+.price-note{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;font-style:italic}
+/* Landed cost + logistics tracking */
+.lc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.lc-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.lc-product{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px}
+.lc-row{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:.5px solid var(--border);font-size:11px}
+.lc-row:last-child{border-bottom:none;padding-top:8px;margin-top:4px}
+.lc-label{color:var(--text3)}
+.lc-val{font-family:var(--font-mono);font-weight:600;color:var(--text)}
+.lc-val.highlight{color:var(--c-protein);font-size:13px}
+.lc-input{background:transparent;border:none;border-bottom:1px dashed var(--border2);font-family:var(--font-mono);font-size:11px;color:var(--text);text-align:right;width:90px;padding:1px 2px;outline:none}
+.lc-input:focus{border-bottom-color:var(--accent)}
+.variance-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;display:inline-block}
+.variance-pill.over{background:#fef0ee;color:#c0341d;border:1px solid #f5c4b3}
+.variance-pill.under{background:#eef6ea;color:#2d6b1a;border:1px solid #b8d9a8}
+.variance-pill.match{background:#f0efe9;color:#6b6860;border:1px solid #e2e0d8}
+.logistics-table{width:100%;border-collapse:collapse;font-size:11px}
+.logistics-table th{background:var(--surface2);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:left}
+.logistics-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.logistics-table tr:last-child td{border-bottom:none}
+.logistics-table tr:hover td{background:var(--surface2)}
+.route-badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 6px;border-radius:20px;margin-bottom:3px}
+.route-air{background:#e8f0fb;color:#185FA5;border:1px solid #b5d4f4}
+.route-sea{background:#eef6ea;color:#0F6E56;border:1px solid #9FE1CB}
+.route-road{background:#fef9ec;color:#8a5c0a;border:1px solid #f5d98a}
+.loading-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;gap:10px;color:var(--text3)}
+.spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err-box{background:var(--crit-bg);border:1px solid var(--crit-bdr);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--crit-txt);display:none;line-height:1.7}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="htitle">Procurement Dashboard — protein.ke</div>
+    <div class="hsub">Live · MARCH 2026 ORDER + Protein Product Development VERSION 8</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button onclick="toggleDebug()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);font-size:10px;padding:4px 10px;border-radius:5px;cursor:pointer">debug</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="cacheClear();loadAll(true)">↻ Refresh</button>
+  </div>
+</header>
+
+<div class="sources">
+  <div class="src"><span class="dot idle" id="dot-proc"></span><span id="lbl-proc">MARCH 2026 ORDER</span></div>
+  <div class="src" id="cacheStatus" style="margin-left:auto;font-size:10px;color:var(--text3)"></div>
+  <div class="src"><span class="dot idle" id="dot-ce"></span><span id="lbl-ce">CORE ESSENTIAL</span></div>
+  <div class="src"><span class="dot idle" id="dot-eco"></span><span id="lbl-eco">ECONOMY+</span></div>
+  <div class="src"><span class="dot idle" id="dot-iso"></span><span id="lbl-iso">ISOPRO</span></div>
+  <div class="src"><span class="dot idle" id="dot-bio"></span><span id="lbl-bio">BIOBALANCE</span></div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('procurement',this)">Procurement</button>
+  <button class="tab-btn" onclick="switchTab('costs',this)">SKU costs</button>
+  <button class="tab-btn" onclick="switchTab('market',this)">Market intelligence</button>
+  <button class="tab-btn" onclick="switchTab('shipping',this)">Shipping optimiser</button>
+</div>
+
+<main>
+  <div class="debug-box" id="debugBox"></div>
+  <div class="err-box" id="errBox"></div>
+
+  <!-- TAB 1: PROCUREMENT -->
+  <div class="tab-page active" id="page-procurement">
+    <div class="metrics" id="metrics">
+      <div class="metric"><div class="mlabel">Critical items</div><div class="mval">—</div></div>
+      <div class="metric"><div class="mlabel">Low stock items</div><div class="mval">—</div></div>
+      <div class="metric"><div class="mlabel">4-mo order total (Ksh)</div><div class="mval">—</div></div>
+      <div class="metric"><div class="mlabel">Overdue deadlines</div><div class="mval">—</div></div>
+    </div>
+    <div class="toolbar">
+      <div class="filters">
+        <button class="fbtn active" onclick="setFilter('all',this)">All</button>
+        <button class="fbtn" onclick="setFilter('critical',this)">Critical</button>
+        <button class="fbtn" onclick="setFilter('low',this)">Low stock</button>
+        <button class="fbtn" onclick="setFilter('ok',this)">OK</button>
+        <button class="fbtn" onclick="setFilter('overdue',this)">Overdue</button>
+      </div>
+      <input class="search" id="search" placeholder="Search…" oninput="renderProcurement()">
+    </div>
+    <div class="tcard">
+      <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div><span>Loading live data…</span></div>
+      <div id="tableWrap" style="display:none">
+        <div style="overflow-x:auto">
+          <table style="table-layout:fixed;min-width:960px">
+            <colgroup>
+              <col style="width:17%"><col style="width:10%"><col style="width:7%">
+              <col style="width:7%"><col style="width:7%"><col style="width:7%">
+              <col style="width:7%"><col style="width:7%"><col style="width:9%">
+              <col style="width:8%"><col style="width:7%"><col style="width:7%">
+            </colgroup>
+            <thead><tr>
+              <th>Item</th><th>Coverage</th><th>Status</th>
+              <th style="text-align:right">Stock</th>
+              <th style="text-align:right">Cost (Ksh/kg)</th>
+              <th style="text-align:right">Monthly RQ</th>
+              <th style="text-align:right">2-mo RQ</th>
+              <th style="text-align:right">4-mo order</th>
+              <th style="text-align:right">Order value (Ksh)</th>
+              <th>Deadline</th><th>Lead time</th><th>Supplier</th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="tfoot">
+          <span id="rcount" style="font-family:var(--font-mono)"></span>
+          <span id="lastRefresh" style="font-family:var(--font-mono)"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: SKU COSTS -->
+  <div class="tab-page" id="page-costs">
+    <div class="cost-note" id="costNote">Loading…</div>
+    <div class="cost-summary" id="costSummary"></div>
+    <div class="cost-section-hdr">Formulated protein powders</div>
+    <div class="tcard">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>SKU</th>
+            <th style="text-align:right">Pack</th>
+            <th style="text-align:right">Servings</th>
+            <th style="text-align:right">Ingredient cost / serving</th>
+            <th style="text-align:right">Ingredient cost / pack</th>
+            <th style="text-align:right">Packaging / pack</th>
+            <th style="text-align:right">Total / pack</th>
+            <th style="text-align:right">Total / serving</th>
+            <th>Ingredient detail</th>
+          </tr></thead>
+          <tbody id="costProtTbody"></tbody>
+        </table>
+      </div>
+      <div class="tfoot" id="costProtFoot"></div>
+    </div>
+    <div class="cost-section-hdr" style="margin-top:20px">Bulk supplements — 200g retail packs</div>
+    <div class="tcard">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>SKU</th>
+            <th>Drum</th>
+            <th style="text-align:right">Bulk material / pack</th>
+            <th style="text-align:right">Packaging / pack</th>
+            <th style="text-align:right">Total / pack</th>
+            <th style="text-align:right">Drum cost</th>
+            <th style="text-align:right">Cost / usable pack</th>
+            <th style="text-align:right">Yield</th>
+          </tr></thead>
+          <tbody id="costBulkTbody"></tbody>
+        </table>
+      </div>
+      <div class="tfoot" id="costBulkFoot"></div>
+    </div>
+  </div>
+
+  <!-- TAB 3: MARKET INTELLIGENCE -->
+  <div class="tab-page" id="page-market">
+
+    <!-- Overall signal -->
+    <div id="overallSignal" class="overall-signal grey" style="margin-top:4px">
+      <div class="overall-icon">⏳</div>
+      <div>
+        <div class="overall-title">Loading market intelligence…</div>
+        <div class="overall-sub">Fetching live data on whey market conditions. This takes 20–30 seconds.</div>
+      </div>
+    </div>
+
+    <!-- 4 signal cards -->
+    <div class="signal-grid" id="signalGrid">
+      <div class="signal-card"><div class="signal-label">Seasonal position</div><div class="signal-value" id="sig-season">—</div><div class="signal-detail" id="sig-season-detail">Loading…</div></div>
+      <div class="signal-card"><div class="signal-label">EUR/USD rate</div><div class="signal-value" id="sig-fx">—</div><div class="signal-detail" id="sig-fx-detail">Loading…</div></div>
+      <div class="signal-card"><div class="signal-label">European energy</div><div class="signal-value" id="sig-energy">—</div><div class="signal-detail" id="sig-energy-detail">Loading…</div></div>
+      <div class="signal-card"><div class="signal-label">China demand</div><div class="signal-value" id="sig-china">—</div><div class="signal-detail" id="sig-china-detail">Loading…</div></div>
+    </div>
+
+    <!-- Seasonal calendar -->
+    <div class="intel-section">European milk production cycle — seasonal price guide</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:18px">
+      <div class="season-bar" id="seasonBar"></div>
+      <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
+        <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:#2d6b1a;border-radius:2px;display:inline-block"></span>Favourable — spring flush (Apr–Jul)</span>
+        <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:#d4860e;border-radius:2px;display:inline-block"></span>Neutral — shoulder months</span>
+        <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:#c0341d;border-radius:2px;display:inline-block"></span>Unfavourable — winter tightening (Nov–Feb)</span>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text3);line-height:1.7" id="seasonText"></div>
+    </div>
+
+    <!-- Ordering windows by region -->
+    <div class="intel-section">Optimal ordering windows by supplier region</div>
+    <div class="ordering-grid">
+      <div class="ordering-card">
+        <div class="ordering-region">Europe (Poland — Lactelle)</div>
+        <div class="ordering-verdict" id="ord-europe">—</div>
+        <div class="ordering-detail" id="ord-europe-detail">Loading…</div>
+      </div>
+      <div class="ordering-card">
+        <div class="ordering-region">USA (alternative)</div>
+        <div class="ordering-verdict" id="ord-usa">—</div>
+        <div class="ordering-detail" id="ord-usa-detail">Loading…</div>
+      </div>
+      <div class="ordering-card">
+        <div class="ordering-region">New Zealand (alternative)</div>
+        <div class="ordering-verdict" id="ord-nz">—</div>
+        <div class="ordering-detail" id="ord-nz-detail">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Whey prices by region -->
+    <div class="intel-section">Whey prices by region — USD/MT <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px">Enter market quotes to compare vs your current costs · converts to Ksh/kg using live EUR/USD rate</span></div>
+    <div class="tcard" style="margin-bottom:18px">
+      <div style="overflow-x:auto">
+        <table class="price-table" id="priceTable">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Your current cost (Ksh/kg)</th>
+              <th style="text-align:right">Europe (USD/MT)</th>
+              <th style="text-align:right">Europe (Ksh/kg)</th>
+              <th style="text-align:right">Diff vs current</th>
+              <th style="text-align:right">USA (USD/MT)</th>
+              <th style="text-align:right">USA (Ksh/kg)</th>
+              <th style="text-align:right">Diff vs current</th>
+              <th style="text-align:right">New Zealand (USD/MT)</th>
+              <th style="text-align:right">NZ (Ksh/kg)</th>
+              <th style="text-align:right">Diff vs current</th>
+            </tr>
+          </thead>
+          <tbody id="priceTableBody"></tbody>
+        </table>
+      </div>
+      <div style="padding:8px 14px;background:var(--surface2);border-top:1px solid var(--border);font-size:10px;color:var(--text3);line-height:1.6" id="priceTableFooter">
+        Ksh/kg conversion = (USD/MT ÷ 1000) × USD/KES rate. KES/USD rate used: <span id="kesRate">loading…</span>.
+        Edit the USD/MT price cells with quotes from your suppliers or GDT results. <b>Sources:</b> GDT (globaldairytrade.info) · CLAL.it (Europe) · USDEC (USA) · Fonterra (NZ).
+      </div>
+    </div>
+
+    <!-- Live intelligence feed -->
+    <div class="intel-section">Live market intelligence <span style="font-size:10px;font-weight:400;color:var(--text3)" id="intelTimestamp"></span></div>
+    <div id="intelFeed">
+      <div class="intel-loading"><span class="intel-spinner"></span>Searching for current whey market conditions…</div>
+    </div>
+
+    <!-- LANDED COST CALCULATOR -->
+    <div class="intel-section">Landed cost calculator — current consignment</div>
+    <div style="background:var(--surface2);border-radius:8px;padding:10px 14px;border:1px solid var(--border);margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.7">
+      Enter your consignment details below. Costs are allocated to each product proportionally by weight.
+      <b>Live EUR/KES and USD/KES rates</b> are used from the exchange rate feed above.
+    </div>
+
+    <!-- Consignment inputs -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:12px">Consignment parameters</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px">
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Air freight (USD)</div>
+          <input class="lc-input" id="lc-airfreight" type="number" value="3000" style="width:100%;font-size:13px" oninput="renderLandedCost()">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Clearance + duties (Ksh)</div>
+          <input class="lc-input" id="lc-clearance" type="number" value="400000" style="width:100%;font-size:13px" oninput="renderLandedCost()">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Nairobi → Kilifi truck (Ksh)</div>
+          <input class="lc-input" id="lc-truck" type="number" value="40000" style="width:100%;font-size:13px" oninput="renderLandedCost()">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Assumed logistics % (for comparison)</div>
+          <input class="lc-input" id="lc-logpct" type="number" value="46" style="width:100%;font-size:13px" oninput="renderLandedCost()">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Nairobi → Kilifi truck (Ksh)</div>
+          <input class="lc-input" id="lc-truck" type="number" value="40000" style="width:100%;font-size:13px" oninput="renderLandedCost()">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">WPC 35</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div><div style="font-size:9px;color:var(--text3)">ExWorks (EUR/MT)</div><input class="lc-input" id="lc-ew-35" type="number" value="4200" oninput="renderLandedCost()"></div>
+            <div><div style="font-size:9px;color:var(--text3)">Volume (kg)</div><input class="lc-input" id="lc-vol-35" type="number" value="120" oninput="renderLandedCost()"></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">WPC 80</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div><div style="font-size:9px;color:var(--text3)">ExWorks (EUR/MT)</div><input class="lc-input" id="lc-ew-80" type="number" value="15000" oninput="renderLandedCost()"></div>
+            <div><div style="font-size:9px;color:var(--text3)">Volume (kg)</div><input class="lc-input" id="lc-vol-80" type="number" value="700" oninput="renderLandedCost()"></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">WPI 90%</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div><div style="font-size:9px;color:var(--text3)">ExWorks (EUR/MT)</div><input class="lc-input" id="lc-ew-wpi" type="number" value="20200" oninput="renderLandedCost()"></div>
+            <div><div style="font-size:9px;color:var(--text3)">Volume (kg)</div><input class="lc-input" id="lc-vol-wpi" type="number" value="60" oninput="renderLandedCost()"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Landed cost results -->
+    <div class="lc-grid" id="lcResults"></div>
+
+    <!-- Summary row -->
+    <div id="lcSummary" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:18px"></div>
+
+    <!-- LOGISTICS TRACKER -->
+    <div class="intel-section">Freight & logistics tracker — Poland → Nairobi</div>
+    <div class="tcard" style="margin-bottom:14px">
+      <div style="overflow-x:auto">
+        <table class="logistics-table">
+          <thead>
+            <tr>
+              <th>Route / mode</th>
+              <th>Origin region</th>
+              <th style="text-align:right">Transit time</th>
+              <th style="text-align:right">Air freight (USD/kg)</th>
+              <th style="text-align:right">Sea freight (USD/kg)</th>
+              <th style="text-align:right">Min. order (kg)</th>
+              <th style="text-align:right">Customs duty rate</th>
+              <th style="text-align:right">Clearance (Ksh)</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="logisticsBody"></tbody>
+        </table>
+      </div>
+      <div style="padding:7px 14px;background:var(--surface2);border-top:1px solid var(--border);font-size:10px;color:var(--text3)">
+        Edit any cell to update. Air and sea freight rates are per kg for your typical volumes. Clearance includes port handling, KRA customs, and agent fees.
+      </div>
+    </div>
+
+    <!-- Key monitoring parameters -->
+    <div class="intel-section">Key parameters to monitor</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px" id="monitorGrid"></div>
+
+    <div style="font-size:10px;color:var(--text3);margin-top:16px;line-height:1.6;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+      Market intelligence is for orientation and decision support — not a price guarantee. Always confirm pricing and freight rates directly with your suppliers and forwarders before committing to an order.
+    </div>
+  </div>
+
+
+  <!-- TAB 4: SHIPPING OPTIMISER -->
+  <div class="tab-page" id="page-shipping">
+
+    <div id="shippingVerdict"></div>
+
+    <!-- TOP RESULTS ROW -->
+    <div class="result-grid" id="shippingResults"></div>
+
+    <!-- TWO COLUMNS: inputs left, comparison right -->
+    <div style="display:grid;grid-template-columns:340px 1fr;gap:14px;align-items:start">
+
+      <!-- LEFT: All inputs -->
+      <div>
+        <!-- Monthly RQs -->
+        <div class="pg-section">
+          <div class="pg-title">Monthly RQs <span>(kg/month — auto-filled from formulations)</span></div>
+          <div class="pg-grid c3">
+            <div><div class="pg-label">WPC 35 (kg/mo)</div><input class="pg-input" id="rq35" type="number" value="142" oninput="renderShipping()"></div>
+            <div><div class="pg-label">WPC 80 (kg/mo)</div><input class="pg-input" id="rq80" type="number" value="303" oninput="renderShipping()"></div>
+            <div><div class="pg-label">WPI 90% (kg/mo)</div><input class="pg-input" id="rqwpi" type="number" value="63" oninput="renderShipping()"></div>
+          </div>
+        </div>
+
+        <!-- Product prices -->
+        <div class="pg-section">
+          <div class="pg-title">ExWorks prices <span>(EUR/MT — edit with latest quotes)</span></div>
+          <div class="pg-grid c3">
+            <div><div class="pg-label">WPC 35 (EUR/MT)</div><input class="pg-input" id="ew35" type="number" value="4200" oninput="renderShipping()"></div>
+            <div><div class="pg-label">WPC 80 (EUR/MT)</div><input class="pg-input" id="ew80" type="number" value="15000" oninput="renderShipping()"></div>
+            <div><div class="pg-label">WPI 90% (EUR/MT)</div><input class="pg-input" id="ewwpi" type="number" value="20200" oninput="renderShipping()"></div>
+          </div>
+          <div style="margin-top:10px">
+            <div class="pg-label">EUR/KES rate</div>
+            <input class="pg-input" id="eurKes" type="number" value="150" oninput="renderShipping()" style="width:120px">
+            <span style="font-size:10px;color:var(--text3);margin-left:8px">auto-updated from live feed when market tab loads</span>
+          </div>
+        </div>
+
+        <!-- Cycle length -->
+        <div class="pg-section">
+          <div class="pg-title">Ordering cycle</div>
+          <div style="margin-bottom:14px">
+            <div class="pg-label">Cycle length (months) — drag to explore</div>
+            <input class="pg-range" id="cycleRange" type="range" min="1" max="12" value="6" oninput="document.getElementById('cycleVal').textContent=this.value+' months';renderShipping()">
+            <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+              <span class="pg-range-val" id="cycleVal">6 months</span>
+              <span style="font-size:10px;color:var(--text3)">per order · covers all 3 products in one shipment</span>
+            </div>
+          </div>
+          <div class="pg-grid c2">
+            <div>
+              <div class="pg-label">Shelf life (days from production)</div>
+              <input class="pg-input" id="shelfLife" type="number" value="365" oninput="renderShipping()">
+            </div>
+            <div>
+              <div class="pg-label">Safety buffer (days to keep)</div>
+              <input class="pg-input" id="safetyBuffer" type="number" value="30" oninput="renderShipping()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Air freight inputs -->
+        <div class="pg-section">
+          <div class="pg-title">✈ Air freight <span>(JKIA — 30-day lead time)</span></div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">Rate (USD/kg)</div><input class="pg-input" id="airRate" type="number" step="0.1" value="3.50" oninput="renderShipping()"></div>
+            <div><div class="pg-label">Min. charge (USD)</div><input class="pg-input" id="airMin" type="number" value="500" oninput="renderShipping()"></div>
+          </div>
+          <div style="margin-top:10px"><div class="pg-label">Fuel & handling surcharge (%)</div><input class="pg-input" id="airSurcharge" type="number" value="22" oninput="renderShipping()" style="width:100px"><span style="font-size:10px;color:var(--text3);margin-left:8px">typical 15–30%</span></div>
+          <div style="margin-top:10px"><div class="pg-label">Lead time (days)</div><input class="pg-input" id="airLead" type="number" value="30" oninput="renderShipping()" style="width:100px"></div>
+        </div>
+
+        <!-- Sea freight inputs -->
+        <div class="pg-section">
+          <div class="pg-title">🚢 Sea freight <span>(Mombasa — 60-day lead time)</span></div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">Rate (USD/CBM)</div><input class="pg-input" id="seaRate" type="number" value="100" oninput="renderShipping()"></div>
+            <div><div class="pg-label">Whey density (kg/CBM)</div><input class="pg-input" id="wheyDensity" type="number" value="490" oninput="renderShipping()"></div>
+          </div>
+          <div style="margin-top:10px">
+            <div class="pg-label">Min. charge (USD)</div>
+            <input class="pg-input" id="seaMin" type="number" value="150" oninput="renderShipping()" style="width:100px">
+            <span style="font-size:10px;color:var(--text3);margin-left:8px">typically 1 CBM minimum</span>
+          </div>
+          <div style="margin-top:10px">
+            <div class="pg-label">BAF/surcharges (USD flat)</div>
+            <input class="pg-input" id="seaSurcharge" type="number" value="80" oninput="renderShipping()" style="width:100px">
+            <span style="font-size:10px;color:var(--text3);margin-left:8px">bunker + THC</span>
+          </div>
+          <div style="margin-top:10px"><div class="pg-label">Lead time (days)</div><input class="pg-input" id="seaLead" type="number" value="60" oninput="renderShipping()" style="width:100px"></div>
+          <div style="margin-top:10px"><div class="pg-label">Mombasa → Nairobi road (USD flat)</div><input class="pg-input" id="roadCost" type="number" value="250" oninput="renderShipping()" style="width:100px"><span style="font-size:10px;color:var(--text3);margin-left:8px">per shipment</span></div>
+        </div>
+
+        <!-- Clearance inputs -->
+        <div class="pg-section">
+          <div class="pg-title">🛃 Clearance <span>(scales with CIF value)</span></div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">IDF rate (%)</div><input class="pg-input" id="idfRate" type="number" step="0.1" value="3.5" oninput="renderShipping()"></div>
+            <div><div class="pg-label">RDL rate (%)</div><input class="pg-input" id="rdlRate" type="number" step="0.1" value="2.0" oninput="renderShipping()"></div>
+          </div>
+          <div class="pg-grid c2" style="margin-top:10px">
+            <div><div class="pg-label">Agent commission (%)</div><input class="pg-input" id="agentRate" type="number" step="0.1" value="1.5" oninput="renderShipping()"></div>
+            <div><div class="pg-label">Port/CFS/KEBS (Ksh flat)</div><input class="pg-input" id="portFlat" type="number" value="100000" oninput="renderShipping()"></div>
+          </div>
+          <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.7;padding:8px;background:var(--surface2);border-radius:6px">
+            Clearance = (IDF + RDL + Agent) % × CIF value + flat port charges.<br>
+            CIF = ExWorks + freight. Rates above match your current Ksh 400k on the ~Ksh 2.2M CIF consignment.
+          </div>
+        </div>
+
+        <!-- USD/KES -->
+        <div class="pg-section">
+          <div class="pg-title">Currency</div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">USD/KES</div><input class="pg-input" id="usdKes" type="number" value="129" oninput="renderShipping()"></div>
+            <div><div class="pg-label">Insurance (% of CIF)</div><input class="pg-input" id="insuranceRate" type="number" step="0.1" value="0.5" oninput="renderShipping()"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Results and comparison -->
+      <div>
+        <!-- Per-product mode recommendation -->
+        <div class="pg-section">
+          <div class="pg-title">Per-product mode recommendation</div>
+          <div id="productModeRec"></div>
+        </div>
+
+        <!-- Cycle comparison table -->
+        <div class="pg-section">
+          <div class="pg-title">Cycle length comparison <span>— all products together, same shipment</span></div>
+          <div style="overflow-x:auto">
+            <table class="comparison-table" id="cycleTable"></table>
+          </div>
+        </div>
+
+        <!-- Air vs sea comparison for selected cycle -->
+        <div class="pg-section">
+          <div class="pg-title">Air vs sea — selected cycle (<span id="selectedCycleLabel">6 months</span>)</div>
+          <div style="overflow-x:auto">
+            <table class="comparison-table" id="modeTable"></table>
+          </div>
+        </div>
+
+        <!-- Ordering calendar -->
+        <div class="pg-section">
+          <div class="pg-title">Ordering calendar <span id="calendarSub"></span></div>
+          <div id="orderCalendar"></div>
+        </div>
+
+        <!-- Shelf life check -->
+        <div class="pg-section">
+          <div class="pg-title">Shelf life safety check</div>
+          <div id="shelfCheck"></div>
+        </div>
+      </div>
+    </div><!-- end two-col grid -->
+
+    <div style="font-size:10px;color:var(--text3);margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);line-height:1.7">
+      All figures are estimates based on the inputs above. Freight rates are indicative — get actual quotes from your forwarder before committing. Clearance uses KRA published levy rates (IDF 3.5%, RDL 2%) plus approximate agent and port fees.
+    </div>
+
+  </div>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PROC_ID  = '1xlco3V5fqYdWuuOYKqKVZm-_mwUipxM8LZS5ofa01uk';
+const PROC_GID = 1839945296;
+const FORM_ID  = '1RMgl19REv-_w_4bJGgWlNgCkA3VlmJlKcxMPgUZDi9c';
+
+// Monthly sales — hardcoded from January 2025 actuals
+const SALES = {
+  CEVAN:182, CECHOC:86, CEBAN:26, CECREAM:51, CESC:24, CEVBC:15, CEVCHAI:25, PureForm:23,
+  ECOVAN:27, ECOCHOC:15, ECOBAN:6, ISPVAN:20, ISPUN:13, BIOVAN:28, BIOUN:11,
+  CREATUN:126, CREATFP:49, CREATPG:37, PWORKWM:11, PWORKGA:19, BCAA:9, COLUN:37,
+  'PANCAKE MIX':31,
+};
+
+// Formulation tabs — each has a confirmed pack weight and serving size
+const FORM_TABS = {
+  'CORE ESSENTIAL': { gid:728498255,  skus:['CEVAN','CECHOC','CEBAN','CECREAM','CESC','CEVBC','CEVCHAI','PureForm'], packG:980, dot:'dot-ce',  lbl:'lbl-ce'  },
+  'ECONOMY+':       { gid:2113422397, skus:['ECOVAN','ECOCHOC','ECOBAN'],                                           packG:980, dot:'dot-eco', lbl:'lbl-eco' },
+  'ISOPRO':         { gid:96399364,   skus:['ISPVAN','ISPUN'],                                                      packG:810, dot:'dot-iso', lbl:'lbl-iso' },
+  'BIOBALANCE':     { gid:1097578210, skus:['BIOVAN','BIOUN'],                                                      packG:840, dot:'dot-bio', lbl:'lbl-bio' },
+};
+const SERVING_G = 33;
+
+// Pack weight in kg used in RQ formula (from MARCH ORDER formulas)
+const RQ_W = {
+  CEVAN:.98,CECHOC:.98,CEBAN:.98,CECREAM:.98,CESC:.98,CEVBC:.98,CEVCHAI:.98,PureForm:.98,
+  ECOVAN:.985,ECOCHOC:.985,ECOBAN:.985,ISPVAN:.815,ISPUN:.815,BIOVAN:.845,BIOUN:.845,
+  'PANCAKE MIX':.6,'PFORM CALO':1,
+};
+
+// SKU → tab config lookup
+const SKU_TAB = {};
+for(const[tab,cfg]of Object.entries(FORM_TABS)) cfg.skus.forEach(s=>{SKU_TAB[s]=cfg;});
+const PROT_SKUS = Object.values(FORM_TABS).flatMap(c=>c.skus);
+
+const PROT_INFO = {
+  CEVAN:'CE Vanilla', CECHOC:'CE Chocolate', CEBAN:'CE Banana', CECREAM:'CE Cookies & Cream',
+  CESC:'CE Salted Caramel', CEVBC:'CE Birthday Cake', CEVCHAI:'CE Vanilla Chai', PureForm:'PureForm',
+  ECOVAN:'ECO Vanilla', ECOCHOC:'ECO Chocolate', ECOBAN:'ECO Banana',
+  ISPVAN:'ISOPRO Vanilla', ISPUN:'ISOPRO Unflavoured', BIOVAN:'BIOBALANCE Vanilla', BIOUN:'BIOBALANCE Unflav.',
+};
+
+// Bulk supplement config
+// kgPerPack = effective bulk kg consumed per retail 200g pack (waste-adjusted for preworkouts)
+const BULK_CFG = {
+  CREATUN: {label:'Creatine Unflavoured', ingKey:'Bulk Pure Creatine',          drumKg:25, usable:125, sachets:null,  kgPerPack:0.2},
+  CREATFP: {label:'Creatine Fruit Punch', ingKey:'Bulk Fruit Punch Creatine',   drumKg:25, usable:125, sachets:null,  kgPerPack:0.2},
+  CREATPG: {label:'Creatine Pink Guava',  ingKey:'Bulk Pink Guava Creatine',    drumKg:25, usable:125, sachets:null,  kgPerPack:0.2},
+  PWORKWM: {label:'PreWorkout Watermelon',ingKey:'Bulk PreWorkout Watermelon',  drumKg:24, usable:50,  sachets:120,   kgPerPack:24/50},
+  PWORKGA: {label:'PreWorkout Green Apple',ingKey:'Bulk PreWorkout Green Apple',drumKg:24, usable:40,  sachets:120,   kgPerPack:24/40},
+  BCAA:    {label:'BCAAs',                ingKey:'Bulk BCAAs',                  drumKg:25, usable:125, sachets:null,  kgPerPack:0.2},
+  COLUN:   {label:'Collagen Unflavoured', ingKey:'Bulk Collagen',               drumKg:25, usable:125, sachets:null,  kgPerPack:0.2},
+};
+
+// Explicit ingredient name mapping:
+// Keys are procurement sheet ingredient names (lowercased)
+// Values are arrays of exact formulation sheet ingredient names (lowercased) that map to them
+// This prevents "vanilla flavouring" matching "vanilla chai flavouring" etc.
+const ING_MAP = {
+  '35% whey concentrate':       ['35% whey concentrate'],
+  '80% whey concentrate':       ['80% whey concentrate'],
+  '90% whey isolate':           ['90% whey isolate'],
+  'vanilla flavouring':         ['vanilla flavouring 5378b pdr','vanilla flavouring - 5378b pdr',
+                                  'vanilla flavouring 4320 c-0 pdr','vanilla flavouring 4320c-o pdr',
+                                  'vanilla flavouring 4320c-0 pdr','vanilla flavouring 4320 c-o pdr'],
+  'banana flavouring':          ['banana flavouring 4493a-pdr','banana flavouring 9011b-pdr',
+                                  'banana flavouring 4493a pdr','banana flavouring 9011b pdr'],
+  'vanilla chai flavouring':    ['vanilla chai flavouring 8752a','vanilla chai flavouring 4537b'],
+  'chocolate flavouring':       ['chocolate flavouring'],
+  'cookies & cream flavouring': ['cookies and cream flavouring 8776b','cookies & cream flavouring'],
+  'hazelnut flavouring':        ['hazelnut flavoring','hazelnut flavouring'],
+  'salted caramel flavouring':  ['salted caramel flavoring','salted caramel flavouring'],
+  'vanilla birthday cake':      ['vanilla birthday cake 9325b'],
+  'vanilla birthday flavouring':['vanilla birthday cake 9325b'],
+  'cinnamon flavouring':        ['cinnamon flavouring 2971c','cinnamon flavouring'],
+  'alkalized cocoa powder':     ['alkalized cocoa powder'],
+  'non-dairy creamer':          ['non-dairy creamer','non-dairy creamer '],
+  'xanthan gum':                ['xanthan gum'],
+  'soy lecithin':               ['soy lecithin'],
+  'sucralose':                  ['sucralose'],
+  'antifoam':                   ['antifoam'],
+  'digesist':                   ['digesist'],
+  'carboxymethylcellulose (cmc)':['carboxymethylcellulose (cmc)','carboxymethylcellulose'],
+};
+
+// Category colours for stacked bar
+function getCat(nm){
+  const l=nm.toLowerCase();
+  if(l.includes('whey')||l.includes('isolate')||l.includes('concentrate'))return'protein';
+  if(l.includes('flavour')||l.includes('flavor')||l.includes('cocoa')||l.includes('vanilla')||
+     l.includes('chocolate')||l.includes('banana')||l.includes('chai')||l.includes('caramel')||
+     l.includes('cinnamon')||l.includes('hazelnut')||l.includes('birthday')||l.includes('cookie'))return'flavour';
+  if(l.includes('enzyme')||l.includes('digesist'))return'active';
+  return'excipient';
+}
+const CC={protein:'#185FA5',flavour:'#BA7517',active:'#0F6E56',excipient:'#888780'};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+// formulations[ingNameExact][sku] = decimal fraction (0.0–1.0)
+// ingCosts[ingNameExact]          = Ksh per kg  (from VERSION 8)
+let formulations = {};
+let ingCosts     = {};
+let procItems    = {main:[], bulk:{}};   // stock, supplier, deadline from MARCH ORDER
+let pkgCosts     = {};                   // packaging unit costs from MARCH ORDER
+let packaging    = [];
+let activeFilter = 'all';
+let debugLines   = [];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════════════
+function parseCSV(txt){
+  const rows=[];
+  for(const line of txt.split('\n')){
+    const cells=[];let inQ=false,cur='';
+    for(const c of line){if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){cells.push(cur.trim());cur='';}else{cur+=c;}}
+    cells.push(cur.trim());rows.push(cells);
+  }
+  return rows;
+}
+
+// Parse a numeric value — strips "Ksh", commas, spaces
+function num(v){
+  if(v===null||v===undefined||v==='') return 0;
+  return parseFloat(String(v).replace(/[^0-9.\-]/g,''))||0;
+}
+
+// Parse a formulation fraction — always returns 0.0–1.0
+// Handles: 0.2417 (decimal), 24.17 (pct as number), "24.17%" (pct string)
+function frac(v){
+  // Always returns a decimal fraction (0.0 to 1.0).
+  // The critical case: Google Sheets exports small percentages like "0.30%"
+  // (meaning 0.3%) as the string "0.30%". If we strip % and get 0.30,
+  // that is <= 1 so WITHOUT this fix it would be treated as already-decimal
+  // (returning 0.30 = 30% — 100x too large).
+  // FIX: if the raw string contains %, ALWAYS divide by 100, no exceptions.
+  if(v===null||v===undefined||v==='') return 0;
+  const raw = String(v).trim();
+  const hasPercent = raw.includes('%');
+  const x = parseFloat(raw.replace('%','').replace(/,/g,'').trim());
+  if(isNaN(x)||x===0) return 0;
+  if(hasPercent) return x/100;   // "0.30%" -> 0.003, "24.17%" -> 0.2417
+  return x>1 ? x/100 : x;       // 24.17 -> 0.2417, 0.2417 -> 0.2417
+}
+
+function setDot(d,l,st,msg){
+  document.getElementById(d).className='dot '+st;
+  document.getElementById(l).textContent=msg;
+}
+function csvUrl(id,gid){return`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;}
+function ksh(v){return Math.round(v).toLocaleString();}
+// Next 4-month ordering cycle begins May 1 2026
+const CYCLE_START = new Date('2026-05-01');
+
+// Parse lead time string like "60 days", "7  days", "90 days", "120 days"
+// Returns number of days, or 0 if unparseable
+function parseLead(leadStr){
+  if(!leadStr) return 0;
+  const m = String(leadStr).match(/(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+}
+
+// Auto-compute order deadline = cycle start − lead time in days
+// e.g. 60 day lead → order by March 2 to receive by May 1
+function autoDeadline(leadStr){
+  const days = parseLead(leadStr);
+  if(!days) return null;
+  const d = new Date(CYCLE_START);
+  d.setDate(d.getDate() - days);
+  return d;
+}
+
+function dlClass(d){if(!d)return'none';const diff=(d-new Date())/864e5;if(diff<0)return'past';if(diff<=30)return'soon';return'future';}
+function dlLbl(d){
+  if(!d)return'<span style="color:var(--text3);font-size:10px">—</span>';
+  const dc=dlClass(d);
+  const str=d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  const diff=Math.round((d-new Date())/864e5);
+  return`<span class="dl ${dc}">${str}${dc==='past'?' OD':dc==='soon'?` ${diff}d`:''}</span>`;
+}
+function dbg(msg){ debugLines.push(msg); console.log(msg); }
+function toggleDebug(){
+  const b=document.getElementById('debugBox');
+  b.style.display=b.style.display==='none'?'block':'none';
+  b.textContent=debugLines.join('\n');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARSE FORMULATION TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+function parseFormTab(txt, tabCfg){
+  const rows=parseCSV(txt);
+  if(rows.length<2) return;
+
+  // ── Step 1: find cost column and SKU columns from header row ──────────────
+  // We scan every column in row 1 and identify:
+  //   - The cost column: contains "unit" and "cost" (case-insensitive)
+  //   - SKU columns: exact match of SKU code, or single-word keyword match
+  const hdr=rows[0];
+  let costCol=-1;
+  const skuCols={};
+
+  hdr.forEach((cell,i)=>{
+    const cl=(cell||'').toString().trim().toLowerCase();
+    if(cl.includes('unit')&&cl.includes('cost')){ costCol=i; return; }
+    // Exact SKU code match (e.g. header cell = "CEVAN")
+    tabCfg.skus.forEach(sku=>{
+      if(skuCols[sku]!==undefined) return;
+      if(cl.toUpperCase()===sku.toUpperCase()) skuCols[sku]=i;
+    });
+  });
+
+  // Keyword fallback for SKUs not yet matched (e.g. header = "Vanilla" for CEVAN)
+  // Only exact single-word keyword — no partial matches
+  const KW_EXACT={
+    CEVAN:'vanilla',CECHOC:'chocolate',CEBAN:'banana',CECREAM:'cream',CESC:'caramel',
+    CEVBC:'birthday',CEVCHAI:'chai',PureForm:'pure',
+    ECOVAN:'vanilla',ECOCHOC:'chocolate',ECOBAN:'banana',
+    ISPVAN:'vanilla',ISPUN:'unflavoured',BIOVAN:'vanilla',BIOUN:'unflavoured',
+  };
+  // For keyword fallback: assign left-to-right so first vanilla column → CEVAN, second → ECOVAN etc.
+  const kwUsed={};
+  hdr.forEach((cell,i)=>{
+    const cl=(cell||'').toString().trim().toLowerCase();
+    tabCfg.skus.forEach(sku=>{
+      if(skuCols[sku]!==undefined) return;
+      const kw=KW_EXACT[sku]||'';
+      if(kw&&cl===kw&&!kwUsed[i]){ skuCols[sku]=i; kwUsed[i]=true; }
+    });
+  });
+
+  dbg(`[${tabCfg.skus[0]}] costCol=${costCol} skuCols=${JSON.stringify(skuCols)}`);
+
+  // ── Step 2: log first 3 data rows so we can verify column alignment ────────
+  for(let r=1;r<=Math.min(3,rows.length-1);r++){
+    const row=rows[r];
+    if(!(row[1]||'').trim()) continue;
+    const costVal = costCol>=0 ? row[costCol] : '?';
+    const skuSample = tabCfg.skus.slice(0,3).map(s=>s+'='+(skuCols[s]!==undefined?row[skuCols[s]]:'?')).join(', ');
+    dbg(`  row${r+1}: name="${row[1]}" cost_raw="${costVal}" fracs: ${skuSample}`);
+  }
+
+  // Stop row detection
+  const STOP_FUNC=['total','projected','cost','serving','retail','cog','scoop'];
+
+  // ── Step 3: two-pass fraction reading ───────────────────────────────────────
+  // Pass 1: collect raw numeric values per SKU column and per ingredient row.
+  // We need to know the MAX value per column BEFORE deciding how to scale,
+  // because Google Sheets may export "0.30" (no % sign) for small percentages
+  // while exporting "24.17" for large ones — all in the SAME column.
+  // Rule: if ANY value in a SKU column exceeds 1.0, ALL values in that column
+  // are percentage numbers (e.g. 24.17 = 24.17%) and must be divided by 100.
+  const rawData = [];    // rawData[rowIdx] = { ingName, funcVal, costRaw, skuRaw:{sku->raw} }
+  const colMax  = {};    // colMax[sku] = max raw numeric value seen in that column
+
+  for(let r=1;r<rows.length;r++){
+    const row     = rows[r];
+    const funcVal = (row[0]||'').toString().trim().toLowerCase();
+    const ingName = (row[1]||'').toString().trim();
+    if(!ingName) continue;
+    if(STOP_FUNC.some(s=>funcVal.startsWith(s)||ingName.toLowerCase().startsWith(s))) continue;
+
+    const costRaw = costCol>=0 ? (row[costCol]||'') : '';
+    const skuRaw  = {};
+    for(const[sku,col] of Object.entries(skuCols)){
+      const raw = (row[col]||'').toString().trim();
+      if(raw==='') continue;
+      const hasP = raw.includes('%');
+      const x    = parseFloat(raw.replace('%','').replace(/,/g,''));
+      if(isNaN(x)||x===0) continue;
+      // Store the raw numeric value (before deciding on /100)
+      skuRaw[sku] = {x, hasP};
+      // Track column max (ignoring values that explicitly have %)
+      if(!hasP){
+        if(!colMax[sku]||x>colMax[sku]) colMax[sku]=x;
+      }
+    }
+    rawData.push({ingName, funcVal, costRaw, skuRaw});
+  }
+
+  // Determine scale factor per SKU column:
+  // If colMax[sku] > 1.0 → values are percentage numbers → divide by 100
+  // If colMax[sku] <= 1.0 → values are already decimal fractions → keep as-is
+  const colScale = {};
+  for(const[sku,maxVal] of Object.entries(colMax)){
+    colScale[sku] = maxVal > 1.0 ? 100 : 1;
+  }
+  dbg('[colScale] ' + JSON.stringify(colScale));
+
+  // Pass 2: apply scale and store
+  for(const{ingName, costRaw, skuRaw} of rawData){
+    // Cost
+    const c = num(costRaw);
+    if(c>=100&&c<=50000&&!ingCosts[ingName]) ingCosts[ingName]=c;
+
+    // Fractions
+    for(const[sku,{x,hasP}] of Object.entries(skuRaw)){
+      // If % sign present → always /100 (Google Sheets exported as display value)
+      // Otherwise → divide by colScale (1 or 100 based on column max)
+      const f = hasP ? x/100 : x/colScale[sku];
+      if(f>0){
+        if(!formulations[ingName]) formulations[ingName]={};
+        formulations[ingName][sku]=(formulations[ingName][sku]||0)+f;
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARSE PROCUREMENT (stock, supplier, deadline, packaging costs only)
+// ═══════════════════════════════════════════════════════════════════════════════
+function parseProcurement(txt){
+  const rows=parseCSV(txt);
+  const main=[],bulk={},pkg=[];
+  const STOP=['total','shake bar'];
+  const pkgMap={
+    'large bag':'large_bag','medium bag':'medium_bag','small bag':'small_bag',
+    'large sticker':'large_sticker','medium sticker':'medium_sticker','small sticker':'small_sticker',
+    '30g scoop':'scoop_30g','5g scoop':'scoop_5g','50g scoop':'scoop_50g','silicon':'sachet',
+  };
+  const bulkLookup={};
+  for(const[sku,cfg]of Object.entries(BULK_CFG)) bulkLookup[cfg.ingKey.toLowerCase()]=sku;
+
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r];
+    const name=(row[1]||'').trim(), func_=(row[0]||'').trim();
+    if(!name) continue;
+    if(STOP.some(w=>name.toLowerCase().startsWith(w)||func_.toLowerCase().startsWith(w))) continue;
+
+    let deadline=null;
+    const dlR=(row[34]||'').trim();
+    if(dlR){const d=new Date(dlR);if(!isNaN(d.getTime()))deadline=d;}
+
+    // Cost for packaging items comes from procurement sheet
+    const cost=num(row[2]);
+    const stock=num(row[20]);
+    const meta={
+      name,func:func_,
+      cost,   // procurement sheet cost (used only for packaging items and bulk supps)
+      stock,
+      supplier:(row[30]||'').trim(),
+      region: (row[31]||'').trim(),
+      lead:   (row[33]||'').trim(),
+      deadline,
+    };
+
+    const nl=name.toLowerCase(), fl=func_.toLowerCase();
+    const isPkg=fl.includes('packaging')||fl.includes('scoop')||fl.includes('dessicant')||
+                fl.includes('label')||fl.includes('sticker')||
+                nl.includes('bag')||nl.includes('scoop')||nl.includes('sticker')||nl.includes('silicon');
+
+    if(isPkg){
+      let key=null;
+      for(const[kw,k]of Object.entries(pkgMap)){if(nl.includes(kw)){key=k;break;}}
+      if(key) pkgCosts[key]=meta;
+      pkg.push({...meta,pkgKey:key});
+    } else if(bulkLookup[nl]){
+      bulk[bulkLookup[nl]]={...meta};
+    } else {
+      main.push(meta);
+    }
+  }
+  return{main,bulk,pkg};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MATCHING — procurement ingredient name → formulation ingredient names
+// ═══════════════════════════════════════════════════════════════════════════════
+function getFormNames(procName){
+  const pl=procName.toLowerCase().trim();
+  // Check explicit map first (covers all ambiguous cases)
+  if(ING_MAP[pl]) return ING_MAP[pl];
+  // Fallback: exact string match
+  return [pl];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPUTE MONTHLY RQ
+// Formula: Σ_SKU( frac[SKU] × sales[SKU] × rqW[SKU] )
+// ═══════════════════════════════════════════════════════════════════════════════
+function computeRQ(procName){
+  const targets=getFormNames(procName);
+  let rq=0;
+  for(const target of targets){
+    // Find formulation entry matching this target name
+    for(const[formName,skuMap]of Object.entries(formulations)){
+      if(formName.toLowerCase().trim()!==target) continue;
+      for(const[sku,f]of Object.entries(skuMap)){
+        rq += f * (SALES[sku]||0) * (RQ_W[sku]||1);
+      }
+    }
+  }
+  return rq;
+}
+
+function bulkRQ(sku){ return (SALES[sku]||0)*BULK_CFG[sku].kgPerPack; }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COST PER SERVING
+// Formula (exact match to sheet): Σ(frac_i × cost_i_per_kg) × (33/1000)
+// ═══════════════════════════════════════════════════════════════════════════════
+function computeCostPerServing(sku){
+  let sum=0;
+  for(const[formName,skuMap]of Object.entries(formulations)){
+    const f=skuMap[sku];
+    if(!f||f<=0) continue;
+    const cost=ingCosts[formName]||0;
+    if(!cost) continue;
+    sum += f*cost;
+  }
+  return sum*(SERVING_G/1000);
+}
+
+// Ingredient-level breakdown for verification
+function costDetail(sku){
+  const lines=[];
+  for(const[formName,skuMap]of Object.entries(formulations)){
+    const f=skuMap[sku];
+    if(!f||f<=0) continue;
+    const cost=ingCosts[formName]||0;
+    lines.push({name:formName, fracPct:(f*100).toFixed(2), costPerKg:cost,
+      contribPerServing: cost>0 ? f*cost*(SERVING_G/1000) : 0,
+      hasCost: cost>0});
+  }
+  lines.sort((a,b)=>b.contribPerServing-a.contribPerServing);
+  return lines;
+}
+
+function getSt(stock,rq){const d=rq*2-stock;if(d>0&&stock===0)return'critical';if(d>0)return'low';return'ok';}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PACKAGING MONTHLY NEEDS
+// ═══════════════════════════════════════════════════════════════════════════════
+function pkgNeeds(){
+  const prot=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0);
+  const bulk=Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0);
+  return{
+    large_bag:prot, small_bag:bulk,
+    large_sticker:prot*2, small_sticker:bulk*2,
+    scoop_30g:prot, scoop_5g:bulk,
+    sachet:bulk*2,
+    medium_bag:0, medium_sticker:0, scoop_50g:0,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FETCH — single request to Apps Script backend
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// !! REPLACE THIS URL after deploying Code.gs as a Web App !!
+// Script Editor → Deploy → New deployment → Web App → Copy URL here
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9IpAfxfTSJDOi4vyWQr51e8yTO0ACYSpBApr9f5cXt3Bsqc-/exec';
+
+// Client-side cache: keeps payload in memory for current session
+// and in localStorage for up to 30 minutes across page reloads
+const CACHE_TTL = 30 * 60 * 1000;
+const CACHE_KEY_LS = 'pk_payload_v3';
+
+function lsCacheGet(){
+  try{
+    const raw = localStorage.getItem(CACHE_KEY_LS);
+    if(!raw) return null;
+    const {ts,data} = JSON.parse(raw);
+    if(Date.now()-ts > CACHE_TTL) return null;
+    return data;
+  }catch(e){ return null; }
+}
+function lsCacheSet(data){
+  try{ localStorage.setItem(CACHE_KEY_LS, JSON.stringify({ts:Date.now(),data})); }catch(e){}
+}
+function cacheClear(){
+  try{ localStorage.removeItem(CACHE_KEY_LS); }catch(e){}
+}
+
+// In-memory cache for within-session use
+let _memCache = null;
+
+function applyPayload(payload){
+  // Populate global state objects that all render functions read from
+  const{ingredients:ing, bulkSupps, packaging:pkg, formulations:form, ingCosts:costs} = payload;
+
+  // Ingredients
+  procItems.main = ing || [];
+  procItems.bulk = bulkSupps || {};
+  packaging.length = 0;
+  (pkg || []).forEach(p => {
+    packaging.push(p);
+    if(p.pkgKey) pkgCosts[p.pkgKey] = p;
+  });
+
+  // Convert deadline strings back to Date objects
+  procItems.main.forEach(item => {
+    if(item.deadline) item.deadline = new Date(item.deadline);
+  });
+  Object.values(procItems.bulk).forEach(item => {
+    if(item.deadline) item.deadline = new Date(item.deadline);
+  });
+  packaging.forEach(item => {
+    if(item.deadline) item.deadline = new Date(item.deadline);
+  });
+
+  // Formulations and costs
+  formulations = form || {};
+  ingCosts     = costs || {};
+
+  dbg('Ingredients loaded: '+procItems.main.length);
+  dbg('Bulk supps: '+Object.keys(procItems.bulk).length);
+  dbg('Packaging rows: '+packaging.length);
+  dbg('Formulation entries: '+Object.keys(formulations).length);
+  dbg('Ingredient costs: '+Object.keys(ingCosts).length);
+  dbg('Generated at: '+(payload.meta?.generatedAt||'unknown'));
+
+  // Log sample fracs for CEVAN to verify correctness
+  dbg('\n── Sample fracs (CEVAN) ──');
+  Object.entries(formulations)
+    .filter(([,sm])=>sm['CEVAN']>0)
+    .forEach(([k,sm])=>dbg(` ${k}: ${(sm['CEVAN']*100).toFixed(2)}%`));
+}
+
+async function loadAll(forceRefresh=false){
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+
+  // Check if URL has been configured
+  if(SCRIPT_URL === 'PASTE_YOUR_WEB_APP_URL_HERE'){
+    document.getElementById('errBox').style.display = 'block';
+    document.getElementById('errBox').innerHTML =
+      '<b>Setup needed:</b> Deploy <code>Code.gs</code> as a Google Apps Script Web App, '+
+      'then paste the URL into the <code>SCRIPT_URL</code> constant in this dashboard. '+
+      '<a href="https://developers.google.com/apps-script/guides/web" target="_blank">Setup guide ↗</a>';
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('tableWrap').style.display = 'block';
+    btn.disabled = false;
+    return;
+  }
+
+  // Use memory cache within same session (instant)
+  if(!forceRefresh && _memCache){
+    applyPayload(_memCache);
+    renderProcurement(); renderCosts();
+    document.getElementById('loadingOverlay').style.display='none';
+    document.getElementById('tableWrap').style.display='block';
+    document.getElementById('lastRefresh').textContent=new Date().toLocaleTimeString()+' (memory)';
+    btn.disabled=false;
+    return;
+  }
+
+  // Use localStorage cache if fresh (fast, < 1s)
+  if(!forceRefresh){
+    const cached = lsCacheGet();
+    if(cached){
+      _memCache = cached;
+      applyPayload(cached);
+      document.getElementById('loadingOverlay').style.display='none';
+      document.getElementById('tableWrap').style.display='block';
+      renderProcurement(); renderCosts();
+      document.getElementById('lastRefresh').textContent=new Date().toLocaleTimeString()+' (cached)';
+      const cacheEl=document.getElementById('cacheStatus');
+      if(cacheEl) cacheEl.textContent='Serving cached data · click ↻ for live';
+      btn.disabled=false;
+      return;
+    }
+  }
+
+  // Live fetch — use google.script.run if available (served by Apps Script),
+  // otherwise fall back to fetch() for external hosting
+  document.getElementById('loadingOverlay').style.display='flex';
+  document.getElementById('tableWrap').style.display='none';
+  document.getElementById('errBox').style.display='none';
+  formulations={}; ingCosts={}; pkgCosts={};
+
+  setDot('dot-proc','lbl-proc','loading','Fetching data…');
+  ['dot-ce','dot-eco','dot-iso','dot-bio'].forEach((d,i)=>{
+    const lbls=['lbl-ce','lbl-eco','lbl-iso','lbl-bio'];
+    setDot(d,lbls[i],'loading','…');
+  });
+
+  const t0 = Date.now();
+
+  function onSuccess(payload){
+    if(!payload){ onError({message:'Empty response from server'}); return; }
+    if(typeof payload==='string'){
+      try{ payload=JSON.parse(payload); }catch(e){ onError({message:'Invalid JSON: '+e.message}); return; }
+    }
+    if(payload.error){ onError({message:payload.error}); return; }
+
+    const elapsed = ((Date.now()-t0)/1000).toFixed(1);
+    _memCache = payload;
+    lsCacheSet(payload);
+    applyPayload(payload);
+
+    setDot('dot-proc','lbl-proc','ok','MARCH 2026 ORDER ✓');
+    Object.entries(FORM_TABS).forEach(([tabName,cfg])=>{
+      const count=Object.values(formulations).filter(sm=>cfg.skus.some(s=>sm[s]>0)).length;
+      setDot(cfg.dot,cfg.lbl,'ok',tabName+' · '+count+' ingredients');
+    });
+
+    document.getElementById('loadingOverlay').style.display='none';
+    document.getElementById('tableWrap').style.display='block';
+    renderProcurement(); renderCosts();
+
+    document.getElementById('lastRefresh').textContent =
+      new Date().toLocaleTimeString()+' ('+elapsed+'s · live)';
+    const cacheEl=document.getElementById('cacheStatus');
+    if(cacheEl) cacheEl.textContent='Live · cached for 30 min · click ↻ to refresh';
+    btn.disabled=false;
+  }
+
+  function onError(err){
+    const msg = err && err.message ? err.message : String(err);
+    setDot('dot-proc','lbl-proc','error','Error: '+msg);
+    document.getElementById('errBox').style.display='block';
+    document.getElementById('errBox').innerHTML=
+      '<b>Could not load data:</b> '+msg+'<br>'+
+      '<a href="https://developers.google.com/apps-script/guides/web" target="_blank">Troubleshoot ↗</a>';
+    document.getElementById('loadingOverlay').style.display='none';
+    document.getElementById('tableWrap').style.display='block';
+    btn.disabled=false;
+  }
+
+  // Fetch data from Apps Script ?data=1 endpoint
+  // ContentService responses allow cross-origin fetches from the same script domain
+  try{
+    const url = SCRIPT_URL + (forceRefresh ? '?data=1&refresh=1' : '?data=1');
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const payload = await res.json();
+    onSuccess(payload);
+  }catch(e){ onError(e); }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDER PROCUREMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function setFilter(f,btn){activeFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderProcurement();}
+
+function passes(item,rq){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const st=getSt(item.stock,rq),dc=dlClass(item.deadline);
+  if(activeFilter==='critical'&&st!=='critical')return false;
+  if(activeFilter==='low'&&st!=='low')return false;
+  if(activeFilter==='ok'&&st!=='ok')return false;
+  if(activeFilter==='overdue'&&dc!=='past')return false;
+  if(q&&!item.name.toLowerCase().includes(q)&&!(item.func||'').toLowerCase().includes(q)&&!(item.supplier||'').toLowerCase().includes(q))return false;
+  return true;
+}
+
+function makeRow(item,rq,units,onchange,cost){
+  const st=getSt(item.stock,rq);
+  const cov=rq>0?item.stock/rq:99;
+  const bp=Math.min(cov/3,1)*100;
+  const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
+  const cl=cov>=99?'∞':cov.toFixed(1)+'mo';
+  const fourMo=Math.max(0,rq*4-item.stock);
+  const ov=Math.round(fourMo*(cost||item.cost));
+  const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
+  const displayCost=cost||item.cost;
+  return`<tr style="${bg}">
+    <td><div class="iname" title="${item.name}">${item.name}</div><div class="imeta">${item.func}</div></td>
+    <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cl}</span></div></td>
+    <td><span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span></td>
+    <td><input class="editable" type="number" step="0.1" value="${item.stock}" onchange="${onchange}"></td>
+    <td class="mono">${displayCost>0?displayCost.toLocaleString():'—'}</td>
+    <td class="mono">${rq>0?rq.toFixed(2)+' '+units:'—'}</td>
+    <td class="mono">${rq>0?(rq*2).toFixed(2)+' '+units:'—'}</td>
+    <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}</td>
+    <td class="mono strong">${ov>0?ov.toLocaleString():'—'}</td>
+    <td>${dlLbl(autoDeadline(item.lead))}</td>
+    <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
+    <td style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.supplier}">${item.supplier||'—'}</td>
+  </tr>`;
+}
+
+function renderProcurement(){
+  const needs=pkgNeeds();
+  let crit=0,low=0,overdue=0,totOrd=0,html='';
+
+  // Section 1: Raw materials
+  const mainRows=procItems.main.filter(item=>{
+    const rq=computeRQ(item.name);
+    return passes(item,rq);
+  });
+  if(mainRows.length){
+    html+=`<tr class="sec-divider"><td colspan="12">Formulated protein raw materials — RQ from Protein Product Development VERSION 8</td></tr>`;
+    html+=mainRows.map(item=>{
+      const gi=procItems.main.indexOf(item);
+      const rq=computeRQ(item.name);
+      // Use cost from VERSION 8 if available, otherwise fall back to procurement sheet
+      const targets=getFormNames(item.name);
+      let v8cost=0;
+      for(const t of targets){ if(ingCosts[t]>0){v8cost=ingCosts[t];break;} }
+      // Also check formulations keys
+      if(!v8cost){
+        for(const[fn]of Object.entries(formulations)){
+          if(targets.includes(fn.toLowerCase())&&ingCosts[fn]){v8cost=ingCosts[fn];break;}
+        }
+      }
+      const useCost=v8cost||item.cost;
+      const st=getSt(item.stock,rq);
+      if(st==='critical')crit++;if(st==='low')low++;
+      if(dlClass(item.deadline)==='past')overdue++;
+      totOrd+=Math.max(0,rq*4-item.stock)*useCost;
+      return makeRow(item,rq,'kg',`procItems.main[${gi}].stock=parseFloat(this.value)||0;renderProcurement()`,useCost);
+    }).join('');
+  }
+
+  // Section 2: Bulk supplements
+  const bulkEntries=Object.entries(BULK_CFG).filter(([sku])=>{
+    const item=procItems.bulk[sku];
+    return item&&passes(item,bulkRQ(sku));
+  });
+  if(bulkEntries.length){
+    html+=`<tr class="sec-divider"><td colspan="12">Bulk supplements — repackaged 200g retail packs</td></tr>`;
+    html+=bulkEntries.map(([sku,cfg])=>{
+      const item=procItems.bulk[sku];
+      const rq=bulkRQ(sku);
+      const st=getSt(item.stock,rq);
+      if(st==='critical')crit++;if(st==='low')low++;
+      if(dlClass(item.deadline)==='past')overdue++;
+      totOrd+=Math.max(0,rq*4-item.stock)*item.cost;
+      const fourMo=Math.max(0,rq*4-item.stock);
+      const cov=rq>0?item.stock/rq:99;
+      const bp=Math.min(cov/3,1)*100;
+      const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
+      const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
+      const wf=cfg.sachets?`<div class="waste-flag">⚠ ${cfg.usable}/${cfg.sachets} sachets usable</div>`:'';
+      return`<tr style="${bg}">
+        <td><div class="iname">${item.name}</div><div class="imeta">${cfg.label} · ${cfg.usable} packs/drum</div>${wf}</td>
+        <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cov>=99?'∞':cov.toFixed(1)+'mo'}</span></div></td>
+        <td><span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span></td>
+        <td><input class="editable" type="number" step="0.1" value="${item.stock}" onchange="procItems.bulk['${sku}'].stock=parseFloat(this.value)||0;renderProcurement()"></td>
+        <td class="mono">${item.cost>0?item.cost.toLocaleString():'—'}</td>
+        <td class="mono">${rq>0?rq.toFixed(2)+' kg':'—'}</td>
+        <td class="mono">${rq>0?(rq*2).toFixed(2)+' kg':'—'}</td>
+        <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' kg':'—'}</td>
+        <td class="mono strong">${fourMo>0?ksh(fourMo*item.cost):'—'}</td>
+        <td>${dlLbl(autoDeadline(item.lead))}</td>
+        <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
+        <td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis">${item.supplier||'—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Section 3: Packaging
+  const pkgRows=packaging.filter(item=>passes(item,item.pkgKey?(needs[item.pkgKey]||0):0));
+  if(pkgRows.length){
+    html+=`<tr class="sec-divider"><td colspan="12">Packaging materials</td></tr>`;
+    html+=pkgRows.map(item=>{
+      const gi=packaging.indexOf(item);
+      const rq=item.pkgKey?(needs[item.pkgKey]||0):0;
+      const st=getSt(item.stock,rq);
+      if(st==='critical')crit++;if(st==='low')low++;
+      if(dlClass(item.deadline)==='past')overdue++;
+      totOrd+=Math.max(0,rq*4-item.stock)*item.cost;
+      return makeRow(item,rq,'pcs',`packaging[${gi}].stock=parseFloat(this.value)||0;renderProcurement()`);
+    }).join('');
+  }
+
+  if(!html) html=`<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text3)">No items match.</td></tr>`;
+  document.getElementById('tbody').innerHTML=html;
+
+  const pPacks=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0);
+  const bPacks=Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0);
+  document.getElementById('rcount').textContent=`${mainRows.length} raw material rows · ${bulkEntries.length} bulk supplement rows · ${pkgRows.length} packaging rows · ${pPacks} protein packs/mo · ${bPacks} bulk packs/mo`;
+  document.getElementById('metrics').innerHTML=`
+    <div class="metric"><div class="mlabel">Critical (zero stock)</div><div class="mval danger">${crit}</div></div>
+    <div class="metric"><div class="mlabel">Low stock items</div><div class="mval warn">${low}</div></div>
+    <div class="metric"><div class="mlabel">4-mo order total (Ksh)</div><div class="mval">${ksh(totOrd)}</div></div>
+    <div class="metric"><div class="mlabel">Overdue deadlines</div><div class="mval ${overdue>0?'danger':''}">${overdue}</div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDER SKU COSTS
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderCosts(){
+  const bagL   =(pkgCosts['large_bag']     ||{cost:65}).cost;
+  const bagS   =(pkgCosts['small_bag']     ||{cost:55}).cost;
+  const sc30   =(pkgCosts['scoop_30g']     ||{cost:12}).cost;
+  const sc5    =(pkgCosts['scoop_5g']      ||{cost:9}).cost;
+  const stkL   =(pkgCosts['large_sticker'] ||{cost:40.76}).cost;
+  const stkS   =(pkgCosts['small_sticker'] ||{cost:15.12}).cost;
+  const sachet =(pkgCosts['sachet']        ||{cost:1.5}).cost;
+  const pkgLarge=bagL+sc30+stkL*2;
+  const pkgSmall=bagS+sc5+stkS*2+sachet*2;
+
+  const protRows=[];
+  for(const sku of PROT_SKUS){
+    const tabCfg=SKU_TAB[sku];
+    const cpServ=computeCostPerServing(sku);
+    if(cpServ<=0) continue;
+    const servings=tabCfg.packG/SERVING_G;
+    const ingPack=cpServ*servings;
+    const total=ingPack+pkgLarge;
+    const detail=costDetail(sku);
+    // Category breakdown
+    const byCat={protein:0,flavour:0,active:0,excipient:0};
+    detail.forEach(d=>{ if(d.hasCost) byCat[getCat(d.name)]+=d.contribPerServing; });
+    protRows.push({sku,label:PROT_INFO[sku],packG:tabCfg.packG,servings,
+      cpServ,ingPack,pkgPack:pkgLarge,total,
+      perServ:total/servings,byCat,detail});
+  }
+  protRows.sort((a,b)=>b.total-a.total);
+
+  const bulkRows=[];
+  for(const[sku,cfg]of Object.entries(BULK_CFG)){
+    const item=procItems.bulk[sku];
+    const costPerKg=item?item.cost:0;
+    if(!costPerKg) continue;
+    const ingPack=costPerKg*cfg.kgPerPack;
+    const total=ingPack+pkgSmall;
+    const drumCost=costPerKg*cfg.drumKg;
+    const yieldPct=(cfg.usable/(cfg.sachets||cfg.usable)*100).toFixed(0);
+    bulkRows.push({sku,cfg,costPerKg,drumCost,ingPack,pkgPack:pkgSmall,
+      total,yieldPct,wastedPacks:cfg.sachets?(cfg.sachets-cfg.usable):0,
+      nominalPerPack:drumCost/(cfg.sachets||cfg.usable)});
+  }
+  bulkRows.sort((a,b)=>b.total-a.total);
+
+  if(!protRows.length&&!bulkRows.length){
+    document.getElementById('costNote').textContent='Cost data not yet loaded — click ↻ Refresh. Click "debug" in the header to see parsing details.';
+    return;
+  }
+
+  const allTotals=[...protRows.map(r=>r.total),...bulkRows.map(r=>r.total)];
+  const avg=allTotals.reduce((s,v)=>s+v,0)/allTotals.length;
+
+  const missingCosts=Object.entries(formulations)
+    .filter(([fn,sm])=>Object.keys(sm).some(s=>PROT_SKUS.includes(s))&&!ingCosts[fn])
+    .map(([fn])=>fn);
+
+  document.getElementById('costNote').innerHTML=
+    `Formula: <code style="font-family:monospace;background:#fff;padding:1px 5px;border-radius:3px;font-size:10px">Cost/serving = Σ(frac × Ksh/kg) × (33÷1000)   Cost/pack = Cost/serving × (packG÷33) + packaging</code>`+
+    (missingCosts.length?`<br><span style="color:var(--crit-txt)">⚠ No cost found for: ${missingCosts.join(', ')} — click debug to investigate</span>`:'');
+
+  document.getElementById('costSummary').innerHTML=`
+    <div class="metric"><div class="mlabel">Highest cost / pack</div><div class="mval" style="font-size:15px">Ksh ${ksh(Math.max(...allTotals))}</div></div>
+    <div class="metric"><div class="mlabel">Lowest cost / pack</div><div class="mval" style="font-size:15px">Ksh ${ksh(Math.min(...allTotals))}</div></div>
+    <div class="metric"><div class="mlabel">Average cost / pack</div><div class="mval" style="font-size:15px">Ksh ${ksh(avg)}</div></div>
+    <div class="metric"><div class="mlabel">SKUs costed</div><div class="mval">${allTotals.length}</div></div>`;
+
+  document.getElementById('costProtTbody').innerHTML=protRows.map(r=>{
+    const it=r.cpServ||1;
+    const iS=r.ingPack/r.total;
+    const bP=(r.byCat.protein/it*100*iS).toFixed(0);
+    const bF=(r.byCat.flavour/it*100*iS).toFixed(0);
+    const bA=(r.byCat.active/it*100*iS).toFixed(0);
+    const bE=(r.byCat.excipient/it*100*iS).toFixed(0);
+    const pK=(r.pkgPack/r.total*100).toFixed(0);
+    const detailRows=r.detail.map(d=>
+      `<tr><td style="padding:2px 6px;font-size:10px">${d.name}</td>`+
+      `<td style="padding:2px 6px;font-size:10px;text-align:right;font-family:monospace">${d.fracPct}%</td>`+
+      `<td style="padding:2px 6px;font-size:10px;text-align:right;font-family:monospace">${d.costPerKg>0?d.costPerKg.toLocaleString():'—'}</td>`+
+      `<td style="padding:2px 6px;font-size:10px;text-align:right;font-family:monospace;font-weight:600;color:${d.hasCost?'':'var(--crit-txt)'}">${d.hasCost?d.contribPerServing.toFixed(3):'no cost'}</td></tr>`
+    ).join('');
+    return`<tr>
+      <td>
+        <div style="font-weight:600;font-size:12px">${r.label}</div>
+        <details style="margin-top:3px">
+          <summary style="font-size:10px;color:var(--text3);cursor:pointer">show ingredient detail</summary>
+          <table style="margin-top:4px;border:1px solid #e2e0d8;border-radius:4px;width:100%">
+            <thead><tr style="background:#f0efe9">
+              <th style="padding:2px 6px;font-size:9px;text-align:left">Ingredient</th>
+              <th style="padding:2px 6px;font-size:9px;text-align:right">%</th>
+              <th style="padding:2px 6px;font-size:9px;text-align:right">Ksh/kg</th>
+              <th style="padding:2px 6px;font-size:9px;text-align:right">Ksh/serving</th>
+            </tr></thead>
+            <tbody>${detailRows}</tbody>
+            <tfoot><tr style="background:#f0efe9">
+              <td colspan="3" style="padding:2px 6px;font-size:9px;font-weight:600">Total (→ verify vs sheet row 30)</td>
+              <td style="padding:2px 6px;font-size:10px;font-weight:700;text-align:right;font-family:monospace">${r.cpServ.toFixed(2)}</td>
+            </tr></tfoot>
+          </table>
+        </details>
+      </td>
+      <td style="text-align:right"><span class="cost-sm">${r.packG}g</span></td>
+      <td style="text-align:right"><span class="cost-sm">${r.servings.toFixed(2)}</span></td>
+      <td style="text-align:right"><span class="cost-big" style="font-size:12px">Ksh ${r.cpServ.toFixed(2)}</span></td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${ksh(r.ingPack)}</span></td>
+      <td style="text-align:right"><span class="cost-sm" style="color:var(--c-pkg)">Ksh ${ksh(r.pkgPack)}</span></td>
+      <td style="text-align:right"><span class="cost-big">Ksh ${ksh(r.total)}</span></td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${r.perServ.toFixed(0)}</span></td>
+      <td style="min-width:160px">
+        <div class="stackbar" style="margin-bottom:3px">
+          <div class="stackbar-seg" style="width:${bP}%;background:var(--c-protein)"></div>
+          <div class="stackbar-seg" style="width:${bF}%;background:var(--c-flavour)"></div>
+          <div class="stackbar-seg" style="width:${bA}%;background:var(--c-active)"></div>
+          <div class="stackbar-seg" style="width:${bE}%;background:var(--c-excipient)"></div>
+          <div class="stackbar-seg" style="width:${pK}%;background:var(--c-pkg)"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('costProtFoot').innerHTML=
+    `<span>Costs from Protein Product Development VERSION 8 · Packaging: 1 large bag Ksh${bagL} + 1×30g scoop Ksh${sc30} + 2×large sticker Ksh${(stkL*2).toFixed(2)} = Ksh${pkgLarge.toFixed(2)}/pack</span>`;
+
+  document.getElementById('costBulkTbody').innerHTML=bulkRows.map(({sku,cfg,costPerKg,drumCost,ingPack,pkgPack,total,yieldPct,wastedPacks,nominalPerPack})=>{
+    const yc=parseInt(yieldPct)<50?'var(--crit-txt)':parseInt(yieldPct)<80?'var(--low-txt)':'var(--ok-txt)';
+    const wf=wastedPacks>0?`<div style="font-size:9px;color:var(--crit-txt);margin-top:2px">⚠ ${wastedPacks} sachets wasted/drum</div>`:'';
+    return`<tr>
+      <td><div style="font-weight:600;font-size:12px">${cfg.label}</div><div style="font-size:9px;color:var(--text3)">${sku}</div>${wf}</td>
+      <td style="font-size:10px;color:var(--text2);line-height:1.7">${cfg.drumKg}kg${cfg.sachets?` · ${cfg.sachets}×200g sachets`:''}<br>${cfg.usable} usable packs · ${cfg.kgPerPack.toFixed(4)}kg/pack</td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${ksh(ingPack)}</span><div style="font-size:9px;color:var(--text3)">Ksh${costPerKg.toLocaleString()}/kg × ${cfg.kgPerPack.toFixed(4)}kg</div></td>
+      <td style="text-align:right"><span class="cost-sm" style="color:var(--c-pkg)">Ksh ${ksh(pkgPack)}</span></td>
+      <td style="text-align:right"><span class="cost-big">Ksh ${ksh(total)}</span></td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${ksh(drumCost)}</span></td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${ksh(ingPack)}</span>${wastedPacks>0?`<div style="font-size:9px;color:var(--text3)">vs Ksh${ksh(nominalPerPack)} w/o waste</div>`:''}</td>
+      <td style="text-align:right"><span style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:${yc}">${yieldPct}%</span><div style="font-size:9px;color:var(--text3)">${cfg.usable}/${cfg.sachets||cfg.usable}</div></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('costBulkFoot').innerHTML=
+    `<span>Bulk material cost × effective kg/pack (waste-adjusted for preworkouts) · Packaging: small bag Ksh${bagS} + 5g scoop Ksh${sc5} + 2×small sticker Ksh${(stkS*2).toFixed(2)} + 2×silicon sachet Ksh${(sachet*2).toFixed(2)} = Ksh${pkgSmall.toFixed(2)}/pack</span>`;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LANDED COST CALCULATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderLandedCost(){
+  const eurKes  = kesPerUsd * 1.08; // approximate EUR/KES (EUR/USD ~1.08 × KES/USD)
+  // Read inputs
+  const airUsd   = parseFloat(document.getElementById('lc-airfreight')?.value)||3000;
+  const clearKsh = parseFloat(document.getElementById('lc-clearance')?.value)||400000;
+  const truckKsh = parseFloat(document.getElementById('lc-truck')?.value)||40000;
+  const logPct   = parseFloat(document.getElementById('lc-logpct')?.value)||46;
+
+  const products = [
+    { id:'35',  name:'WPC 35',  sheetKsh:919  },
+    { id:'80',  name:'WPC 80',  sheetKsh:3284 },
+    { id:'wpi', name:'WPI 90%', sheetKsh:4422 },
+  ];
+
+  // Read exworks EUR/MT and volumes
+  const items = products.map(p=>({
+    ...p,
+    ewEur : parseFloat(document.getElementById('lc-ew-'+p.id)?.value)||0,
+    volKg : parseFloat(document.getElementById('lc-vol-'+p.id)?.value)||0,
+  }));
+
+  const totalKg = items.reduce((s,i)=>s+i.volKg, 0);
+  const airKsh  = airUsd * kesPerUsd;
+  const totalLogisticsKsh = airKsh + clearKsh + truckKsh;
+
+  // Per-product calculations
+  const results = items.map(item=>{
+    const ewKsh     = (item.ewEur / 1000) * item.volKg * eurKes;  // ExWorks in Ksh for this lot
+    const ewPerKg   = item.ewEur / 1000 * eurKes;                  // Ksh/kg ExWorks
+    // Allocate logistics proportionally by weight
+    const logShare  = totalKg > 0 ? item.volKg / totalKg : 0;
+    const logKsh    = totalLogisticsKsh * logShare;                 // Ksh logistics for this lot
+    const logPerKg  = item.volKg > 0 ? logKsh / item.volKg : 0;   // Ksh/kg logistics
+    const landedKsh = ewKsh + logKsh;                               // Total landed for lot
+    const landedPerKg = item.volKg > 0 ? landedKsh / item.volKg : 0;
+    const logPctActual = ewKsh > 0 ? logKsh / ewKsh * 100 : 0;
+    // Comparison vs sheet
+    const variance    = landedPerKg - item.sheetKsh;
+    const variancePct = item.sheetKsh > 0 ? variance / item.sheetKsh * 100 : 0;
+    // Estimated landed using 46% rule
+    const blendedLanded = item.ewPerKg * (1 + logPct/100);
+    return{...item, ewKsh, ewPerKg, logKsh, logPerKg, landedKsh, landedPerKg,
+           logPctActual, variance, variancePct, blendedLanded};
+  });
+
+  const totalEwKsh  = results.reduce((s,r)=>s+r.ewKsh,0);
+  const totalLanded = results.reduce((s,r)=>s+r.landedKsh,0);
+  const blendedLogPct = totalEwKsh > 0 ? totalLogisticsKsh/totalEwKsh*100 : 0;
+
+  // Render cards
+  document.getElementById('lcResults').innerHTML = results.map(r=>{
+    const vcls = Math.abs(r.variancePct)<5 ? 'match' : r.variance>0 ? 'over' : 'under';
+    const vlbl = Math.abs(r.variancePct)<5 ? '≈ matches sheet'
+               : r.variance>0 ? `+${r.variancePct.toFixed(1)}% above sheet`
+               : `${r.variancePct.toFixed(1)}% below sheet`;
+    return`<div class="lc-card">
+      <div class="lc-product">${r.name}</div>
+      <div class="lc-row"><span class="lc-label">ExWorks (EUR/MT)</span><span class="lc-val">EUR ${r.ewEur.toLocaleString()}</span></div>
+      <div class="lc-row"><span class="lc-label">Volume</span><span class="lc-val">${r.volKg} kg</span></div>
+      <div class="lc-row"><span class="lc-label">ExWorks / kg</span><span class="lc-val">Ksh ${Math.round(r.ewPerKg).toLocaleString()}</span></div>
+      <div class="lc-row"><span class="lc-label">Logistics allocated</span><span class="lc-val">Ksh ${Math.round(r.logKsh).toLocaleString()}</span></div>
+      <div class="lc-row"><span class="lc-label">  — incl. truck to Kilifi</span><span class="lc-val" style="color:var(--text3)">Ksh ${Math.round(truckKsh * (r.volKg/totalKg)).toLocaleString()}</span></div>
+      <div class="lc-row"><span class="lc-label">Logistics / kg</span><span class="lc-val">Ksh ${Math.round(r.logPerKg).toLocaleString()}</span></div>
+      <div class="lc-row"><span class="lc-label">Logistics as % of EW</span><span class="lc-val ${r.logPctActual>60?'':''}">
+        ${r.logPctActual.toFixed(1)}%
+        ${r.logPctActual>80?'<span style="font-size:9px;color:var(--crit-txt)"> ⚠ inefficient via air</span>':''}
+      </span></div>
+      <div class="lc-row"><span class="lc-label">Blended (${r.logPct||logPct}% rule)</span><span class="lc-val" style="color:var(--text3)">Ksh ${Math.round(r.blendedLanded).toLocaleString()}</span></div>
+      <div class="lc-row" style="font-weight:700;border-top:1.5px solid var(--border2);margin-top:4px">
+        <span class="lc-label" style="color:var(--text);font-weight:700">Actual landed / kg</span>
+        <span class="lc-val highlight">Ksh ${Math.round(r.landedPerKg).toLocaleString()}</span>
+      </div>
+      <div class="lc-row">
+        <span class="lc-label">Sheet price / kg</span>
+        <span class="lc-val" style="color:var(--text3)">Ksh ${r.sheetKsh.toLocaleString()}</span>
+      </div>
+      <div class="lc-row" style="border-bottom:none;padding-top:8px">
+        <span class="lc-label">Accuracy</span>
+        <span class="variance-pill ${vcls}">${vlbl}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Summary
+  document.getElementById('lcSummary').innerHTML = `
+    <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:10px">Consignment summary</div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">
+      <div><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Total weight</div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:600">${totalKg} kg</div></div>
+      <div><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Total ExWorks (Ksh)</div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:600">${Math.round(totalEwKsh).toLocaleString()}</div></div>
+      <div><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Total logistics (Ksh)</div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:600">${Math.round(totalLogisticsKsh).toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Air: Ksh ${Math.round(airKsh).toLocaleString()} + Clearance: Ksh ${clearKsh.toLocaleString()} + Truck (NBO→Kilifi): Ksh ${truckKsh.toLocaleString()}</div></div>
+      <div><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Total landed (Ksh)</div>
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--c-protein)">${Math.round(totalLanded).toLocaleString()}</div></div>
+    </div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text2);line-height:1.8">
+      <b>Blended logistics rate:</b> ${blendedLogPct.toFixed(1)}% of ExWorks across this consignment (vs your assumed ${logPct}%).<br>
+      <b>Note on WPC 35:</b> At EUR ${results[0].ewEur.toLocaleString()}/MT, WPC 35 has a low unit value relative to WPC 80 and WPI.
+      Its logistics cost per kg (Ksh ${Math.round(results[0].logPerKg).toLocaleString()}) is
+      ${results[0].logPctActual>80?'<span style="color:var(--crit-txt);font-weight:600">very high relative to its product value — consider consolidating WPC 35 into sea freight shipments where possible</span>'
+      :'reasonable for this consignment mix'}.
+      <br><b>Sea freight advantage:</b> On larger volumes, sea freight (~$0.50–0.80/kg vs ~$3–5/kg air) would dramatically reduce the logistics burden for all three products, especially WPC 35.
+      <br><b>Last-mile (Nairobi → Kilifi):</b> Ksh ${truckKsh.toLocaleString()} allocated across ${totalKg}kg = Ksh ${totalKg>0?Math.round(truckKsh/totalKg):0}/kg on every unit.
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LOGISTICS TRACKER TABLE
+// ═══════════════════════════════════════════════════════════════════════════════
+const LOGISTICS_ROUTES = [
+  {
+    region:'Europe (Poland)',
+    supplier:'Lactelle',
+    airDays:'3–5 days',   airUsdKg:3.50,
+    seaDays:'25–35 days', seaUsdKg:0.65,
+    minKg:50,
+    dutyPct:0,            // WPC/WPI duty rate into Kenya (EAC)
+    clearanceKsh:400000,
+    notes:'Primary supplier. Air for urgent orders; sea for cycle orders. Port: Mombasa via Suez.',
+  },
+  {
+    region:'Europe (Germany / Netherlands)',
+    supplier:'Spot / CLAL brokers',
+    airDays:'3–5 days',   airUsdKg:3.80,
+    seaDays:'28–38 days', seaUsdKg:0.70,
+    minKg:500,
+    dutyPct:0,
+    clearanceKsh:420000,
+    notes:'Alternative EU source. Larger MOQ. Check CLAL.it for spot availability.',
+  },
+  {
+    region:'USA',
+    supplier:'USDEC network',
+    airDays:'4–6 days',   airUsdKg:4.20,
+    seaDays:'30–40 days', seaUsdKg:0.80,
+    minKg:500,
+    dutyPct:0,
+    clearanceKsh:440000,
+    notes:'Competitive when EUR strong. USDEC (usdec.org) lists certified exporters.',
+  },
+  {
+    region:'New Zealand',
+    supplier:'Fonterra / brokers',
+    airDays:'6–8 days',   airUsdKg:5.00,
+    seaDays:'28–35 days', seaUsdKg:0.72,
+    minKg:1000,
+    dutyPct:0,
+    clearanceKsh:450000,
+    notes:'Best pricing Sept–Nov (NZ spring flush). High MOQ. Via Mombasa.',
+  },
+  {
+    region:'India',
+    supplier:'Nutra Healthcare',
+    airDays:'2–3 days',   airUsdKg:2.80,
+    seaDays:'12–18 days', seaUsdKg:0.45,
+    minKg:200,
+    dutyPct:10,
+    clearanceKsh:380000,
+    notes:'Closest alternative. Quality varies — request COA and 3rd-party test. Good for WPC 35.',
+  },
+  {
+    region:'China',
+    supplier:'Various',
+    airDays:'3–5 days',   airUsdKg:3.20,
+    seaDays:'18–25 days', seaUsdKg:0.55,
+    minKg:1000,
+    dutyPct:10,
+    clearanceKsh:400000,
+    notes:'Large volume availability. Verify protein content independently. Pricing very competitive.',
+  },
+  {
+    region:'🚛 Nairobi → Kilifi',
+    supplier:'Local truck (last mile)',
+    airDays:'Same day',   airUsdKg:null,
+    seaDays:'Same day',   seaUsdKg:null,
+    minKg:0,
+    dutyPct:0,
+    clearanceKsh:40000,
+    notes:'Truck from Nairobi clearing agent / bonded warehouse to Kilifi factory. Flat rate regardless of volume up to full truck. Get 3 quotes — rates vary by season and fuel price.',
+  },
+];
+
+function renderLogisticsTable(){
+  const tbody = document.getElementById('logisticsBody');
+  if(!tbody) return;
+  tbody.innerHTML = LOGISTICS_ROUTES.map((r,ri)=>`<tr>
+    <td>
+      <div style="font-weight:600;font-size:12px">${r.region}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:1px">${r.supplier}</div>
+    </td>
+    <td style="font-size:11px;color:var(--text2)">${r.region.split('(')[0].trim()}</td>
+    <td style="text-align:right">
+      <div><span class="route-badge route-air">Air</span> <span style="font-family:var(--font-mono);font-size:11px">${r.airDays}</span></div>
+      <div style="margin-top:3px"><span class="route-badge route-sea">Sea</span> <span style="font-family:var(--font-mono);font-size:11px">${r.seaDays}</span></div>
+    </td>
+    <td style="text-align:right">
+      <input class="lc-input" type="number" step="0.1" value="${r.airUsdKg}" style="width:70px"
+        onchange="LOGISTICS_ROUTES[${ri}].airUsdKg=parseFloat(this.value)||0"
+        title="Air freight USD/kg">
+      <div style="font-size:9px;color:var(--text3)">USD/kg</div>
+    </td>
+    <td style="text-align:right">
+      <input class="lc-input" type="number" step="0.05" value="${r.seaUsdKg}" style="width:70px"
+        onchange="LOGISTICS_ROUTES[${ri}].seaUsdKg=parseFloat(this.value)||0"
+        title="Sea freight USD/kg">
+      <div style="font-size:9px;color:var(--text3)">USD/kg</div>
+    </td>
+    <td style="text-align:right"><span style="font-family:var(--font-mono);font-size:11px">${r.minKg.toLocaleString()} kg</span></td>
+    <td style="text-align:right">
+      <span style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:${r.dutyPct>0?'var(--low-txt)':'var(--ok-txt)'}">${r.dutyPct}%</span>
+      <div style="font-size:9px;color:var(--text3)">import duty</div>
+    </td>
+    <td style="text-align:right">
+      <input class="lc-input" type="number" step="10000" value="${r.clearanceKsh}" style="width:80px"
+        onchange="LOGISTICS_ROUTES[${ri}].clearanceKsh=parseFloat(this.value)||0"
+        title="Clearance + duties Ksh">
+      <div style="font-size:9px;color:var(--text3)">Ksh total</div>
+    </td>
+    <td style="font-size:10px;color:var(--text2);line-height:1.6;max-width:180px">${r.notes}</td>
+  </tr>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KEY MONITORING PARAMETERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderMonitorGrid(){
+  const grid = document.getElementById('monitorGrid');
+  if(!grid) return;
+  const params = [
+    {
+      cat:'Sourcing',
+      icon:'📊',
+      title:'Global Dairy Trade (GDT) auction results',
+      freq:'Every 2 weeks',
+      why:'The clearest global benchmark for WPC prices. When GDT WPC 80 prices fall two consecutive auctions, that's a buy signal.',
+      link:'https://www.globaldairytrade.info/',
+      linkLabel:'globaldairytrade.info',
+    },
+    {
+      cat:'Sourcing',
+      icon:'🌱',
+      title:'EU milk collection volumes',
+      freq:'Monthly',
+      why:'Published by Eurostat. Rising volumes in Apr–Jun signal the spring flush — prices typically follow down within 4–6 weeks.',
+      link:'https://agriculture.ec.europa.eu/farming/animal-products/milk-and-milk-products_en',
+      linkLabel:'EU Milk Market Observatory',
+    },
+    {
+      cat:'Sourcing',
+      icon:'💱',
+      title:'EUR/KES exchange rate',
+      freq:'Weekly',
+      why:'Your ExWorks prices are in EUR. A 5% move in EUR/KES changes your landed cost by ~3% (since logistics are in USD/KES). Monitor via XE or your bank.',
+      link:'https://www.xe.com/currencycharts/?from=EUR&to=KES',
+      linkLabel:'XE EUR/KES chart',
+    },
+    {
+      cat:'Sourcing',
+      icon:'🇨🇳',
+      title:'China dairy import data',
+      freq:'Monthly',
+      why:'China General Administration of Customs publishes monthly import volumes. Rising WPC imports tighten global supply within 60–90 days.',
+      link:'https://www.clal.it/',
+      linkLabel:'CLAL.it China data',
+    },
+    {
+      cat:'Sourcing',
+      icon:'⚡',
+      title:'European TTF natural gas price',
+      freq:'Monthly',
+      why:'Gas is the primary energy input for whey drying. Spikes in TTF (European benchmark) typically lead to WPC price increases within 30–60 days.',
+      link:'https://www.theice.com/products/27996665/Dutch-TTF-Gas-Futures',
+      linkLabel:'ICE TTF futures',
+    },
+    {
+      cat:'Logistics',
+      icon:'🚢',
+      title:'Freightos Baltic Index (FBX)',
+      freq:'Weekly',
+      why:'Tracks global container rates including Europe–East Africa routes. A rising FBX signals increasing sea freight costs 4–8 weeks ahead of your next order.',
+      link:'https://fbx.freightos.com/',
+      linkLabel:'fbx.freightos.com',
+    },
+    {
+      cat:'Logistics',
+      icon:'⛽',
+      title:'Bunker fuel price (IFO 380)',
+      freq:'Monthly',
+      why:'Fuel is 20–30% of sea freight costs. Bunkering prices lead freight rate changes by 4–6 weeks.',
+      link:'https://www.bunkerindex.com/',
+      linkLabel:'bunkerindex.com',
+    },
+    {
+      cat:'Logistics',
+      icon:'🛃',
+      title:'KRA import duty & VAT rates',
+      freq:'Annually (budget)',
+      why:'Kenya Revenue Authority occasionally revises import duty on protein supplements. Monitor each June budget. Currently 0% duty on WPC/WPI for manufacturing use under EAC CET.',
+      link:'https://www.kra.go.ke/helping-tax-payers/faqs/customs',
+      linkLabel:'KRA Customs',
+    },
+    {
+      cat:'Logistics',
+      icon:'📦',
+      title:'Mombasa port congestion index',
+      freq:'Weekly',
+      why:'KPA (Kenya Ports Authority) publishes vessel waiting times. Congestion adds 3–14 days to sea freight lead times and can add Ksh 50,000–150,000 in demurrage.',
+      link:'https://www.kpa.co.ke/',
+      linkLabel:'Kenya Ports Authority',
+    },
+    {
+      cat:'Sourcing',
+      icon:'💊',
+      title:'Protein.ke supplier price history',
+      freq:'Each order',
+      why:'Track your actual landed cost per kg for each product and each order in your own records. Over 6–8 orders you'll see your personal seasonal pattern and can time purchases accordingly.',
+      link:null,
+      linkLabel:null,
+    },
+  ];
+  grid.innerHTML = params.map(p=>`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:16px">${p.icon}</span>
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;border-radius:20px;background:${p.cat==='Logistics'?'#e8f0fb':'#eef6ea'};color:${p.cat==='Logistics'?'#185FA5':'#0F6E56'}">${p.cat}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">Check: ${p.freq}</span>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:5px">${p.title}</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:6px">${p.why}</div>
+      ${p.link?`<a href="${p.link}" target="_blank" style="font-size:10px;color:var(--c-protein);font-weight:600;text-decoration:none">${p.linkLabel} ↗</a>`:'<span style="font-size:10px;color:var(--text3)">Internal tracking</span>'}
+    </div>`).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHIPPING OPTIMISER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getNum(id){ return parseFloat(document.getElementById(id)?.value)||0; }
+
+function computeShipment(cycleMonths, mode){
+  // ── Inputs ────────────────────────────────────────────────────────────────
+  const rq35  = getNum('rq35');
+  const rq80  = getNum('rq80');
+  const rqWpi = getNum('rqwpi');
+  const ew35  = getNum('ew35');   // EUR/MT
+  const ew80  = getNum('ew80');
+  const ewWpi = getNum('ewwpi');
+  const eurKes= getNum('eurKes');
+  const usdKes= getNum('usdKes');
+
+  // Freight inputs
+  const airRateUsd    = getNum('airRate');
+  const airSurchPct   = getNum('airSurcharge')/100;
+  const airMinUsd     = getNum('airMin');
+  const airLeadDays   = getNum('airLead');
+  const seaRateUsdCbm = getNum('seaRate');
+  const wheyDensity   = getNum('wheyDensity'); // kg per CBM
+  const seaMinUsd     = getNum('seaMin');
+  const seaSurchUsd   = getNum('seaSurcharge');
+  const seaLeadDays   = getNum('seaLead');
+  const roadUsd       = getNum('roadCost');
+
+  // Clearance inputs
+  const idfPct    = getNum('idfRate')/100;
+  const rdlPct    = getNum('rdlRate')/100;
+  const agentPct  = getNum('agentRate')/100;
+  const portFlat  = getNum('portFlat'); // Ksh
+  const insPct    = getNum('insuranceRate')/100;
+
+  // ── Volume per shipment ───────────────────────────────────────────────────
+  const vol35  = rq35  * cycleMonths;  // kg
+  const vol80  = rq80  * cycleMonths;
+  const volWpi = rqWpi * cycleMonths;
+  const totalKg = vol35 + vol80 + volWpi;
+
+  // ── ExWorks cost (Ksh) ────────────────────────────────────────────────────
+  const ew35Ksh  = (ew35  / 1000) * vol35  * eurKes;
+  const ew80Ksh  = (ew80  / 1000) * vol80  * eurKes;
+  const ewWpiKsh = (ewWpi / 1000) * volWpi * eurKes;
+  const ewTotalKsh = ew35Ksh + ew80Ksh + ewWpiKsh;
+
+  // ── Freight (Ksh) ─────────────────────────────────────────────────────────
+  let freightKsh, freightUsd;
+  const leadDays = mode === 'air' ? airLeadDays : seaLeadDays;
+
+  if(mode === 'air'){
+    const baseUsd   = Math.max(airMinUsd, totalKg * airRateUsd);
+    const totalUsd  = baseUsd * (1 + airSurchPct);
+    freightUsd = totalUsd;
+    freightKsh = totalUsd * usdKes;
+  } else {
+    // Sea: priced per CBM
+    const cbm       = totalKg / wheyDensity;
+    const baseUsd   = Math.max(seaMinUsd * seaRateUsdCbm, cbm * seaRateUsdCbm);
+    const totalUsd  = baseUsd + seaSurchUsd + roadUsd;
+    freightUsd = totalUsd;
+    freightKsh = totalUsd * usdKes;
+  }
+
+  // ── CIF value (Ksh) ───────────────────────────────────────────────────────
+  const insuranceKsh = (ewTotalKsh + freightKsh) * insPct;
+  const cifKsh = ewTotalKsh + freightKsh + insuranceKsh;
+
+  // ── Clearance (Ksh) ───────────────────────────────────────────────────────
+  const idfKsh   = cifKsh * idfPct;
+  const rdlKsh   = cifKsh * rdlPct;
+  const agentKsh = cifKsh * agentPct;
+  const clearanceKsh = idfKsh + rdlKsh + agentKsh + portFlat;
+
+  // ── Total landed ──────────────────────────────────────────────────────────
+  const totalLandedKsh = ewTotalKsh + freightKsh + insuranceKsh + clearanceKsh;
+  const logisticsKsh   = freightKsh + insuranceKsh + clearanceKsh;
+  const landedPerKg    = totalKg > 0 ? totalLandedKsh / totalKg : 0;
+  const logisticsPerKg = totalKg > 0 ? logisticsKsh / totalKg : 0;
+  const logisticsPct   = ewTotalKsh > 0 ? logisticsKsh / ewTotalKsh * 100 : 0;
+
+  // Per-product landed/kg (pro-rata logistics by value)
+  const products = [
+    { name:'WPC 35',  ew:ew35,  ewKsh:ew35Ksh,  vol:vol35,  rq:rq35  },
+    { name:'WPC 80',  ew:ew80,  ewKsh:ew80Ksh,  vol:vol80,  rq:rq80  },
+    { name:'WPI 90%', ew:ewWpi, ewKsh:ewWpiKsh, vol:volWpi, rq:rqWpi },
+  ].map(p => {
+    const valShare   = ewTotalKsh > 0 ? p.ewKsh / ewTotalKsh : 0;
+    const logAlloc   = logisticsKsh * valShare;
+    const landedKg   = p.vol > 0 ? (p.ewKsh + logAlloc) / p.vol : 0;
+    const ewKg       = (p.ew / 1000) * eurKes;
+    const logKg      = landedKg - ewKg;
+    const logPctProd = ewKg > 0 ? logKg / ewKg * 100 : 0;
+    return { ...p, logAlloc, landedKg, ewKg, logKg, logPctProd };
+  });
+
+  // Annualised cost
+  const ordersPerYear   = 12 / cycleMonths;
+  const annualLandedKsh = totalLandedKsh * ordersPerYear;
+  const annualLogistics = logisticsKsh * ordersPerYear;
+  const annualFreight   = freightKsh * ordersPerYear;
+  const annualClearance = clearanceKsh * ordersPerYear;
+
+  // Shelf life calc
+  const shelfLife    = getNum('shelfLife');
+  const safetyBuffer = getNum('safetyBuffer');
+  const usableDays   = shelfLife - leadDays - safetyBuffer;
+  const maxCycleFromShelf = usableDays / 30; // months
+
+  return {
+    cycleMonths, mode, totalKg, vol35, vol80, volWpi,
+    ewTotalKsh, freightKsh, freightUsd, insuranceKsh, clearanceKsh,
+    idfKsh, rdlKsh, agentKsh,
+    totalLandedKsh, logisticsKsh, landedPerKg, logisticsPerKg, logisticsPct,
+    products, ordersPerYear,
+    annualLandedKsh, annualLogistics, annualFreight, annualClearance,
+    leadDays, usableDays, maxCycleFromShelf,
+    cbm: mode==='sea' ? totalKg / wheyDensity : null,
+  };
+}
+
+function fmtKsh(v){ return Math.round(v).toLocaleString(); }
+function fmtM(v)  { return v.toFixed(1); }
+
+function renderShipping(){
+  const cycle = parseInt(document.getElementById('cycleRange')?.value||6);
+  document.getElementById('cycleVal').textContent = cycle + ' months';
+  document.getElementById('selectedCycleLabel').textContent = cycle + ' months';
+
+  const air = computeShipment(cycle, 'air');
+  const sea = computeShipment(cycle, 'sea');
+
+  // ── Verdict ───────────────────────────────────────────────────────────────
+  const seaSaves = air.annualLandedKsh - sea.annualLandedKsh;
+  const seaSavesPct = air.annualLandedKsh > 0 ? seaSaves / air.annualLandedKsh * 100 : 0;
+  const shelfOk = sea.maxCycleFromShelf >= cycle;
+  const verdictEl = document.getElementById('shippingVerdict');
+
+  if(!shelfOk){
+    verdictEl.innerHTML = `<div class="verdict-box red">
+      <div class="verdict-title">⚠ Shelf life constraint — cycle too long for sea freight at current settings</div>
+      <div class="verdict-body">At ${cycle} months, sea freight (${sea.leadDays}-day lead) leaves only ${sea.usableDays} usable days.
+      Maximum safe sea cycle at these settings: <b>${sea.maxCycleFromShelf.toFixed(1)} months</b>.
+      Either reduce the cycle, reduce the safety buffer, or use air freight.</div></div>`;
+  } else if(seaSaves > 0){
+    verdictEl.innerHTML = `<div class="verdict-box green">
+      <div class="verdict-title">✓ Sea freight recommended for this cycle</div>
+      <div class="verdict-body">
+        Sea saves <b>Ksh ${fmtKsh(seaSaves)}/year (${seaSavesPct.toFixed(1)}%)</b> vs air on a ${cycle}-month cycle.
+        Shelf life check: ✓ ${sea.usableDays} days usable of ${getNum('shelfLife')}-day shelf life (${cycle * 30} days consumed in cycle + ${sea.leadDays}-day lead + ${getNum('safetyBuffer')}-day buffer).
+        <br>Order deadline: <b>${cycle} months + ${sea.leadDays} days before stock runs out</b>.
+      </div></div>`;
+  } else {
+    verdictEl.innerHTML = `<div class="verdict-box amber">
+      <div class="verdict-title">~ Air and sea costs are similar at this cycle length</div>
+      <div class="verdict-body">Sea costs Ksh ${fmtKsh(Math.abs(seaSaves))} ${seaSaves<0?'more':'less'} per year.
+      Consider sea for the reduced logistics cost per kg and longer-term freight relationships.</div></div>`;
+  }
+
+  // ── Top result cards ──────────────────────────────────────────────────────
+  document.getElementById('shippingResults').innerHTML = `
+    <div class="result-card ${seaSaves>0?'best':'neutral'}">
+      <div class="result-label">Best mode (${cycle} mo)</div>
+      <div class="result-val">${seaSaves>0?'Sea freight':'Air freight'}</div>
+      <div class="result-sub">Ksh ${fmtKsh(Math.min(air.annualLandedKsh,sea.annualLandedKsh))}/yr total</div>
+    </div>
+    <div class="result-card neutral">
+      <div class="result-label">Annual saving (sea vs air)</div>
+      <div class="result-val" style="color:${seaSaves>0?'var(--ok-txt)':'var(--crit-txt)'}">Ksh ${fmtKsh(Math.abs(seaSaves))}</div>
+      <div class="result-sub">${seaSavesPct.toFixed(1)}% ${seaSaves>0?'cheaper by sea':'cheaper by air'}</div>
+    </div>
+    <div class="result-card neutral">
+      <div class="result-label">Sea landed/kg</div>
+      <div class="result-val">Ksh ${fmtKsh(sea.landedPerKg)}</div>
+      <div class="result-sub">${sea.cbm?sea.cbm.toFixed(2)+' CBM/shipment':''}</div>
+    </div>
+    <div class="result-card neutral">
+      <div class="result-label">Air landed/kg</div>
+      <div class="result-val">Ksh ${fmtKsh(air.landedPerKg)}</div>
+      <div class="result-sub">${fmtM(air.ordersPerYear)} orders/year</div>
+    </div>
+    <div class="result-card neutral">
+      <div class="result-label">Clearance/shipment (sea)</div>
+      <div class="result-val">Ksh ${fmtKsh(sea.clearanceKsh)}</div>
+      <div class="result-sub">${sea.logisticsPct.toFixed(1)}% of ExWorks</div>
+    </div>`;
+
+  // ── Per-product mode recommendation ──────────────────────────────────────
+  document.getElementById('productModeRec').innerHTML = sea.products.map(p => {
+    const logPct   = p.logPctProd;
+    const airRec   = logPct > 60;
+    const tag      = airRec
+      ? `<span class="tag warn">⚠ Air cost high relative to value</span>`
+      : `<span class="tag sea">✓ Sea recommended</span>`;
+    const ewKsh    = (p.ew / 1000) * getNum('eurKes');
+    return `<div class="product-mode-row">
+      <div style="min-width:90px;font-weight:600;font-size:12px">${p.name}</div>
+      <div style="flex:1;font-size:10px;color:var(--text3)">
+        ExWorks Ksh ${fmtKsh(ewKsh)}/kg · logistics Ksh ${fmtKsh(p.logKg)}/kg · logistics = ${p.logPctProd.toFixed(0)}% of product value
+      </div>
+      <div>${tag}</div>
+    </div>`;
+  }).join('');
+
+  // ── Cycle comparison table ────────────────────────────────────────────────
+  const cycles = [1,2,3,4,5,6,7,8,9,10,11,12];
+  const bestAnnual = Math.min(...cycles.map(c => computeShipment(c,'sea').annualLandedKsh));
+  document.getElementById('cycleTable').innerHTML = `
+    <thead><tr>
+      <th>Cycle</th>
+      <th>Orders/yr</th>
+      <th style="text-align:right">Shipment vol (kg)</th>
+      <th style="text-align:right">Sea freight/order</th>
+      <th style="text-align:right">Clearance/order</th>
+      <th style="text-align:right">Logistics/order</th>
+      <th style="text-align:right">Landed/kg</th>
+      <th style="text-align:right">Annual total (sea)</th>
+      <th style="text-align:right">vs 4-mo air baseline</th>
+      <th>Shelf life</th>
+    </tr></thead>
+    <tbody>
+    ${cycles.map(c => {
+      const s = computeShipment(c, 'sea');
+      const baseline = computeShipment(4, 'air');
+      const vsDiff = s.annualLandedKsh - baseline.annualLandedKsh;
+      const shelfOkRow = s.maxCycleFromShelf >= c;
+      const isBest = Math.abs(s.annualLandedKsh - bestAnnual) < 1000;
+      const isCurrent = c === cycle;
+      return `<tr class="${isCurrent?'highlight-row':''}" style="${!shelfOkRow?'opacity:.4;text-decoration:line-through':''}">
+        <td><b>${c} mo</b>${isBest?` <span class="tag best">optimal</span>`:''}${isCurrent?' ◀':''}</td>
+        <td style="font-family:var(--font-mono)">${s.ordersPerYear.toFixed(1)}</td>
+        <td style="text-align:right;font-family:var(--font-mono)">${fmtKsh(s.totalKg)} kg</td>
+        <td style="text-align:right;font-family:var(--font-mono)">Ksh ${fmtKsh(s.freightKsh)}</td>
+        <td style="text-align:right;font-family:var(--font-mono)">Ksh ${fmtKsh(s.clearanceKsh)}</td>
+        <td style="text-align:right;font-family:var(--font-mono)">Ksh ${fmtKsh(s.logisticsKsh)}</td>
+        <td style="text-align:right;font-family:var(--font-mono);font-weight:600">Ksh ${fmtKsh(s.landedPerKg)}</td>
+        <td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:${isBest?'var(--ok-txt)':'inherit'}">Ksh ${fmtKsh(s.annualLandedKsh)}</td>
+        <td style="text-align:right;font-family:var(--font-mono);color:${vsDiff<0?'var(--ok-txt)':'var(--crit-txt)'}">
+          ${vsDiff<0?'Saves Ksh '+fmtKsh(Math.abs(vsDiff)):'+ Ksh '+fmtKsh(vsDiff)}
+        </td>
+        <td style="font-size:10px;color:${shelfOkRow?'var(--ok-txt)':'var(--crit-txt)'}">
+          ${shelfOkRow?'✓ '+s.usableDays+'d buffer':'✗ exceeds shelf life'}
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>`;
+
+  // ── Air vs sea detail for selected cycle ─────────────────────────────────
+  const rows = [
+    ['ExWorks cost', fmtKsh(air.ewTotalKsh), fmtKsh(sea.ewTotalKsh)],
+    ['Freight', fmtKsh(air.freightKsh), fmtKsh(sea.freightKsh)],
+    ['Insurance', fmtKsh(air.insuranceKsh), fmtKsh(sea.insuranceKsh)],
+    ['IDF ('+getNum('idfRate')+'%)', fmtKsh(air.idfKsh), fmtKsh(sea.idfKsh)],
+    ['RDL ('+getNum('rdlRate')+'%)', fmtKsh(air.rdlKsh), fmtKsh(sea.rdlKsh)],
+    ['Agent ('+getNum('agentRate')+'%)', fmtKsh(air.agentKsh), fmtKsh(sea.agentKsh)],
+    ['Port/CFS (flat)', fmtKsh(air.clearanceKsh-air.idfKsh-air.rdlKsh-air.agentKsh), fmtKsh(sea.clearanceKsh-sea.idfKsh-sea.rdlKsh-sea.agentKsh)],
+    ['Total clearance', fmtKsh(air.clearanceKsh), fmtKsh(sea.clearanceKsh)],
+    ['Total logistics', fmtKsh(air.logisticsKsh), fmtKsh(sea.logisticsKsh)],
+  ];
+  document.getElementById('modeTable').innerHTML = `
+    <thead><tr>
+      <th>Cost component</th>
+      <th style="text-align:right">✈ Air (${cycle} mo)</th>
+      <th style="text-align:right">🚢 Sea (${cycle} mo)</th>
+      <th style="text-align:right">Sea saves</th>
+    </tr></thead>
+    <tbody>
+    ${rows.map(([label,a,s])=>{
+      const aVal=parseFloat(a.replace(/,/g,''));
+      const sVal=parseFloat(s.replace(/,/g,''));
+      const diff=aVal-sVal;
+      return `<tr>
+        <td>${label}</td>
+        <td style="text-align:right;font-family:var(--font-mono)">Ksh ${a}</td>
+        <td style="text-align:right;font-family:var(--font-mono)">Ksh ${s}</td>
+        <td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:${diff>0?'var(--ok-txt)':diff<0?'var(--crit-txt)':'inherit'}">
+          ${diff>0?'Ksh '+fmtKsh(diff):diff<0?'− Ksh '+fmtKsh(Math.abs(diff)):'—'}
+        </td>
+      </tr>`;
+    }).join('')}
+    <tr style="background:var(--surface2);font-weight:700">
+      <td>TOTAL LANDED</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:13px">Ksh ${fmtKsh(air.totalLandedKsh)}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:13px">Ksh ${fmtKsh(sea.totalLandedKsh)}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:${seaSaves>0?'var(--ok-txt)':'var(--crit-txt)'}">
+        ${seaSaves>0?'Ksh '+fmtKsh(seaSaves):'+ Ksh '+fmtKsh(Math.abs(seaSaves))}
+      </td>
+    </tr>
+    <tr style="background:var(--surface2)">
+      <td style="font-size:10px">Landed / kg</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:10px">Ksh ${fmtKsh(air.landedPerKg)}/kg</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:10px">Ksh ${fmtKsh(sea.landedPerKg)}/kg</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--ok-txt)">Ksh ${fmtKsh(air.landedPerKg - sea.landedPerKg)}/kg</td>
+    </tr>
+    <tr style="background:var(--surface2)">
+      <td style="font-size:10px">Annual total (×${fmtM(sea.ordersPerYear)} orders/yr)</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:10px">Ksh ${fmtKsh(air.annualLandedKsh)}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:10px">Ksh ${fmtKsh(sea.annualLandedKsh)}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--ok-txt)">Ksh ${fmtKsh(seaSaves)}/yr</td>
+    </tr>
+    </tbody>`;
+
+  // ── Ordering calendar ─────────────────────────────────────────────────────
+  const best = sea; // use sea for calendar
+  const cycleStart = new Date('2026-05-01');
+  const events = [];
+  let d = new Date(cycleStart);
+  for(let i=0; i<Math.ceil(12/cycle)+1; i++){
+    const arrivalDate = new Date(d);
+    const orderDate = new Date(d);
+    orderDate.setDate(orderDate.getDate() - best.leadDays);
+    const expiryDate = new Date(arrivalDate);
+    expiryDate.setDate(expiryDate.getDate() + getNum('shelfLife') - best.leadDays);
+    const nextArrival = new Date(d);
+    nextArrival.setMonth(nextArrival.getMonth() + cycle);
+    events.push({ order:orderDate, arrival:arrivalDate, expiry:expiryDate, next:nextArrival });
+    d = nextArrival;
+  }
+  const today = new Date();
+  const fmtDate = d2 => d2.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  const isPast  = d2 => d2 < today;
+  document.getElementById('calendarSub').textContent =
+    `— sea freight · ${cycle}-month cycle · ${best.leadDays}-day lead time from May 1 2026`;
+  document.getElementById('orderCalendar').innerHTML = events.slice(0,4).map((ev,i) => `
+    <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:5px">Cycle ${i+1}</div>
+      <div class="calendar-row">
+        <span class="cal-event order ${isPast(ev.order)?'':''}">📋 Place order: ${fmtDate(ev.order)}</span>
+        <span style="color:var(--text3);font-size:10px">→</span>
+        <span class="cal-event arrive">📦 Arrives: ${fmtDate(ev.arrival)}</span>
+        <span style="color:var(--text3);font-size:10px">→</span>
+        <span class="cal-event gap">🔄 Next order: ${fmtDate(ev.next)}</span>
+        <span class="cal-event expiry">⏰ Expires: ${fmtDate(ev.expiry)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:5px">
+        Buffer: ${Math.round((ev.expiry - ev.next)/864e5)} days remaining shelf life when next order arrives
+      </div>
+    </div>`).join('');
+
+  // ── Shelf life check ──────────────────────────────────────────────────────
+  const shelfLife = getNum('shelfLife');
+  const safetyBuf = getNum('safetyBuffer');
+  const airUsable = shelfLife - best.leadDays - safetyBuf;  // sea lead, not air
+  const seaUsable = shelfLife - sea.leadDays - safetyBuf;
+  const airMaxCycle = (shelfLife - air.leadDays - safetyBuf) / 30;
+  const seaMaxCycle = seaUsable / 30;
+  document.getElementById('shelfCheck').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">✈ Air freight (${air.leadDays}-day lead)</div>
+        <div style="font-family:var(--font-mono);font-size:12px"><b>${shelfLife - air.leadDays}</b> days remaining on arrival</div>
+        <div style="font-family:var(--font-mono);font-size:12px;margin-top:4px"><b>${airMaxCycle.toFixed(1)} months</b> maximum safe cycle</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">After ${air.leadDays}d transit + ${safetyBuf}d buffer</div>
+        <div style="margin-top:8px;font-size:11px;color:${airMaxCycle>=cycle?'var(--ok-txt)':'var(--crit-txt)'}">
+          ${airMaxCycle>=cycle?'✓ Shelf life OK for '+cycle+'-month cycle':'✗ Too short for '+cycle+'-month cycle'}
+        </div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">🚢 Sea freight (${sea.leadDays}-day lead)</div>
+        <div style="font-family:var(--font-mono);font-size:12px"><b>${shelfLife - sea.leadDays}</b> days remaining on arrival</div>
+        <div style="font-family:var(--font-mono);font-size:12px;margin-top:4px"><b>${seaMaxCycle.toFixed(1)} months</b> maximum safe cycle</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">After ${sea.leadDays}d transit + ${safetyBuf}d buffer</div>
+        <div style="margin-top:8px;font-size:11px;color:${seaMaxCycle>=cycle?'var(--ok-txt)':'var(--crit-txt)'}">
+          ${seaMaxCycle>=cycle?'✓ Shelf life OK for '+cycle+'-month cycle':'✗ Too short for '+cycle+'-month cycle'}
+        </div>
+      </div>
+    </div>`;
+}
+
+function switchTab(id,btn){
+  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='market' && !marketLoaded) loadMarketIntelligence();
+  if(id==='shipping') renderShipping();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARKET INTELLIGENCE
+// ═══════════════════════════════════════════════════════════════════════════════
+let marketLoaded = false;
+let kesPerUsd = 129;
+
+const SEASON = [
+  {m:'Jan',color:'#c0341d',signal:'red',   note:'Winter tightening — EU milk output at seasonal low, prices typically elevated'},
+  {m:'Feb',color:'#c0341d',signal:'red',   note:'Winter tightening — lowest milk volumes of year, avoid large orders if possible'},
+  {m:'Mar',color:'#d4860e',signal:'amber', note:'Shoulder — milk output beginning to recover, spring flush approaching'},
+  {m:'Apr',color:'#3a7d22',signal:'green', note:'Spring flush beginning — milk output rising sharply, prices starting to soften'},
+  {m:'May',color:'#3a7d22',signal:'green', note:'Peak spring flush — highest milk volumes, best pricing window of the year'},
+  {m:'Jun',color:'#3a7d22',signal:'green', note:'Peak spring flush — excellent pricing, ideal time for large forward orders'},
+  {m:'Jul',color:'#3a7d22',signal:'green', note:'Late spring flush — still favourable, milk output beginning to plateau'},
+  {m:'Aug',color:'#d4860e',signal:'amber', note:'Shoulder — flush ending, prices stabilising, last chance for good rates'},
+  {m:'Sep',color:'#d4860e',signal:'amber', note:'Shoulder — milk output declining, watch for early price pressure'},
+  {m:'Oct',color:'#c0341d',signal:'red',   note:'Winter approach — EU milk tightening, prices beginning to rise'},
+  {m:'Nov',color:'#c0341d',signal:'red',   note:'Winter tightening — prices elevated, minimise procurement unless urgent'},
+  {m:'Dec',color:'#c0341d',signal:'red',   note:'Winter tightening — year-end demand spike, prices at seasonal high'},
+];
+
+const WHEY_PRODUCTS = [
+  {name:'WPC 35',  yourCostKsh:919,  europe:1800,usa:1700,nz:1650, europeRange:'1,500–2,200',usaRange:'1,400–2,100',nzRange:'1,350–2,000'},
+  {name:'WPC 80',  yourCostKsh:3284, europe:3200,usa:3100,nz:2900, europeRange:'2,800–4,200',usaRange:'2,700–4,000',nzRange:'2,500–3,800'},
+  {name:'WPI 90%', yourCostKsh:4422, europe:6500,usa:6200,nz:6000, europeRange:'5,500–8,500',usaRange:'5,200–8,000',nzRange:'5,000–7,500'},
+];
+
+function usdMtToKshKg(usdPerMt){ return (usdPerMt/1000)*kesPerUsd; }
+
+function diffPill(marketKsh,yourKsh){
+  const diff=marketKsh-yourKsh, pct=(diff/yourKsh*100).toFixed(1);
+  if(Math.abs(diff)<50) return`<span class="diff-pill same">≈ same</span>`;
+  if(diff<0) return`<span class="diff-pill cheaper">Ksh ${Math.abs(Math.round(diff)).toLocaleString()}/kg cheaper (${Math.abs(pct)}%)</span>`;
+  return`<span class="diff-pill pricier">Ksh ${Math.round(diff).toLocaleString()}/kg more (+${pct}%)</span>`;
+}
+
+function renderPriceTable(){
+  const tbody=document.getElementById('priceTableBody');
+  if(!tbody) return;
+  tbody.innerHTML=WHEY_PRODUCTS.map((p,pi)=>{
+    const eu=usdMtToKshKg(p.europe),us=usdMtToKshKg(p.usa),nz=usdMtToKshKg(p.nz);
+    return`<tr>
+      <td><div style="font-weight:600;font-size:12px">${p.name}</div><div style="font-size:9px;color:var(--text3)">Typical: EU ${p.europeRange} · USA ${p.usaRange} · NZ ${p.nzRange} USD/MT</div></td>
+      <td><span style="font-family:var(--font-mono);font-size:12px;font-weight:600">Ksh ${p.yourCostKsh.toLocaleString()}/kg</span></td>
+      <td style="text-align:right"><input class="price-input" type="number" step="50" value="${p.europe}" onchange="WHEY_PRODUCTS[${pi}].europe=parseFloat(this.value)||0;renderPriceTable()"><div style="font-size:9px;color:var(--text3);text-align:right">USD/MT</div></td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${Math.round(eu).toLocaleString()}/kg</span></td>
+      <td style="text-align:right">${diffPill(eu,p.yourCostKsh)}</td>
+      <td style="text-align:right"><input class="price-input" type="number" step="50" value="${p.usa}" onchange="WHEY_PRODUCTS[${pi}].usa=parseFloat(this.value)||0;renderPriceTable()"><div style="font-size:9px;color:var(--text3);text-align:right">USD/MT</div></td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${Math.round(us).toLocaleString()}/kg</span></td>
+      <td style="text-align:right">${diffPill(us,p.yourCostKsh)}</td>
+      <td style="text-align:right"><input class="price-input" type="number" step="50" value="${p.nz}" onchange="WHEY_PRODUCTS[${pi}].nz=parseFloat(this.value)||0;renderPriceTable()"><div style="font-size:9px;color:var(--text3);text-align:right">USD/MT</div></td>
+      <td style="text-align:right"><span class="cost-sm">Ksh ${Math.round(nz).toLocaleString()}/kg</span></td>
+      <td style="text-align:right">${diffPill(nz,p.yourCostKsh)}</td>
+    </tr>`;
+  }).join('');
+  const el=document.getElementById('kesRate');
+  if(el) el.textContent=`1 USD = Ksh ${kesPerUsd}`;
+}
+
+function buildSeasonBar(){
+  const mo=new Date().getMonth();
+  const bar=document.getElementById('seasonBar');
+  if(!bar) return;
+  bar.innerHTML=SEASON.map((s,i)=>{
+    const isNow=i===mo;
+    return`<div class="season-seg" style="background:${s.color};${isNow?'outline:2px solid #1a1916;outline-offset:2px':''}" title="${s.m}: ${s.note}">
+      ${isNow?'<span style="font-size:9px;font-weight:700">▼ NOW</span>':''}
+      <span style="position:absolute;bottom:3px;font-size:7px;opacity:.85">${s.m}</span>
+    </div>`;
+  }).join('');
+  const cur=SEASON[mo];
+  const stEl=document.getElementById('seasonText');
+  if(stEl) stEl.innerHTML=`<b>Current position (${cur.m}):</b> ${cur.note}<br><br><b>Best ordering months:</b> April–July (spring flush). Prices typically 10–20% below Q4 levels.<br><b>Worst ordering months:</b> November–February.`;
+  const sigEl=document.getElementById('sig-season');
+  if(sigEl){const sig=cur.signal==='green'?'Favourable':cur.signal==='amber'?'Neutral':'Unfavourable';sigEl.innerHTML=`<span class="signal-badge ${cur.signal}">${sig}</span><br>${cur.m}`;document.getElementById('sig-season-detail').textContent=cur.note;}
+}
+
+async function loadMarketIntelligence(){
+  marketLoaded=true;
+  buildSeasonBar();
+  try{
+    const r=await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const usd=d.rates&&d.rates.USD?d.rates.USD:null;
+    if(usd){
+      const signal=usd<1.05?'green':usd>1.12?'red':'amber';
+      const verdict=usd<1.05?'Favourable — EUR weak':usd>1.12?'Unfavourable — EUR strong':'Neutral';
+      const impact=usd<1.05?'A weak Euro makes European whey cheaper in USD terms.':usd>1.12?'A strong Euro makes European whey more expensive.':'EUR/USD near average levels.';
+      const sfxEl=document.getElementById('sig-fx');
+      if(sfxEl) sfxEl.innerHTML=`<span class="signal-badge ${signal}">${verdict}</span><br>1 EUR = ${usd.toFixed(4)} USD`;
+      const sdEl=document.getElementById('sig-fx-detail');
+      if(sdEl) sdEl.textContent=impact;
+      if(d.rates&&d.rates.KES){
+        kesPerUsd=d.rates.KES;
+        const el=document.getElementById('eurKes');if(el) el.value=Math.round(d.rates.KES);
+        const el2=document.getElementById('usdKes');if(el2) el2.value=Math.round(d.rates.KES/d.rates.USD);
+      }
+    }
+    renderPriceTable();
+  }catch(e){
+    const sfxEl=document.getElementById('sig-fx');
+    if(sfxEl) sfxEl.textContent='API unavailable';
+    renderPriceTable();
+  }
+  // Energy signal
+  const mo=new Date().getMonth();
+  const energySignal=mo>=3&&mo<=8?'green':'amber';
+  const energyVerdict=mo>=3&&mo<=8?'Lower seasonal demand':'Elevated — heating season';
+  const energyDetail=mo>=3&&mo<=8?'European energy demand falls Apr–Sep, reducing processing costs.':'Oct–Mar heating season typically adds upward pressure to processing costs.';
+  const seEl=document.getElementById('sig-energy');if(seEl) seEl.innerHTML=`<span class="signal-badge ${energySignal}">${energyVerdict}</span>`;
+  const sdEl=document.getElementById('sig-energy-detail');if(sdEl) sdEl.textContent=energyDetail;
+  // China signal
+  const scEl=document.getElementById('sig-china');if(scEl) scEl.innerHTML=`<span class="signal-badge amber">Monitor closely</span>`;
+  const scdEl=document.getElementById('sig-china-detail');if(scdEl) scdEl.textContent='Structural decline in infant formula demand (falling birth rates) reduces WPC competition. Check GDT auction results monthly.';
+  // Ordering verdicts
+  const cur=SEASON[mo];
+  const oeEl=document.getElementById('ord-europe');if(oeEl) oeEl.innerHTML=`<span class="signal-badge ${cur.signal}">${cur.signal==='green'?'Favourable':cur.signal==='amber'?'Neutral':'Unfavourable'}</span>`;
+  const odEl=document.getElementById('ord-europe-detail');if(odEl) odEl.textContent=cur.note+'. Primary supplier (Lactelle, Poland). Consider forward contract for Q3 delivery.';
+  const ouEl=document.getElementById('ord-usa');if(ouEl) ouEl.innerHTML=`<span class="signal-badge amber">Potentially competitive</span>`;
+  const oudEl=document.getElementById('ord-usa-detail');if(oudEl) oudEl.textContent='US prices often move with Europe but with a lag. Get quotes via USDEC when European supply is tight.';
+  const onEl=document.getElementById('ord-nz');if(onEl){const nzSig=mo>=8&&mo<=11?'green':'amber';onEl.innerHTML=`<span class="signal-badge ${nzSig}">${nzSig==='green'?'Seasonal opportunity':'Neutral'}</span>`;}
+  const ondEl=document.getElementById('ord-nz-detail');if(ondEl) ondEl.textContent='NZ spring flush Sept–Nov. Currently '+(mo>=8&&mo<=11?'near seasonal low — worth getting a quote.':'not at seasonal low. Monitor from August.');
+  // Overall signal
+  const overallEl=document.getElementById('overallSignal');
+  if(overallEl){
+    overallEl.className='overall-signal '+cur.signal;
+    overallEl.querySelector('.overall-icon').textContent=cur.signal==='green'?'✓':cur.signal==='red'?'⚠':'~';
+    overallEl.querySelector('.overall-title').textContent=cur.signal==='green'?'Market conditions: Favourable for ordering':cur.signal==='red'?'Market conditions: Unfavourable — winter tightening':'Market conditions: Neutral — shoulder period';
+    overallEl.querySelector('.overall-sub').textContent=cur.note;
+  }
+  // Intel feed
+  renderLogisticsTable();renderMonitorGrid();renderLandedCost();
+  const ifEl=document.getElementById('intelFeed');
+  if(ifEl) ifEl.innerHTML=`<div class="intel-card"><div class="intel-headline">Current situation — European whey shortage</div><div class="intel-body"><p>European WPC supply is currently constrained. Your April 19 order deadline aligns with the early spring flush window. Even at current elevated prices, ordering now locks in supply before potential further tightening.</p></div></div><div class="intel-card"><div class="intel-headline">Recommended live data sources</div><div class="intel-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">${[['Global Dairy Trade (GDT)','https://www.globaldairytrade.info/','Fortnightly auction — clearest global WPC benchmark'],['CLAL.it','https://www.clal.it/','European WPC spot prices, weekly'],['USDA Dairy Market News','https://www.ams.usda.gov/mnreports/dywdalymar.pdf','US WPC prices, weekly'],['EU Milk Observatory','https://agriculture.ec.europa.eu/farming/animal-products/milk-and-milk-products_en','EU milk collection volumes — leading indicator'],['EUR/USD live','https://www.xe.com/currencycharts/?from=EUR&to=USD','Monitor weekly — affects your import cost directly'],['Freightos Baltic (FBX)','https://fbx.freightos.com/','Sea freight rates index']].map(([n,u,d])=>`<div style="background:var(--surface2);border-radius:6px;padding:8px 10px;border:1px solid var(--border)"><a href="${u}" target="_blank" style="font-size:11px;font-weight:600;color:var(--accent);text-decoration:none">${n} ↗</a><div style="font-size:10px;color:var(--text3);margin-top:2px">${d}</div></div>`).join('')}</div></div></div>`;
+  const tsEl=document.getElementById('intelTimestamp');if(tsEl) tsEl.textContent='· Updated '+new Date().toLocaleTimeString();
+}
+
+
+loadAll();
+</script>
+</body>
+</html>
