@@ -2715,15 +2715,25 @@ function computeSuppShipment(cycleMonths, sales){
 }
 
 function renderSuppStockTable(sales){
-  const today = new Date();
-  const lead  = getSuppNum('s-lead');
+  const today  = new Date();
+  const lead   = getSuppNum('s-lead');
+  const usdKes = getSuppNum('s-usdkes');
+  const dutyPct= getSuppNum('s-duty')/100;
+  const idfPct = getSuppNum('s-idf')/100;
+  const rdlPct = getSuppNum('s-rdl')/100;
+  const inlandKgRate = getSuppNum('s-inland');
+  const seaKgRate    = getSuppNum('s-sea');
+  const insPct = getSuppNum('s-ins')/100;
+
   let rows='';
   for(const[sku,cfg]of Object.entries(SUPP_CFG)){
-    const curKg    = getSuppStockKg(sku);   // LIVE from March Order sheet
-    const orderKg  = SUPP_ORDER_KG[sku]||0; // user-editable planned order
-    const totKg    = curKg + orderKg;
+    const curKg    = getSuppStockKg(sku);          // LIVE from March Order sheet (already includes Nutra shipment)
+    const incKg    = SUPP_ORDER_KG[sku]||0;        // editable — next planned order
+    const totKg    = curKg + incKg;
     const kpp      = cfg.kgPerPack;
-    const totPacks = Math.floor(totKg/kpp);
+    const curPacks = Math.floor(curKg/kpp);
+    const incPacks = Math.floor(incKg/kpp);
+    const totPacks = curPacks + incPacks;
     const sal      = sales[sku]||0;
     const mo       = sal>0 ? totPacks/sal : 99;
     const stockout = new Date(today.getTime()+mo*30*864e5);
@@ -2732,50 +2742,78 @@ function renderSuppStockTable(sales){
     const st = mo<2?'critical':mo<4?'low':'ok';
     const stBadge = `<span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span>`;
     const overstock = mo>12;
-    const ewUsd = getSuppNum(cfg.ewField);
-    const usdKes = getSuppNum('s-usdkes');
-    const orderPacks = Math.floor(orderKg/kpp);
-    // Landed cost estimate for planned order
-    const landedKsh = orderKg * ewUsd * usdKes * 2.02; // ~2x ExWorks covers duty+logistics (confirmed ratio)
+
+    // Cost of goods for current stock (ExWorks only, at procurement sheet cost)
+    const ewUsd      = getSuppNum(cfg.ewField);
+    const cogCurKsh  = curKg * ewUsd * usdKes;   // ExWorks value of current stock
+
+    // Landed cost estimate for planned incoming order
+    const ewKsh     = incKg * ewUsd * usdKes;
+    const inlKsh    = incKg * inlandKgRate * usdKes;
+    const seaKsh    = incKg * seaKgRate * usdKes;
+    const fobKsh    = ewKsh + inlKsh;
+    const insKsh    = (fobKsh + seaKsh) * insPct;
+    const cifKsh    = fobKsh + seaKsh + insKsh;
+    const kraKsh    = cifKsh * (dutyPct + idfPct + rdlPct);
+    const landedKsh = cifKsh + kraKsh;
+    const incDrums  = incKg/cfg.drumKg;
+
     rows+=`<tr${overstock?' style="background:#fff8f0"':''}>
-      <td><div style="font-weight:600;font-size:12px">${cfg.label}</div>
-          <div style="font-size:9px;color:var(--text3)">${sku} · ${cfg.drumKg}kg/drum · ${cfg.packsPerDrum} packs/drum</div></td>
-      <td style="text-align:right;font-family:var(--font-mono)">${Math.floor(curKg/kpp)} packs<div style="font-size:9px;color:var(--text3)">${curKg}kg</div></td>
+      <td>
+        <div style="font-weight:600;font-size:12px">${cfg.label}</div>
+        <div style="font-size:9px;color:var(--text3)">${sku} · ${cfg.drumKg}kg/drum · ${cfg.packsPerDrum} packs/drum</div>
+      </td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-weight:600">${curPacks} packs</div>
+        <div style="font-size:9px;color:var(--text3)">${curKg}kg</div>
+      </td>
       <td>
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
-          <input type="number" step="${cfg.drumKg}" min="0"
-            value="${orderKg}"
-            style="width:70px;font-family:var(--font-mono);font-size:11px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 5px;background:var(--surface2)"
+          <input type="number" step="${cfg.drumKg}" min="0" value="${incKg}"
+            style="width:72px;font-family:var(--font-mono);font-size:11px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 5px;background:var(--surface2)"
             onchange="SUPP_ORDER_KG['${sku}']=parseFloat(this.value)||0;renderSupp()"
-            title="Enter planned order in kg (multiples of ${cfg.drumKg}kg per drum)">
+            title="Enter planned incoming kg (multiples of ${cfg.drumKg}kg = 1 drum)">
           <span style="font-size:9px;color:var(--text3)">kg</span>
         </div>
-        <div style="font-size:9px;color:var(--text3);text-align:right">${Math.round(orderKg/cfg.drumKg*10)/10} drums · ${orderPacks} packs</div>
-        ${orderKg>0?`<div style="font-size:9px;color:var(--c-protein);text-align:right;font-weight:600">Ksh ${Math.round(landedKsh).toLocaleString()} landed est.</div>`:''}
+        <div style="font-size:9px;color:var(--text3);text-align:right">${incKg>0?(incDrums.toFixed(1)+' drums · '+incPacks+' packs'):'—'}</div>
+        ${incKg>0?`<div style="font-size:9px;color:var(--c-protein);text-align:right;font-weight:600">Ksh ${Math.round(landedKsh).toLocaleString()} landed</div>`:''}
       </td>
-      <td style="text-align:right;font-family:var(--font-mono);font-weight:600">${totPacks} packs<div style="font-size:9px;color:var(--text3);font-weight:400">${totKg}kg</div></td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-weight:700;font-size:13px">${totPacks} packs</div>
+        <div style="font-size:9px;color:var(--text3)">${totKg}kg total</div>
+      </td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-size:11px">Ksh ${Math.round(cogCurKsh).toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--text3)">ExWorks value</div>
+        ${incKg>0?`<div style="font-size:9px;color:var(--c-protein)">(+Ksh ${Math.round(landedKsh).toLocaleString()} inc)</div>`:''}
+      </td>
       <td style="text-align:right;font-family:var(--font-mono)">${sal} / mo</td>
-      <td>${stBadge}${overstock?' <span style="font-size:9px;color:#8a5c0a;font-weight:600">⚠ Overstocked</span>':''}</td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:11px">${mo>=99?'∞':mo.toFixed(1)+' mo'}</td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:11px">${mo>=99?'—':stockout.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</td>
-      <td style="font-size:11px;color:${daysUntilOrder<0?'var(--crit-txt)':daysUntilOrder<60?'var(--low-txt)':'var(--text3)'};font-weight:${daysUntilOrder<0?700:400}">
-        ${daysUntilOrder<0?'⚠ ORDER NOW ('+Math.abs(daysUntilOrder)+'d overdue)':daysUntilOrder<60?'Order by '+orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'By '+orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
+      <td>
+        ${stBadge}
+        ${overstock?'<div style="font-size:9px;color:#8a5c0a;font-weight:600;margin-top:3px">⚠ Overstocked</div>':''}
+      </td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-weight:600;color:${mo<2?'var(--crit-txt)':mo<4?'var(--low-txt)':'var(--text)'}">${mo>=99?'∞':mo.toFixed(1)+' mo'}</div>
+        <div style="font-size:9px;color:var(--text3)">${mo>=99?'—':stockout.toLocaleDateString('en-GB',{day:'numeric',month:'short','year':'2-digit'})}</div>
+      </td>
+      <td style="font-size:11px;font-weight:${daysUntilOrder<0?700:400};color:${daysUntilOrder<0?'var(--crit-txt)':daysUntilOrder<60?'var(--low-txt)':'var(--text3)'}">
+        ${daysUntilOrder<0?'⚠ ORDER NOW ('+Math.abs(daysUntilOrder)+'d overdue)':
+          daysUntilOrder<60?'Order by '+orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):
+          'By '+orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
       </td>
     </tr>`;
   }
-  // Totals row
-  const totalOrderKg = Object.values(SUPP_ORDER_KG).reduce((s,v)=>s+v,0);
-  const totalLanded  = totalOrderKg * getSuppNum('s-usdkes') * 10 * 2.02; // rough
+
   document.getElementById('suppStockTable').innerHTML=`
     <thead><tr>
       <th>SKU</th>
-      <th style="text-align:right">Current stock (live)</th>
-      <th style="text-align:right">Planned order (editable)</th>
+      <th style="text-align:right">Current stock <div style="font-weight:400;font-style:italic;font-size:9px">live from March Order</div></th>
+      <th style="text-align:right">Incoming order <div style="font-weight:400;font-style:italic;font-size:9px">editable — enter kg to order</div></th>
       <th style="text-align:right">Total after order</th>
-      <th style="text-align:right">Monthly sales</th>
+      <th style="text-align:right">Cost of goods</th>
+      <th style="text-align:right">Sales/mo</th>
       <th>Status</th>
       <th style="text-align:right">Coverage</th>
-      <th style="text-align:right">Stockout date</th>
       <th>Order urgency</th>
     </tr></thead>
     <tbody>${rows}</tbody>`;
