@@ -543,11 +543,15 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       <div>
         <!-- Monthly RQs -->
         <div class="pg-section">
-          <div class="pg-title">Monthly RQs <span>(kg/month — auto-filled from formulations)</span></div>
+          <div class="pg-title">Monthly RQs <span>(kg/month — calculated from your Jan 2025 sales × formulations · edit to override)</span></div>
           <div class="pg-grid c3">
             <div><div class="pg-label">WPC 35 (kg/mo)</div><input class="pg-input" id="rq35" type="number" value="142" oninput="renderShipping()"></div>
             <div><div class="pg-label">WPC 80 (kg/mo)</div><input class="pg-input" id="rq80" type="number" value="303" oninput="renderShipping()"></div>
             <div><div class="pg-label">WPI 90% (kg/mo)</div><input class="pg-input" id="rqwpi" type="number" value="63" oninput="renderShipping()"></div>
+          </div>
+          <div style="margin-top:8px;font-size:10px;color:var(--text3);line-height:1.6;padding:7px 10px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+            These figures are computed as <b>Σ(ingredient fraction × monthly pack sales × pack weight)</b> across all SKUs using your January 2025 actuals. 
+            They update automatically when you refresh data. You can override them manually above to model different sales scenarios.
           </div>
         </div>
 
@@ -630,11 +634,11 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
           </div>
           <div class="pg-grid c2" style="margin-top:10px">
             <div><div class="pg-label">Agent commission (%)</div><input class="pg-input" id="agentRate" type="number" step="0.1" value="1.5" oninput="renderShipping()"></div>
-            <div><div class="pg-label">Port/CFS/KEBS (Ksh flat)</div><input class="pg-input" id="portFlat" type="number" value="100000" oninput="renderShipping()"></div>
+            <div><div class="pg-label">Port/CFS/KEBS (Ksh flat)</div><input class="pg-input" id="portFlat" type="number" value="237000" oninput="renderShipping()"></div>
           </div>
           <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.7;padding:8px;background:var(--surface2);border-radius:6px">
             Clearance = (IDF + RDL + Agent) % × CIF value + flat port charges.<br>
-            CIF = ExWorks + freight. Rates above match your current Ksh 400k on the ~Ksh 2.2M CIF consignment.
+            CIF = ExWorks + freight. Model calibrated to match your actual Ksh 400k clearance bill (Lactelle April 2026 consignment). Update port flat when you have Mombasa sea freight clearance figures.
           </div>
         </div>
 
@@ -1203,6 +1207,16 @@ function applyPayload(payload){
   formulations = form || {};
   ingCosts     = costs || {};
 
+  // ISPVAN fraction fix: ISOPRO sheet mixes % numbers (98.39) and decimals (0.9839)
+  // in the same column, causing the column-scale logic to wrongly divide 0.9839 by 100.
+  // Correct ISPVAN back to proper decimal if it looks wrong (< 0.05 means ISOPRO vanilla
+  // would be less than 5% WPI, which is physically impossible for an isolate product).
+  if(formulations['90% Whey Isolate'] && formulations['90% Whey Isolate']['ISPVAN'] < 0.05){
+    const wrong = formulations['90% Whey Isolate']['ISPVAN'];
+    formulations['90% Whey Isolate']['ISPVAN'] = wrong * 100;
+    dbg(`ISPVAN fraction corrected: ${wrong} → ${wrong*100} (was divided by 100 erroneously)`);
+  }
+
   dbg('Ingredients loaded: '+procItems.main.length);
   dbg('Bulk supps: '+Object.keys(procItems.bulk).length);
   dbg('Packaging rows: '+packaging.length);
@@ -1215,6 +1229,21 @@ function applyPayload(payload){
   Object.entries(formulations)
     .filter(([,sm])=>sm['CEVAN']>0)
     .forEach(([k,sm])=>dbg(` ${k}: ${(sm['CEVAN']*100).toFixed(2)}%`));
+
+  // Auto-populate shipping optimiser RQ fields from actual sales + formulations
+  const rq35  = computeRQ('35% Whey Concentrate');
+  const rq80  = computeRQ('80% Whey Concentrate');
+  const rqWpi = computeRQ('90% Whey Isolate');
+  dbg(`\n── Shipping RQs (kg/mo) ──`);
+  dbg(` WPC 35:  ${rq35.toFixed(1)} kg/mo`);
+  dbg(` WPC 80:  ${rq80.toFixed(1)} kg/mo`);
+  dbg(` WPI 90%: ${rqWpi.toFixed(1)} kg/mo`);
+  const el35  = document.getElementById('rq35');
+  const el80  = document.getElementById('rq80');
+  const elWpi = document.getElementById('rqwpi');
+  if(el35  && rq35  > 0) el35.value  = rq35.toFixed(1);
+  if(el80  && rq80  > 0) el80.value  = rq80.toFixed(1);
+  if(elWpi && rqWpi > 0) elWpi.value = rqWpi.toFixed(1);
 }
 
 async function loadAll(forceRefresh=false){
@@ -2014,7 +2043,7 @@ function computeShipment(cycleMonths, mode){
   } else {
     // Sea: priced per CBM
     const cbm       = totalKg / wheyDensity;
-    const baseUsd   = Math.max(seaMinUsd * seaRateUsdCbm, cbm * seaRateUsdCbm);
+    const baseUsd   = Math.max(seaMinUsd, cbm * seaRateUsdCbm);  // seaMinUsd is min charge USD, not min CBMs
     const totalUsd  = baseUsd + seaSurchUsd + roadUsd;
     freightUsd = totalUsd;
     freightKsh = totalUsd * usdKes;
