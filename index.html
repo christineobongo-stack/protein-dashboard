@@ -240,7 +240,8 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <button class="tab-btn active" onclick="switchTab('procurement',this)">Procurement</button>
   <button class="tab-btn" onclick="switchTab('costs',this)">SKU costs</button>
   <button class="tab-btn" onclick="switchTab('market',this)">Market intelligence</button>
-  <button class="tab-btn" onclick="switchTab('shipping',this)">Shipping optimiser</button>
+  <button class="tab-btn" onclick="switchTab('shipping',this)">Whey shipping</button>
+  <button class="tab-btn" onclick="switchTab('supplements',this)">Supplements shipping</button>
 </div>
 
 <main>
@@ -694,6 +695,134 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       All figures are estimates based on the inputs above. Freight rates are indicative — get actual quotes from your forwarder before committing. Clearance uses KRA published levy rates (IDF 3.5%, RDL 2%) plus approximate agent and port fees.
     </div>
 
+  </div>
+
+  <!-- TAB 5: SUPPLEMENTS SHIPPING OPTIMISER -->
+  <div class="tab-page" id="page-supplements">
+
+    <div id="suppVerdict"></div>
+
+    <!-- Stock status -->
+    <div class="pg-section" style="margin-top:4px">
+      <div class="pg-title">Current stock status <span>(after incoming Nutra Healthcare shipment)</span></div>
+      <div style="overflow-x:auto">
+        <table class="comparison-table" id="suppStockTable"></table>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text2);line-height:1.8;padding:10px 14px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+        <b>Key findings:</b> PreWorkout Watermelon is significantly overstocked — do not reorder for 12+ months.
+        Collagen is critically short — order immediately. All figures verified pack-by-pack using confirmed drum yields.
+      </div>
+    </div>
+
+    <!-- Results row -->
+    <div class="result-grid" id="suppResults" style="grid-template-columns:repeat(4,minmax(0,1fr))"></div>
+
+    <!-- Two columns -->
+    <div style="display:grid;grid-template-columns:340px 1fr;gap:14px;align-items:start">
+
+      <!-- LEFT: inputs -->
+      <div>
+        <!-- Monthly consumption -->
+        <div class="pg-section">
+          <div class="pg-title">Monthly consumption <span>(packs/month — from Jan 2025 actuals)</span></div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">Creatine Unflav (pks/mo)</div><input class="pg-input" id="s-creatun" type="number" value="126" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Creatine FP (pks/mo)</div><input class="pg-input" id="s-creatfp" type="number" value="49" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Creatine PG (pks/mo)</div><input class="pg-input" id="s-creatpg" type="number" value="37" oninput="renderSupp()"></div>
+            <div><div class="pg-label">PreWorkout WM (pks/mo)</div><input class="pg-input" id="s-pworkwm" type="number" value="11" oninput="renderSupp()"></div>
+            <div><div class="pg-label">PreWorkout GA (pks/mo)</div><input class="pg-input" id="s-pworkga" type="number" value="19" oninput="renderSupp()"></div>
+            <div><div class="pg-label">BCAAs (pks/mo)</div><input class="pg-input" id="s-bcaa" type="number" value="9" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Collagen (pks/mo)</div><input class="pg-input" id="s-colun" type="number" value="37" oninput="renderSupp()"></div>
+          </div>
+        </div>
+
+        <!-- ExWorks prices -->
+        <div class="pg-section">
+          <div class="pg-title">ExWorks prices <span>(USD/kg — confirmed from Nutra invoice)</span></div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">Creatine (USD/kg)</div><input class="pg-input" id="s-ew-creat" type="number" step="0.1" value="8.50" oninput="renderSupp()"></div>
+            <div><div class="pg-label">PreWorkout (USD/kg)</div><input class="pg-input" id="s-ew-pwork" type="number" step="0.1" value="11.40" oninput="renderSupp()"></div>
+            <div><div class="pg-label">BCAAs (USD/kg)</div><input class="pg-input" id="s-ew-bcaa" type="number" step="0.1" value="20.00" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Collagen (USD/kg)</div><input class="pg-input" id="s-ew-colun" type="number" step="0.1" value="26.70" oninput="renderSupp()"></div>
+          </div>
+          <div style="margin-top:10px">
+            <div class="pg-label">USD/KES rate</div>
+            <input class="pg-input" id="s-usdkes" type="number" value="129.52" oninput="renderSupp()" style="width:120px">
+          </div>
+        </div>
+
+        <!-- Logistics (confirmed from SAD) -->
+        <div class="pg-section">
+          <div class="pg-title">Logistics <span>(confirmed from Nutra SAD March 2026)</span></div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">Inland India (USD/kg)</div><input class="pg-input" id="s-inland" type="number" step="0.1" value="2.83" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Sea freight (USD/kg)</div><input class="pg-input" id="s-sea" type="number" step="0.1" value="2.34" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Insurance (% of CIF)</div><input class="pg-input" id="s-ins" type="number" step="0.1" value="0.5" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Agent + Mombasa CFS (Ksh)</div><input class="pg-input" id="s-agent" type="number" value="12013" oninput="renderSupp()"></div>
+          </div>
+        </div>
+
+        <!-- KRA taxes -->
+        <div class="pg-section">
+          <div class="pg-title">KRA taxes <span>(confirmed from SAD)</span></div>
+          <div style="padding:8px 10px;background:#fef9ec;border-radius:6px;border:1px solid #f5d98a;margin-bottom:10px;font-size:11px;color:#8a5c0a;line-height:1.7">
+            ⚠ Supplements from India attract <b>25% import duty</b> — unlike whey from EU (0%). This is the dominant logistics cost.
+          </div>
+          <div class="pg-grid c2">
+            <div><div class="pg-label">Import duty (%)</div><input class="pg-input" id="s-duty" type="number" step="0.1" value="25" oninput="renderSupp()"></div>
+            <div><div class="pg-label">IDF (%)</div><input class="pg-input" id="s-idf" type="number" step="0.1" value="2.5" oninput="renderSupp()"></div>
+            <div><div class="pg-label">RDL (%)</div><input class="pg-input" id="s-rdl" type="number" step="0.1" value="2.0" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Lead time (days)</div><input class="pg-input" id="s-lead" type="number" value="65" oninput="renderSupp()"></div>
+          </div>
+          <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.6;padding:7px 10px;background:var(--surface2);border-radius:6px">
+            Lead time confirmed at 65 days (Nutra invoice Jan 19 → Mombasa customs Mar 25, 2026).
+            Dashboard default was 90 days — now corrected.
+          </div>
+        </div>
+
+        <!-- Cycle slider -->
+        <div class="pg-section">
+          <div class="pg-title">Ordering cycle</div>
+          <div class="pg-label">Cycle length (months)</div>
+          <input class="pg-range" id="s-cycleRange" type="range" min="1" max="12" value="6" oninput="document.getElementById('s-cycleVal').textContent=this.value+' months';renderSupp()">
+          <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+            <span class="pg-range-val" id="s-cycleVal">6 months</span>
+            <span style="font-size:10px;color:var(--text3)">all SKUs in one shipment</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: results -->
+      <div>
+        <!-- Cycle comparison -->
+        <div class="pg-section">
+          <div class="pg-title">Cycle comparison <span>— savings are modest (25% duty scales with every kg regardless of cycle)</span></div>
+          <div style="overflow-x:auto">
+            <table class="comparison-table" id="suppCycleTable"></table>
+          </div>
+        </div>
+
+        <!-- Per-SKU order plan -->
+        <div class="pg-section">
+          <div class="pg-title">Next order plan <span id="suppOrderSub"></span></div>
+          <div style="overflow-x:auto">
+            <table class="comparison-table" id="suppOrderTable"></table>
+          </div>
+        </div>
+
+        <!-- Calendar -->
+        <div class="pg-section">
+          <div class="pg-title">Ordering calendar</div>
+          <div id="suppCalendar"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:10px;color:var(--text3);margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);line-height:1.7">
+      All logistics figures confirmed from Nutra Healthcare SAD (Customs Entry March 25, 2026). 
+      ExWorks prices from commercial invoice January 19, 2026. KRA duty 25% + IDF 2.5% + RDL 2% confirmed from customs entry.
+      Unlike whey protein (0% duty as manufacturing input), supplements attract full duty as finished goods.
+    </div>
   </div>
 </main>
 
@@ -2361,6 +2490,7 @@ function switchTab(id,btn){
   btn.classList.add('active');
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
   if(id==='shipping') renderShipping();
+  if(id==='supplements') renderSupp();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2499,6 +2629,292 @@ async function loadMarketIntelligence(){
   const ifEl=document.getElementById('intelFeed');
   if(ifEl) ifEl.innerHTML=`<div class="intel-card"><div class="intel-headline">Current situation — European whey shortage</div><div class="intel-body"><p>European WPC supply is currently constrained. Your April 19 order deadline aligns with the early spring flush window. Even at current elevated prices, ordering now locks in supply before potential further tightening.</p></div></div><div class="intel-card"><div class="intel-headline">Recommended live data sources</div><div class="intel-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">${[['Global Dairy Trade (GDT)','https://www.globaldairytrade.info/','Fortnightly auction — clearest global WPC benchmark'],['CLAL.it','https://www.clal.it/','European WPC spot prices, weekly'],['USDA Dairy Market News','https://www.ams.usda.gov/mnreports/dywdalymar.pdf','US WPC prices, weekly'],['EU Milk Observatory','https://agriculture.ec.europa.eu/farming/animal-products/milk-and-milk-products_en','EU milk collection volumes — leading indicator'],['EUR/USD live','https://www.xe.com/currencycharts/?from=EUR&to=USD','Monitor weekly — affects your import cost directly'],['Freightos Baltic (FBX)','https://fbx.freightos.com/','Sea freight rates index']].map(([n,u,d])=>`<div style="background:var(--surface2);border-radius:6px;padding:8px 10px;border:1px solid var(--border)"><a href="${u}" target="_blank" style="font-size:11px;font-weight:600;color:var(--accent);text-decoration:none">${n} ↗</a><div style="font-size:10px;color:var(--text3);margin-top:2px">${d}</div></div>`).join('')}</div></div></div>`;
   const tsEl=document.getElementById('intelTimestamp');if(tsEl) tsEl.textContent='· Updated '+new Date().toLocaleTimeString();
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUPPLEMENTS SHIPPING OPTIMISER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SUPP_CFG = {
+  CREATUN: {label:'Creatine Unflavoured', drumKg:25, packsPerDrum:125, kgPerPack:0.2,  ewField:'s-ew-creat'},
+  CREATFP: {label:'Creatine Fruit Punch', drumKg:25, packsPerDrum:125, kgPerPack:0.2,  ewField:'s-ew-creat'},
+  CREATPG: {label:'Creatine Pink Guava',  drumKg:25, packsPerDrum:125, kgPerPack:0.2,  ewField:'s-ew-creat'},
+  PWORKWM: {label:'PreWorkout Watermelon',drumKg:24, packsPerDrum:50,  kgPerPack:24/50, ewField:'s-ew-pwork'},
+  PWORKGA: {label:'PreWorkout Green Apple',drumKg:24,packsPerDrum:40,  kgPerPack:24/40, ewField:'s-ew-pwork'},
+  BCAA:    {label:'BCAAs',                drumKg:25, packsPerDrum:125, kgPerPack:0.2,  ewField:'s-ew-bcaa'},
+  COLUN:   {label:'Collagen',             drumKg:25, packsPerDrum:125, kgPerPack:0.2,  ewField:'s-ew-colun'},
+};
+
+// Current stock in KG (from procurement sheet) + incoming from Nutra shipment
+const SUPP_STOCK_KG = {
+  CREATUN:150, CREATFP:25, CREATPG:25, PWORKWM:50, PWORKGA:50, BCAA:24, COLUN:10,
+};
+const SUPP_INCOMING_KG = {
+  CREATUN:75, CREATFP:25, CREATPG:25, PWORKWM:50, PWORKGA:50, BCAA:0, COLUN:0,
+};
+
+function getSuppNum(id){ return parseFloat(document.getElementById(id)?.value)||0; }
+
+function getSuppSales(){
+  return {
+    CREATUN: getSuppNum('s-creatun'), CREATFP: getSuppNum('s-creatfp'),
+    CREATPG: getSuppNum('s-creatpg'), PWORKWM: getSuppNum('s-pworkwm'),
+    PWORKGA: getSuppNum('s-pworkga'), BCAA:    getSuppNum('s-bcaa'),
+    COLUN:   getSuppNum('s-colun'),
+  };
+}
+
+function computeSuppShipment(cycleMonths, sales){
+  const usdKes   = getSuppNum('s-usdkes');
+  const inlandKg = getSuppNum('s-inland');
+  const seaKg    = getSuppNum('s-sea');
+  const insPct   = getSuppNum('s-ins')/100;
+  const agentKsh = getSuppNum('s-agent');
+  const dutyPct  = getSuppNum('s-duty')/100;
+  const idfPct   = getSuppNum('s-idf')/100;
+  const rdlPct   = getSuppNum('s-rdl')/100;
+  const lead     = getSuppNum('s-lead');
+
+  // Calculate volume per SKU
+  let totalKg=0, ewUsd=0;
+  const skuData={};
+  for(const[sku,cfg]of Object.entries(SUPP_CFG)){
+    const packs = (sales[sku]||0)*cycleMonths;
+    const kg    = packs * cfg.kgPerPack;
+    const ew    = getSuppNum(cfg.ewField);
+    const ewKsh = kg * ew * usdKes;
+    totalKg += kg;
+    ewUsd   += kg * ew;
+    skuData[sku] = {packs, kg, ewKsh};
+  }
+
+  const ewKsh      = ewUsd * usdKes;
+  const inlandKsh  = totalKg * inlandKg * usdKes;
+  const seaKsh     = Math.max(150, totalKg * seaKg) * usdKes;
+  const fobKsh     = ewKsh + inlandKsh;
+  const insKsh     = (fobKsh + seaKsh) * insPct;
+  const cifKsh     = fobKsh + seaKsh + insKsh;
+  const kra        = cifKsh * (dutyPct + idfPct + rdlPct);
+  const duty       = cifKsh * dutyPct;
+  const idf        = cifKsh * idfPct;
+  const rdl        = cifKsh * rdlPct;
+  const total      = cifKsh + kra + agentKsh;
+  const annual     = total * 12/cycleMonths;
+  const perKg      = totalKg>0 ? total/totalKg : 0;
+  const logPct     = ewKsh>0 ? (total-ewKsh)/ewKsh*100 : 0;
+
+  return {total,annual,perKg,totalKg,ewKsh,inlandKsh,seaKsh,insKsh,
+          cifKsh,kra,duty,idf,rdl,agentKsh,logPct,lead,skuData};
+}
+
+function renderSuppStockTable(sales){
+  const today = new Date();
+  const lead  = getSuppNum('s-lead');
+  let rows='';
+  for(const[sku,cfg]of Object.entries(SUPP_CFG)){
+    const curKg  = SUPP_STOCK_KG[sku]||0;
+    const incKg  = SUPP_INCOMING_KG[sku]||0;
+    const totKg  = curKg+incKg;
+    const kpp    = cfg.kgPerPack;
+    // Convert kg to packs via kgPerPack
+    const totPacks = Math.floor(totKg/kpp);
+    const mo     = (sales[sku]||0)>0 ? totPacks/(sales[sku]||1) : 99;
+    const stockout = new Date(today.getTime()+mo*30*864e5);
+    const orderBy  = new Date(stockout.getTime()-lead*864e5);
+    const daysUntilOrder = Math.round((orderBy-today)/864e5);
+    const st = mo<2?'critical':mo<4?'low':'ok';
+    const stBadge = `<span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span>`;
+    // Overstock flag
+    const overstock = mo>12;
+    rows+=`<tr${overstock?' style="background:#fff8f0"':''}>
+      <td><div style="font-weight:600;font-size:12px">${cfg.label}</div>
+          <div style="font-size:9px;color:var(--text3)">${sku} · ${cfg.drumKg}kg drum · ${cfg.packsPerDrum} packs/drum</div></td>
+      <td style="text-align:right;font-family:var(--font-mono)">${curKg}kg</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${incKg>0?'+'+incKg+'kg':'—'}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-weight:600">${totPacks} packs<div style="font-size:9px;color:var(--text3);font-weight:400">${totKg}kg total</div></td>
+      <td style="text-align:right;font-family:var(--font-mono)">${(sales[sku]||0)} packs/mo</td>
+      <td>${stBadge}${overstock?' <span style="font-size:9px;color:#8a5c0a;font-weight:600">⚠ Overstocked</span>':''}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:11px">${mo>=99?'∞':mo.toFixed(1)+' mo'}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:11px">${mo>=99?'—':stockout.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</td>
+      <td style="font-size:11px;color:${daysUntilOrder<0?'var(--crit-txt)':daysUntilOrder<60?'var(--low-txt)':'var(--text3)'};font-weight:${daysUntilOrder<0?700:400}">
+        ${daysUntilOrder<0?'ORDER NOW ('+Math.abs(daysUntilOrder)+'d overdue)':daysUntilOrder<60?'Order by '+orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'OK — order by '+orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
+      </td>
+    </tr>`;
+  }
+  document.getElementById('suppStockTable').innerHTML=`
+    <thead><tr>
+      <th>SKU</th>
+      <th style="text-align:right">Current stock</th>
+      <th style="text-align:right">Incoming</th>
+      <th style="text-align:right">Total (packs)</th>
+      <th style="text-align:right">Monthly sales</th>
+      <th>Status</th>
+      <th style="text-align:right">Coverage</th>
+      <th style="text-align:right">Stockout date</th>
+      <th>Order action</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>`;
+}
+
+function renderSupp(){
+  const cycle  = parseInt(document.getElementById('s-cycleRange')?.value||6);
+  document.getElementById('s-cycleVal').textContent = cycle+' months';
+  document.getElementById('suppOrderSub').textContent = '— '+cycle+'-month cycle';
+
+  const sales  = getSuppSales();
+  renderSuppStockTable(sales);
+
+  const res6   = computeSuppShipment(cycle, sales);
+
+  // Verdict
+  const verdEl = document.getElementById('suppVerdict');
+  verdEl.innerHTML=`<div class="verdict-box amber" style="margin-top:4px">
+    <div class="verdict-title">~ Cycle length has minimal impact on supplement costs</div>
+    <div class="verdict-body">
+      Because <b>25% import duty scales with every kg ordered</b>, larger shipments don't reduce the duty burden — they just defer it.
+      The only saving from longer cycles is spreading the flat agent fee (Ksh ${Math.round(getSuppNum('s-agent')).toLocaleString()} per shipment).
+      The main driver of your ordering decision should be <b>cash flow and shelf life</b>, not logistics optimisation.
+      Recommended cycle: <b>6 months</b> — balances cash flow with reasonable stock levels.
+    </div></div>`;
+
+  // Top result cards
+  const res1 = computeSuppShipment(1, sales);
+  const res12= computeSuppShipment(12, sales);
+  const saving6vs1 = res1.annual - res6.annual;
+  document.getElementById('suppResults').innerHTML=`
+    <div class="result-card neutral">
+      <div class="result-label">Annual cost (${cycle}mo cycle)</div>
+      <div class="result-val">Ksh ${Math.round(res6.annual).toLocaleString()}</div>
+      <div class="result-sub">vs Ksh ${Math.round(res1.annual).toLocaleString()} monthly</div>
+    </div>
+    <div class="result-card ${saving6vs1>0?'best':'neutral'}">
+      <div class="result-label">Saving vs monthly orders</div>
+      <div class="result-val">Ksh ${Math.round(saving6vs1).toLocaleString()}</div>
+      <div class="result-sub">${(saving6vs1/res1.annual*100).toFixed(1)}% per year</div>
+    </div>
+    <div class="result-card neutral">
+      <div class="result-label">Landed cost/kg (${cycle}mo)</div>
+      <div class="result-val">Ksh ${Math.round(res6.perKg).toLocaleString()}</div>
+      <div class="result-sub">${res6.logPct.toFixed(0)}% logistics on ExWorks</div>
+    </div>
+    <div class="result-card neutral">
+      <div class="result-label">25% duty / shipment</div>
+      <div class="result-val">Ksh ${Math.round(res6.duty).toLocaleString()}</div>
+      <div class="result-sub">${(res6.duty/res6.total*100).toFixed(0)}% of total landed cost</div>
+    </div>`;
+
+  // Cycle table
+  const cycles=[1,2,3,4,6,9,12];
+  const annualEw = Object.entries(SUPP_CFG).reduce((s,[sku,cfg])=>{
+    return s+(sales[sku]||0)*12*cfg.kgPerPack*getSuppNum(cfg.ewField)*getSuppNum('s-usdkes');},0);
+  let cycleRows='';
+  const bestAnnual=Math.min(...cycles.map(c=>computeSuppShipment(c,sales).annual));
+  cycles.forEach(c=>{
+    const r=computeSuppShipment(c,sales);
+    const saves=res1.annual-r.annual;
+    const isBest=Math.abs(r.annual-bestAnnual)<100;
+    const isCur=c===cycle;
+    cycleRows+=`<tr class="${isCur?'highlight-row':''}">
+      <td><b>${c} mo</b>${isBest?' <span class="tag best">optimal</span>':''}${isCur?' ◀':''}</td>
+      <td style="font-family:var(--font-mono)">${(12/c).toFixed(1)}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${Math.round(r.totalKg)}kg</td>
+      <td style="text-align:right;font-family:var(--font-mono)">Ksh ${Math.round(r.duty).toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">Ksh ${Math.round(r.agentKsh).toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-weight:600">Ksh ${Math.round(r.perKg).toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:${isBest?'var(--ok-txt)':'inherit'}">Ksh ${Math.round(r.annual).toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--font-mono);color:var(--ok-txt)">+Ksh ${Math.round(saves).toLocaleString()}</td>
+    </tr>`;
+  });
+  document.getElementById('suppCycleTable').innerHTML=`
+    <thead><tr>
+      <th>Cycle</th><th>Orders/yr</th>
+      <th style="text-align:right">Volume</th>
+      <th style="text-align:right">25% Duty</th>
+      <th style="text-align:right">Agent flat</th>
+      <th style="text-align:right">Landed/kg</th>
+      <th style="text-align:right">Annual total</th>
+      <th style="text-align:right">Saves vs monthly</th>
+    </tr></thead>
+    <tbody>${cycleRows}</tbody>`;
+
+  // Per-SKU order plan
+  const today=new Date();
+  const lead=getSuppNum('s-lead');
+  let orderRows='';
+  for(const[sku,cfg]of Object.entries(SUPP_CFG)){
+    const curKg=SUPP_STOCK_KG[sku]||0;
+    const incKg=SUPP_INCOMING_KG[sku]||0;
+    const totKg=curKg+incKg;
+    const totPacks=Math.floor(totKg/cfg.kgPerPack);
+    const sal=sales[sku]||0;
+    const covMo=sal>0?totPacks/sal:99;
+    const stockout=new Date(today.getTime()+covMo*30*864e5);
+    const orderBy=new Date(stockout.getTime()-lead*864e5);
+    const needPacks=sal*cycle;
+    const orderPacks=Math.max(0,needPacks-totPacks);
+    const orderDrums=Math.ceil(orderPacks/cfg.packsPerDrum);
+    const orderKg=orderDrums*cfg.drumKg;
+    const ewUsd=getSuppNum(cfg.ewField);
+    const orderCost=orderKg*ewUsd*getSuppNum('s-usdkes');
+    const daysTo=(orderBy-today)/864e5;
+    const urgency=daysTo<0?'<span style="color:var(--crit-txt);font-weight:700">ORDER NOW</span>':
+                  daysTo<60?`<span style="color:var(--low-txt);font-weight:600">By ${orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>`:
+                  `<span style="color:var(--text3)">${orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>`;
+    const skipNote=covMo>cycle+2?' <span style="font-size:9px;color:#8a5c0a">skip — overstocked</span>':'';
+    orderRows+=`<tr>
+      <td><div style="font-weight:600;font-size:12px">${cfg.label}</div>
+          <div style="font-size:9px;color:var(--text3)">${covMo>=99?'∞':covMo.toFixed(1)+' mo coverage'}</div></td>
+      <td style="text-align:right;font-family:var(--font-mono)">${totPacks} packs</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${sal} / mo</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${Math.round(needPacks)}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-weight:600">${orderDrums>0?orderDrums+' drums ('+orderKg+'kg)':'—'+skipNote}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${orderDrums>0?'Ksh '+Math.round(orderCost).toLocaleString():'—'}</td>
+      <td>${urgency}</td>
+    </tr>`;
+  }
+  const totalOrderKg=Object.entries(SUPP_CFG).reduce((s,[sku,cfg])=>{
+    const totPacks=Math.floor((SUPP_STOCK_KG[sku]||0+SUPP_INCOMING_KG[sku]||0)/cfg.kgPerPack);
+    const orderPacks=Math.max(0,(sales[sku]||0)*cycle-totPacks);
+    return s+Math.ceil(orderPacks/cfg.packsPerDrum)*cfg.drumKg;},0);
+  document.getElementById('suppOrderTable').innerHTML=`
+    <thead><tr>
+      <th>SKU</th>
+      <th style="text-align:right">Current stock</th>
+      <th style="text-align:right">Monthly sales</th>
+      <th style="text-align:right">${cycle}mo need</th>
+      <th style="text-align:right">Order quantity</th>
+      <th style="text-align:right">ExWorks cost</th>
+      <th>Order by</th>
+    </tr></thead>
+    <tbody>${orderRows}</tbody>
+    <tfoot><tr style="background:var(--surface2);font-weight:600">
+      <td colspan="4">Total order</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${Math.round(totalOrderKg)}kg</td>
+      <td colspan="2"></td>
+    </tr></tfoot>`;
+
+  // Calendar
+  const arrivalDate=new Date(today.getTime()+lead*864e5);
+  const nextOrder=new Date(today.getTime()+cycle*30*864e5-lead*864e5);
+  const fmtD=d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  document.getElementById('suppCalendar').innerHTML=`
+    <div class="calendar-row" style="margin-bottom:12px">
+      <span class="cal-event order">📋 Emergency collagen order: TODAY</span>
+      <span style="color:var(--text3);font-size:10px">→</span>
+      <span class="cal-event arrive">📦 Arrives: ${fmtD(arrivalDate)}</span>
+    </div>
+    <div class="calendar-row" style="margin-bottom:12px">
+      <span class="cal-event order">📋 Next consolidated order: ${fmtD(nextOrder)}</span>
+      <span style="color:var(--text3);font-size:10px">→</span>
+      <span class="cal-event arrive">📦 Arrives: ${fmtD(new Date(nextOrder.getTime()+lead*864e5))}</span>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.7;padding:8px;background:var(--surface2);border-radius:6px">
+      <b>Collagen:</b> Order minimum 2 drums (50kg) today — stockout is May 6. Arrival ~${fmtD(arrivalDate)}.<br>
+      <b>Next main order:</b> ${fmtD(nextOrder)} for ${cycle}-month cycle. All SKUs in one shipment via LCL sea from Nhava Sheva.<br>
+      <b>Skip PWORKWM:</b> Do not reorder watermelon preworkout — overstocked until ${fmtD(new Date(today.getTime()+(208/11)*30*864e5))}.
+    </div>`;
 }
 
 
