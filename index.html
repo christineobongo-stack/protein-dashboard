@@ -1465,6 +1465,7 @@ function applyPayload(payload){
   dbg('Ingredients loaded: '+procItems.main.length);
   dbg('Bulk supps: '+Object.keys(procItems.bulk).length);
   dbg('Packaging rows: '+packaging.length);
+  packaging.forEach(function(p){ dbg('  pkg: '+p.name+' pkgKey='+p.pkgKey+' stock='+p.stock); });
   dbg('Formulation entries: '+Object.keys(formulations).length);
   dbg('Ingredient costs: '+Object.keys(ingCosts).length);
   dbg('Generated at: '+(payload.meta?.generatedAt||'unknown'));
@@ -3286,15 +3287,19 @@ function renderSupp(){
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const PKG_ITEMS = {
-  large_bag:  {label:'Large bags',         odoo:'Large Packaging Bags',  usdUnit:0.20, lead:120, cbmPer1000:0.06, supplier:'Shenzhen Yes Pack'},
-  small_bag:  {label:'Small bags',         odoo:'Small (taster) bag',    usdUnit:0.23, lead:120, cbmPer1000:0.02, supplier:'Shenzhen Yes Pack'},
-  scoop_30g:  {label:'30g Scoop',          odoo:'30g Scoop',             kshUnit:12,   lead:120, cbmPer1000:0.01, supplier:'Ningbo P&M'},
-  scoop_5g:   {label:'5g Scoop',           odoo:'5g Scoop',              kshUnit:9,    lead:120, cbmPer1000:0.005,supplier:'Ningbo P&M'},
-  silicon:    {label:'Silicon Packs',      odoo:'Silicon Packs',         kshUnit:1.5,  lead:120, cbmPer1000:0.003,supplier:'AbsorbKing'},
+  // pkgKey must match the pkgKey field set in Code.gs readProcurement()
+  large_bag:  {label:'Large bags',              pkgKey:'large_bag',  usdUnit:0.20,   lead:120, cbmPer1000:0.06,  supplier:'Shenzhen Yes Pack'},
+  small_bag:  {label:'Small bags',              pkgKey:'small_bag',  usdUnit:0.23,   lead:120, cbmPer1000:0.02,  supplier:'Shenzhen Yes Pack'},
+  scoop_30g:  {label:'30g Scoop',               pkgKey:'scoop_30g',  kshUnit:12,     lead:120, cbmPer1000:0.01,  supplier:'Ningbo P&M'},
+  scoop_5g:   {label:'5g Scoop',                pkgKey:'scoop_5g',   kshUnit:9,      lead:120, cbmPer1000:0.005, supplier:'Ningbo P&M'},
+  silicon:    {label:'Silicon Packs (sachets)',  pkgKey:'sachet',     kshUnit:1.5,    lead:120, cbmPer1000:0.003, supplier:'AbsorbKing'},
+  shaker_blk: {label:'Protein Shaker (black)',   pkgKey:null, odooRef:'PROTSHAKBLK', kshUnit:129.52, lead:120, cbmPer1000:0.02, supplier:'TBC'},
+  shaker_wht: {label:'Protein Shaker (white)',   pkgKey:null, odooRef:'PROTSHAKCLR', kshUnit:129.52, lead:120, cbmPer1000:0.02, supplier:'TBC'},
+  shaker_clr: {label:'Protein Shaker (clear)',   pkgKey:null, odooRef:'PROTSHAKWT',  kshUnit:129.52, lead:120, cbmPer1000:0.02, supplier:'TBC'},
 };
 
 // Editable incoming — pre-filled with current China order
-const PKG_INCOMING = {large_bag:7500, small_bag:3500, scoop_30g:0, scoop_5g:0, silicon:0};
+const PKG_INCOMING = {large_bag:7500, small_bag:3500, scoop_30g:0, scoop_5g:0, silicon:0, shaker_blk:0, shaker_wht:0, shaker_clr:0};
 
 const CHINA_STICKERS = [
   {label:'CE Vanilla (large)',          odoo:'Stickers (Large, CoreEssentials, Vanilla)',    usdUnit:0.07, orderQty:2500},
@@ -3326,14 +3331,25 @@ const KENYA_STICKERS = [
   {label:'BCAAs Unflavoured (small)',    odoo:'Stickers (Small, BCAAs, Unflavoured)',              kshUnit:15.12},
 ];
 
-function getPkgStockLive(odooName) {
-  if (!odooName) return 0;
-  const nl = odooName.toLowerCase().trim();
-  for (const item of packaging) {
-    if ((item.name||'').toLowerCase().trim() === nl) return item.stock||0;
+function getPkgStockLive(pkgKey, odooRef) {
+  // Primary: look up by pkgKey in the packaging array (most reliable)
+  // pkgKey is set by Code.gs readProcurement() from the sheet structure
+  if (pkgKey) {
+    for (const item of packaging) {
+      if (item.pkgKey === pkgKey) return item.stock || 0;
+    }
   }
-  for (const item of procItems.main) {
-    if ((item.name||'').toLowerCase().trim() === nl) return item.stock||0;
+  // Fallback: match by Odoo internal ref (for items not in packaging array, e.g. shakers)
+  if (odooRef) {
+    const rl = odooRef.toUpperCase().trim();
+    for (const item of [...procItems.main, ...packaging]) {
+      if ((item.ref||'').toUpperCase().trim() === rl) return item.stock || 0;
+    }
+    // Check bulk supps
+    for (const key of Object.keys(procItems.bulk||{})) {
+      const item = procItems.bulk[key];
+      if ((item.ref||'').toUpperCase().trim() === rl) return item.stock || 0;
+    }
   }
   return 0;
 }
@@ -3367,7 +3383,8 @@ function renderPackaging() {
   const monthly = {
     large_bag:protMo, small_bag:bulkMo,
     scoop_30g:protMo, scoop_5g:bulkMo,
-    silicon:bulkMo*2
+    silicon:bulkMo*2,
+    shaker_blk:0, shaker_wht:0, shaker_clr:0,  // sold/gifted independently
   };
 
   function unitKsh(cfg) {
@@ -3429,7 +3446,7 @@ function renderPackaging() {
   // ── Stock table ───────────────────────────────────────────────────────────
   let pkgRows='';
   Object.entries(PKG_ITEMS).forEach(function([key,cfg]) {
-    const cur  = getPkgStockLive(cfg.odoo);
+    const cur  = getPkgStockLive(cfg.pkgKey, cfg.odooRef);
     const inc  = PKG_INCOMING[key]||0;
     const tot  = cur+inc;
     const mo   = monthly[key]||0;
