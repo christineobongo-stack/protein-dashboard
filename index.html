@@ -842,56 +842,35 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
   <!-- TAB 6: PACKAGING & CHINA -->
   <div class="tab-page" id="page-packaging">
-
     <div id="pkgVerdict" style="margin-top:4px"></div>
     <div id="pkgAlerts" style="margin-bottom:10px"></div>
-
-    <!-- STOCK + INCOMING TABLE -->
     <div class="pg-section">
-      <div class="pg-title">Stock position &amp; incoming order planner
-        <span>(current stock live from Odoo · edit incoming to model scenarios · 120-day lead all China items)</span>
-      </div>
+      <div class="pg-title">Stock position &amp; incoming order planner <span>(live from Odoo · 120-day lead all China items)</span></div>
       <div style="overflow-x:auto"><table class="comparison-table" id="pkgStockTable"></table></div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.7;padding:8px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
-        <b>Shipping agent: Rolling Cargo.</b>
-        Air: $12/kg (&gt;1kg) or $15 flat (≤1kg) · 5–10 days · Thu/Sun departures.<br>
-        Sea: Ksh 60,000/CBM · min 0.2 CBM = Ksh 12,000 · 30–35 days from shipping date.<br>
-        Rates are all-in (freight + clearance). IDF 3.5% + RDL 2% on CIF still applies.
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);padding:8px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+        <b>Rolling Cargo:</b> Air $12/kg · 5–10 days · Thu/Sun. Sea Ksh 60,000/CBM · min 0.2CBM = Ksh 12,000 · 30–35 days.
       </div>
     </div>
-
-    <!-- TWO COLUMNS: optimiser left, orders right -->
-    <div style="display:grid;grid-template-columns:380px 1fr;gap:14px;align-items:start">
-
-      <!-- LEFT: inputs -->
+    <div style="display:grid;grid-template-columns:360px 1fr;gap:14px;align-items:start">
       <div>
         <div class="pg-section">
-          <div class="pg-title">Shipping parameters <span>(Rolling Cargo)</span></div>
+          <div class="pg-title">Shipping parameters</div>
           <div class="pg-grid c2">
             <div><div class="pg-label">Sea rate (Ksh/CBM)</div><input class="pg-input" id="pkg-searate" type="number" value="60000" oninput="renderPackaging()"></div>
             <div><div class="pg-label">Sea minimum (Ksh)</div><input class="pg-input" id="pkg-seamin" type="number" value="12000" oninput="renderPackaging()"></div>
             <div><div class="pg-label">Air rate (USD/kg)</div><input class="pg-input" id="pkg-airrate" type="number" value="12" oninput="renderPackaging()"></div>
             <div><div class="pg-label">USD/KES</div><input class="pg-input" id="pkg-usdkes" type="number" value="129.52" oninput="renderPackaging()"></div>
-            <div><div class="pg-label">IDF (%)</div><input class="pg-input" id="pkg-idf" type="number" value="3.5" oninput="renderPackaging()"></div>
-            <div><div class="pg-label">RDL (%)</div><input class="pg-input" id="pkg-rdl" type="number" value="2.0" oninput="renderPackaging()"></div>
           </div>
         </div>
-
         <div class="pg-section">
-          <div class="pg-title">Ordering cycle <span>— drag to explore</span></div>
-          <input class="pg-range" id="pkg-cycleRange" type="range" min="1" max="12" value="6"
-            oninput="document.getElementById('pkg-cycleVal').textContent=this.value+' months';renderPackaging()">
-          <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
-            <span class="pg-range-val" id="pkg-cycleVal">6 months</span>
-            <span style="font-size:10px;color:var(--text3)">all China items consolidated</span>
-          </div>
+          <div class="pg-title">Ordering cycle</div>
+          <input class="pg-range" id="pkg-cycleRange" type="range" min="1" max="12" value="6" oninput="document.getElementById('pkg-cycleVal').textContent=this.value+' months';renderPackaging()">
+          <div style="margin-top:6px"><span class="pg-range-val" id="pkg-cycleVal">6 months</span></div>
         </div>
-
         <div class="pg-section">
-          <div class="pg-title">Cycle comparison <span>— annual cost by cycle length</span></div>
+          <div class="pg-title">Cycle comparison</div>
           <div style="overflow-x:auto"><table class="comparison-table" id="pkgCycleTable"></table></div>
         </div>
-
         <div class="pg-section">
           <div class="pg-title">Shaker order <span>($1 USD each · MOQ 300)</span></div>
           <div class="pg-grid c3">
@@ -902,42 +881,28 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
           <div id="shakerSummary" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>
         </div>
       </div>
-
-      <!-- RIGHT: order plan + calendar + stickers -->
       <div>
         <div class="pg-section">
-          <div class="pg-title">China order plan
-            <span id="pkgOrderSub">— current cycle</span>
-          </div>
+          <div class="pg-title">China order plan <span id="pkgOrderSub"></span></div>
           <div style="overflow-x:auto"><table class="comparison-table" id="pkgOrderTable"></table></div>
         </div>
-
         <div class="pg-section">
           <div class="pg-title">Ordering calendar <span id="pkgCalSub"></span></div>
           <div id="pkgCalendar"></div>
         </div>
-
         <div class="pg-section">
-          <div class="pg-title">Air vs sea — current cycle</div>
+          <div class="pg-title">Air vs sea comparison</div>
           <div style="overflow-x:auto"><table class="comparison-table" id="pkgModeTable"></table></div>
         </div>
-
         <div class="pg-section">
-          <div class="pg-title">China stickers <span>(Shenzhen Yes Pack · included in China shipment)</span></div>
+          <div class="pg-title">China stickers <span>(Shenzhen Yes Pack · in China shipment)</span></div>
           <div style="overflow-x:auto"><table class="comparison-table" id="chinaStickerTable"></table></div>
         </div>
-
         <div class="pg-section">
           <div class="pg-title">Kenya stickers <span>(Print Knight · 7-day lead · order on demand)</span></div>
           <div style="overflow-x:auto"><table class="comparison-table" id="kenyaStickerTable"></table></div>
         </div>
       </div>
-    </div>
-
-    <div style="font-size:10px;color:var(--text3);margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);line-height:1.7">
-      Rolling Cargo rates are confirmed as of March 2026. Sea rate Ksh 60,000/CBM, minimum 0.2 CBM (Ksh 12,000).
-      All China suppliers (Shenzhen Yes Pack bags, Ningbo P&amp;M scoops, AbsorbKing silicon) on 120-day lead.
-      Confirm rates with Rolling Cargo before each order as they may change.
     </div>
   </div>
 </main>
@@ -1465,7 +1430,6 @@ function applyPayload(payload){
   dbg('Ingredients loaded: '+procItems.main.length);
   dbg('Bulk supps: '+Object.keys(procItems.bulk).length);
   dbg('Packaging rows: '+packaging.length);
-  packaging.forEach(function(p){ dbg('  pkg: '+p.name+' pkgKey='+p.pkgKey+' stock='+p.stock); });
   dbg('Formulation entries: '+Object.keys(formulations).length);
   dbg('Ingredient costs: '+Object.keys(ingCosts).length);
   dbg('Generated at: '+(payload.meta?.generatedAt||'unknown'));
@@ -2761,7 +2725,6 @@ function switchTab(id,btn){
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
   if(id==='shipping'){ renderShipping(); renderWheyStockTable(); }
   if(id==='supplements') renderSupp();
-  if(id==='packaging') renderPackaging();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3280,404 +3243,273 @@ function renderSupp(){
 }
 
 
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// PACKAGING & CHINA TAB
-// Rolling Cargo rates: Sea Ksh60,000/CBM (min 0.2CBM=Ksh12,000) | Air $12/kg
-// All China items: 120-day lead | Kenya stickers: 7-day lead, on demand
+// PACKAGING & CHINA TAB — Rolling Cargo rates · all China items 120-day lead
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// pkgKey values MUST match what Code.gs writes into p.pkgKey via PKG_KEYWORDS
 const PKG_ITEMS = {
-  // pkgKey must match the pkgKey field set in Code.gs readProcurement()
-  large_bag:  {label:'Large bags',              pkgKey:'large_bag',  usdUnit:0.20,   lead:120, cbmPer1000:0.06,  supplier:'Shenzhen Yes Pack'},
-  small_bag:  {label:'Small bags',              pkgKey:'small_bag',  usdUnit:0.23,   lead:120, cbmPer1000:0.02,  supplier:'Shenzhen Yes Pack'},
-  scoop_30g:  {label:'30g Scoop',               pkgKey:'scoop_30g',  kshUnit:12,     lead:120, cbmPer1000:0.01,  supplier:'Ningbo P&M'},
-  scoop_5g:   {label:'5g Scoop',                pkgKey:'scoop_5g',   kshUnit:9,      lead:120, cbmPer1000:0.005, supplier:'Ningbo P&M'},
-  silicon:    {label:'Silicon Packs (sachets)',  pkgKey:'sachet',     kshUnit:1.5,    lead:120, cbmPer1000:0.003, supplier:'AbsorbKing'},
-  shaker_blk: {label:'Protein Shaker (black)',   pkgKey:null, odooRef:'PROTSHAKBLK', kshUnit:129.52, lead:120, cbmPer1000:0.02, supplier:'TBC'},
-  shaker_wht: {label:'Protein Shaker (white)',   pkgKey:null, odooRef:'PROTSHAKCLR', kshUnit:129.52, lead:120, cbmPer1000:0.02, supplier:'TBC'},
-  shaker_clr: {label:'Protein Shaker (clear)',   pkgKey:null, odooRef:'PROTSHAKWT',  kshUnit:129.52, lead:120, cbmPer1000:0.02, supplier:'TBC'},
+  large_bag:  {label:'Large bags',         pkgKey:'large_bag',  usdUnit:0.20,  lead:120, cbmPer1000:0.06,  supplier:'Shenzhen Yes Pack'},
+  small_bag:  {label:'Small bags',         pkgKey:'small_bag',  usdUnit:0.23,  lead:120, cbmPer1000:0.02,  supplier:'Shenzhen Yes Pack'},
+  scoop_30g:  {label:'30g Scoop',          pkgKey:'scoop_30g',  kshUnit:12,    lead:120, cbmPer1000:0.01,  supplier:'Ningbo P&M'},
+  scoop_5g:   {label:'5g Scoop',           pkgKey:'scoop_5g',   kshUnit:9,     lead:120, cbmPer1000:0.005, supplier:'Ningbo P&M'},
+  silicon:    {label:'Silicon Packs',      pkgKey:'silicon',    kshUnit:1.5,   lead:120, cbmPer1000:0.003, supplier:'AbsorbKing'},
+  shaker_blk: {label:'Shaker (black)',     pkgKey:'shaker_blk', usdUnit:1.00,  lead:120, cbmPer1000:0.02,  supplier:'TBC'},
+  shaker_wht: {label:'Shaker (white)',     pkgKey:'shaker_wht', usdUnit:1.00,  lead:120, cbmPer1000:0.02,  supplier:'TBC'},
+  shaker_clr: {label:'Shaker (clear)',     pkgKey:'shaker_clr', usdUnit:1.00,  lead:120, cbmPer1000:0.02,  supplier:'TBC'},
 };
 
-// Editable incoming — pre-filled with current China order
 const PKG_INCOMING = {large_bag:7500, small_bag:3500, scoop_30g:0, scoop_5g:0, silicon:0, shaker_blk:0, shaker_wht:0, shaker_clr:0};
 
 const CHINA_STICKERS = [
-  {label:'CE Vanilla (large)',          odoo:'Stickers (Large, CoreEssentials, Vanilla)',    usdUnit:0.07, orderQty:2500},
-  {label:'CE Chocolate (large)',        odoo:'Stickers (Large, CoreEssentials, Chocolate)',  usdUnit:0.07, orderQty:2500},
-  {label:'CE Cookies & Cream (large)',  odoo:null,                                           usdUnit:0.07, orderQty:1000},
-  {label:'Creatine Unflavoured (small)',odoo:'Stickers (Small, Creatine, Unflavoured)',      usdUnit:0.04, orderQty:2500},
-  {label:'Creatine Fruit Punch (small)',odoo:null,                                           usdUnit:0.04, orderQty:1000},
-  {label:'Creatine Pink Guava (small)', odoo:null,                                           usdUnit:0.04, orderQty:1000},
+  {label:'CE Vanilla (large)',           usdUnit:0.07, orderQty:2500},
+  {label:'CE Chocolate (large)',         usdUnit:0.07, orderQty:2500},
+  {label:'CE Cookies & Cream (large)',   usdUnit:0.07, orderQty:1000},
+  {label:'Creatine Unflavoured (small)', usdUnit:0.04, orderQty:2500},
+  {label:'Creatine Fruit Punch (small)', usdUnit:0.04, orderQty:1000},
+  {label:'Creatine Pink Guava (small)',  usdUnit:0.04, orderQty:1000},
 ];
 
 const KENYA_STICKERS = [
-  {label:'CE Banana (large)',            odoo:'Stickers (Large, CoreEssentials, Banana)',          kshUnit:40.76},
-  {label:'CE Birthday Cake (large)',     odoo:'Stickers (Large, CoreEssentials, Vanilla birthday)',kshUnit:40.76},
-  {label:'CE Vanilla Chai (large)',      odoo:'Stickers (Large, CoreEssentials, Vanilla chai)',    kshUnit:40.76},
-  {label:'CE Salted Caramel (large)',    odoo:null,                                                kshUnit:40.76},
-  {label:'Economy+ Vanilla (large)',     odoo:'Stickers (Large, Economy+, Vanilla)',               kshUnit:40.76},
-  {label:'Economy+ Banana (large)',      odoo:'Stickers (Large, Economy+, Banana)',                kshUnit:40.76},
-  {label:'Economy+ Choc (medium)',       odoo:'Stickers (Medium, Economy+, Chocolate)',            kshUnit:34},
-  {label:'CE Choc (medium)',             odoo:'Stickers (Medium, CoreEssentials, Chocolate)',      kshUnit:34},
-  {label:'CE Banana (medium)',           odoo:'Stickers (Medium, CoreEssentials, Banana)',         kshUnit:34},
-  {label:'CE Birthday (medium)',         odoo:'Stickers (Medium, CoreEssentials, Vanilla birthday)',kshUnit:34},
-  {label:'BioBalance Vanilla (large)',   odoo:'Stickers (Large, BioBalance, Vanilla)',             kshUnit:40.76},
-  {label:'BioBalance Unflavoured (med)', odoo:'Stickers (Medium, BioBalance, Unflavoured)',        kshUnit:34},
-  {label:'IsoPro Vanilla (large)',       odoo:'Stickers (Large, IsoPro, Vanilla)',                 kshUnit:40.76},
-  {label:'IsoPro Unflavoured (large)',   odoo:'Stickers (Large, IsoPro, Unflavoured)',             kshUnit:40.76},
-  {label:'PureForm Unflavoured (large)', odoo:'Stickers (Large, PureForm, Unflavoured)',           kshUnit:40.76},
-  {label:'PreWorkout WM (small)',        odoo:'Stickers (Small, Pre-workout, Watermelon)',         kshUnit:15.12},
-  {label:'PreWorkout GA (small)',        odoo:'Stickers (Small, Pre-workout, Green Apple)',        kshUnit:15.12},
-  {label:'BCAAs Unflavoured (small)',    odoo:'Stickers (Small, BCAAs, Unflavoured)',              kshUnit:15.12},
+  {label:'CE Banana (large)',             pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'CE Birthday Cake (large)',      pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'CE Vanilla Chai (large)',       pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'CE Salted Caramel (large)',     pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'Economy+ Vanilla (large)',      pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'Economy+ Banana (large)',       pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'Economy+ Choc (medium)',        pkgKey:'medium_sticker',kshUnit:34},
+  {label:'CE Choc (medium)',              pkgKey:'medium_sticker',kshUnit:34},
+  {label:'CE Banana (medium)',            pkgKey:'medium_sticker',kshUnit:34},
+  {label:'CE Birthday (medium)',          pkgKey:'medium_sticker',kshUnit:34},
+  {label:'BioBalance Vanilla (large)',    pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'BioBalance Unflavoured (med)',  pkgKey:'medium_sticker',kshUnit:34},
+  {label:'IsoPro Vanilla (large)',        pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'IsoPro Unflavoured (large)',    pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'PureForm Unflavoured (large)',  pkgKey:'large_sticker', kshUnit:40.76},
+  {label:'PreWorkout WM (small)',         pkgKey:'small_sticker', kshUnit:15.12},
+  {label:'PreWorkout GA (small)',         pkgKey:'small_sticker', kshUnit:15.12},
+  {label:'BCAAs Unflavoured (small)',     pkgKey:'small_sticker', kshUnit:15.12},
 ];
 
-function getPkgStockLive(pkgKey, odooRef) {
-  // Primary: look up by pkgKey in the packaging array (most reliable)
-  // pkgKey is set by Code.gs readProcurement() from the sheet structure
-  if (pkgKey) {
-    for (const item of packaging) {
-      if (item.pkgKey === pkgKey) return item.stock || 0;
-    }
-  }
-  // Fallback: match by Odoo internal ref (for items not in packaging array, e.g. shakers)
-  if (odooRef) {
-    const rl = odooRef.toUpperCase().trim();
-    for (const item of [...procItems.main, ...packaging]) {
-      if ((item.ref||'').toUpperCase().trim() === rl) return item.stock || 0;
-    }
-    // Check bulk supps
-    for (const key of Object.keys(procItems.bulk||{})) {
-      const item = procItems.bulk[key];
-      if ((item.ref||'').toUpperCase().trim() === rl) return item.stock || 0;
-    }
-  }
+// Look up stock using pkgKey via pkgCosts — populated by applyPayload from Odoo
+function getPkgStock(pkgKey) {
+  if (pkgCosts[pkgKey]) return pkgCosts[pkgKey].stock || 0;
   return 0;
 }
 
-function getStickerStockLive(odooName) {
-  if (!odooName) return null;
-  const nl = odooName.toLowerCase().trim();
-  for (const item of packaging) {
-    if ((item.name||'').toLowerCase().trim() === nl) return item.stock||0;
-  }
-  return null;
-}
-
 function renderPackaging() {
-  const seaRate   = parseFloat(document.getElementById('pkg-searate')?.value)||60000;
-  const seaMin    = parseFloat(document.getElementById('pkg-seamin')?.value)||12000;
-  const airRate   = parseFloat(document.getElementById('pkg-airrate')?.value)||12;
-  const usdKes    = parseFloat(document.getElementById('pkg-usdkes')?.value)||129.52;
-  const idfPct    = (parseFloat(document.getElementById('pkg-idf')?.value)||3.5)/100;
-  const rdlPct    = (parseFloat(document.getElementById('pkg-rdl')?.value)||2.0)/100;
-  const cycle     = parseInt(document.getElementById('pkg-cycleRange')?.value||6);
+  const seaRate = parseFloat(document.getElementById('pkg-searate')?.value)||60000;
+  const seaMin  = parseFloat(document.getElementById('pkg-seamin')?.value)||12000;
+  const airRate = parseFloat(document.getElementById('pkg-airrate')?.value)||12;
+  const usdKes  = parseFloat(document.getElementById('pkg-usdkes')?.value)||129.52;
+  const cycle   = parseInt(document.getElementById('pkg-cycleRange')?.value||6);
   document.getElementById('pkg-cycleVal').textContent = cycle + ' months';
-  document.getElementById('pkg-OrderSub') && (document.getElementById('pkg-OrderSub').textContent = '— ' + cycle + '-month cycle');
-
+  const el = id => document.getElementById(id);
   const today = new Date();
-  const fmtD  = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  const fmtD = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 
-  // Monthly needs
   const protMo = Object.values(FORM_TABS).flatMap(c=>c.skus).reduce((s,sku)=>s+(SALES[sku]||0),0);
   const bulkMo = Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0);
-  const monthly = {
-    large_bag:protMo, small_bag:bulkMo,
-    scoop_30g:protMo, scoop_5g:bulkMo,
-    silicon:bulkMo*2,
-    shaker_blk:0, shaker_wht:0, shaker_clr:0,  // sold/gifted independently
-  };
+  const monthly = {large_bag:protMo,small_bag:bulkMo,scoop_30g:protMo,scoop_5g:bulkMo,silicon:bulkMo*2,shaker_blk:0,shaker_wht:0,shaker_clr:0};
 
-  function unitKsh(cfg) {
-    return cfg.kshUnit || (cfg.usdUnit * usdKes);
-  }
-
-  function seaCost(cbm) {
-    return Math.max(seaMin, cbm * seaRate);
-  }
+  function uKsh(cfg){ return cfg.kshUnit || (cfg.usdUnit*usdKes); }
+  function seaCost(cbm){ return Math.max(seaMin, cbm*seaRate); }
 
   function computeShip(months) {
-    let ew=0, cbm=0;
-    Object.entries(PKG_ITEMS).forEach(function([k,cfg]) {
-      const qty = monthly[k]*months;
-      ew  += qty * unitKsh(cfg);
-      cbm += qty/1000 * (cfg.cbmPer1000||0);
+    let ew=0, cbm=0, units=0;
+    Object.entries(PKG_ITEMS).forEach(function([k,cfg]){
+      const qty=monthly[k]*months;
+      ew += qty*uKsh(cfg);
+      cbm += qty/1000*(cfg.cbmPer1000||0);
+      units += qty;
     });
-    const sea = seaCost(cbm);
-    const cif = ew + sea;
-    const kra = cif*(idfPct+rdlPct);
-    const total = cif+kra;
-    return {ew,cbm,sea,kra,total,annual:total*12/months,
-            perUnit:total/Object.entries(PKG_ITEMS).reduce((s,[k])=>s+monthly[k]*months,0)};
+    const sea=seaCost(cbm), cif=ew+sea, kra=cif*0.055;
+    const total=cif+kra;
+    return {ew,cbm,sea,kra,total,annual:total*12/months,perUnit:units>0?total/units:0};
   }
 
   // ── Verdict ──────────────────────────────────────────────────────────────
   const r1=computeShip(1), rc=computeShip(cycle);
-  const saves=r1.annual-rc.annual;
-  const savesPct=saves/r1.annual*100;
-  const verdEl=document.getElementById('pkgVerdict');
-  if(verdEl) verdEl.innerHTML=`<div class="verdict-box ${saves>0?'green':'amber'}" style="margin-bottom:8px">
-    <div class="verdict-title">${saves>0?'✓ Consolidating orders saves significantly':'~ Minimal saving from consolidation'}</div>
-    <div class="verdict-body">
-      A ${cycle}-month cycle costs <b>Ksh ${Math.round(rc.annual).toLocaleString()}/year</b> vs
-      Ksh ${Math.round(r1.annual).toLocaleString()} for monthly orders —
-      saving <b>Ksh ${Math.round(saves).toLocaleString()} (${savesPct.toFixed(1)}%)</b>.
-      The sea minimum charge (Ksh ${seaMin.toLocaleString()}) means orders under 0.2 CBM
-      (${(0.2/Object.entries(PKG_ITEMS).reduce((s,[k,c])=>s+monthly[k]/1000*(c.cbmPer1000||0),0)).toFixed(1)} months) pay the same freight regardless — consolidate to spread that cost.
-    </div></div>`;
+  const saves=r1.annual-rc.annual, savePct=saves/r1.annual*100;
+  const minsMonths=(seaMin/seaRate/Object.entries(PKG_ITEMS).reduce((s,[k,c])=>s+monthly[k]/1000*(c.cbmPer1000||0),0)).toFixed(1);
+  if(el('pkgVerdict')) el('pkgVerdict').innerHTML=
+    '<div class="verdict-box green" style="margin-bottom:8px">'+
+    '<div class="verdict-title">'+cycle+'-month cycle saves Ksh '+Math.round(saves).toLocaleString()+'/year ('+savePct.toFixed(1)+'%)</div>'+
+    '<div class="verdict-body">Monthly orders cost Ksh '+Math.round(r1.annual).toLocaleString()+'/year. '+
+    'A '+cycle+'-month cycle costs Ksh '+Math.round(rc.annual).toLocaleString()+'/year. '+
+    'Sea minimum charge (Ksh '+seaMin.toLocaleString()+') is paid regardless of volume for orders under '+minsMonths+' months — always consolidate above that threshold.</div></div>';
 
   // ── Alerts ────────────────────────────────────────────────────────────────
-  const alerts = [];
-  const vChaiStock = getStickerStockLive('Stickers (Large, CoreEssentials, Vanilla chai)');
-  if (vChaiStock !== null && vChaiStock < 0)
-    alerts.push({crit:true, msg:'Vanilla Chai sticker: NEGATIVE stock ('+vChaiStock+') — order from Print Knight immediately'});
-  KENYA_STICKERS.forEach(function(s) {
-    const st = getStickerStockLive(s.odoo);
-    if (st !== null && st < 10)
-      alerts.push({crit:st<0, msg:s.label+': '+st+' left — reorder from Print Knight'});
+  const alerts=[];
+  Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
+    const cur=getPkgStock(cfg.pkgKey), inc=PKG_INCOMING[key]||0, tot=cur+inc;
+    const mo=monthly[key]||0;
+    if(mo>0){
+      const cov=tot/mo, days=Math.round(cov*30-cfg.lead);
+      if(days<0) alerts.push({crit:true, msg:cfg.label+': order overdue by '+Math.abs(days)+'d — place order now'});
+      else if(days<30) alerts.push({crit:false, msg:cfg.label+': order deadline in '+days+' days'});
+    }
   });
-  const alertEl=document.getElementById('pkgAlerts');
-  if(alertEl) alertEl.innerHTML=alerts.map(function(a){
+  if(el('pkgAlerts')) el('pkgAlerts').innerHTML=alerts.map(function(a){
     return '<div style="padding:7px 12px;border-radius:6px;margin-bottom:5px;font-size:11px;font-weight:500;'+
       (a.crit?'background:var(--crit-bg);color:var(--crit-txt);border:1px solid var(--crit-bdr)':
                'background:var(--low-bg);color:var(--low-txt);border:1px solid var(--low-bdr)')+
-      '">'+(a.crit?'⚠ ':' ')+ a.msg+'</div>';
+      '">'+(a.crit?'⚠ ':'! ')+a.msg+'</div>';
   }).join('');
 
   // ── Stock table ───────────────────────────────────────────────────────────
   let pkgRows='';
-  Object.entries(PKG_ITEMS).forEach(function([key,cfg]) {
-    const cur  = getPkgStockLive(cfg.pkgKey, cfg.odooRef);
-    const inc  = PKG_INCOMING[key]||0;
-    const tot  = cur+inc;
-    const mo   = monthly[key]||0;
-    const cov  = mo>0?tot/mo:99;
-    const stk  = new Date(today.getTime()+cov*30*864e5);
-    const oby  = new Date(stk.getTime()-cfg.lead*864e5);
-    const days = Math.round((oby-today)/864e5);
-    const st   = cov<2?'critical':cov<4?'low':'ok';
-    const badge= '<span class="badge '+st+'">'+(st==='critical'?'Critical':st==='low'?'Low':'OK')+'</span>';
-    const cog  = cur*unitKsh(cfg);
-    const urgency = days<0?'<b style="color:var(--crit-txt)">ORDER NOW ('+(Math.abs(days))+'d late)</b>':
-                    days<60?'<span style="color:var(--low-txt)">By '+oby.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</span>':
-                    '<span style="color:var(--text3)">By '+oby.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</span>';
+  Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
+    const cur=getPkgStock(cfg.pkgKey);
+    const inc=PKG_INCOMING[key]||0, tot=cur+inc;
+    const mo=monthly[key]||0;
+    const cov=mo>0?tot/mo:99;
+    const stk=new Date(today.getTime()+cov*30*864e5);
+    const oby=new Date(stk.getTime()-cfg.lead*864e5);
+    const days=Math.round((oby-today)/864e5);
+    const st=cov<2?'critical':cov<4?'low':'ok';
+    const badge='<span class="badge '+st+'">'+(st==='critical'?'Critical':st==='low'?'Low':'OK')+'</span>';
+    const cog=cur*uKsh(cfg);
+    const urgency=days<0?'<b style="color:var(--crit-txt)">ORDER NOW ('+(Math.abs(days))+'d late)</b>':
+                  days<60?'<span style="color:var(--low-txt)">By '+oby.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</span>':
+                  '<span style="color:var(--text3)">By '+oby.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</span>';
     pkgRows+='<tr>'+
-      '<td><b>'+cfg.label+'</b><div style="font-size:9px;color:var(--text3)">'+cfg.supplier+' · '+cfg.lead+'d lead</div></td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">'+cur.toLocaleString()+'<div style="font-size:9px;color:var(--text3)">live Odoo</div></td>'+
+      '<td><b>'+cfg.label+'</b><div style="font-size:9px;color:var(--text3)">'+cfg.supplier+' · '+cfg.lead+'d lead · pkgKey:'+cfg.pkgKey+'</div></td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">'+cur.toLocaleString()+'</td>'+
       '<td><div style="display:flex;justify-content:flex-end;gap:3px;align-items:center">'+
-      '<input type="number" min="0" value="'+inc+'" data-pkgkey="'+key+'"'+
+      '<input type="number" min="0" value="'+inc+'" data-pkey="'+key+'"'+
       ' style="width:80px;font-family:var(--font-mono);font-size:11px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 5px;background:var(--surface2)"'+
-      ' onchange="PKG_INCOMING[this.dataset.pkgkey]=parseFloat(this.value)||0;renderPackaging()"'+
-      ' title="Planned incoming"><span style="font-size:9px;color:var(--text3)">pcs</span></div>'+
-      '<div style="font-size:9px;color:var(--text3);text-align:right">'+inc.toLocaleString()+' pcs incoming</div></td>'+
+      ' onchange="PKG_INCOMING[this.dataset.pkey]=parseFloat(this.value)||0;renderPackaging()">'+
+      '<span style="font-size:9px;color:var(--text3)">pcs</span></div></td>'+
       '<td style="text-align:right;font-family:var(--font-mono);font-weight:700">'+tot.toLocaleString()+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(cog).toLocaleString()+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">'+(mo>0?mo+'/mo':'—')+'</td>'+
       '<td>'+badge+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono);color:'+(cov<2?'var(--crit-txt)':cov<4?'var(--low-txt)':'var(--text)')+'">'+
       (cov>=99?'&#x221e;':cov.toFixed(1)+' mo')+'<div style="font-size:9px;color:var(--text3)">'+(cov<99?stk.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}):'')+'</div></td>'+
-      '<td>'+urgency+'</td>'+
-      '</tr>';
+      '<td>'+urgency+'</td></tr>';
   });
-  document.getElementById('pkgStockTable').innerHTML=
-    '<thead><tr><th>Item</th>'+
-    '<th style="text-align:right">Current stock</th>'+
-    '<th style="text-align:right">Incoming<div style="font-weight:400;font-style:italic;font-size:9px">editable</div></th>'+
-    '<th style="text-align:right">Total</th>'+
-    '<th style="text-align:right">Cost of goods</th>'+
-    '<th style="text-align:right">Monthly need</th>'+
-    '<th>Status</th>'+
-    '<th style="text-align:right">Coverage</th>'+
-    '<th>Order by</th></tr></thead>'+
+  el('pkgStockTable').innerHTML='<thead><tr>'+
+    '<th>Item</th><th style="text-align:right">Current stock<div style="font-style:italic;font-weight:400;font-size:9px">live Odoo</div></th>'+
+    '<th style="text-align:right">Incoming<div style="font-style:italic;font-weight:400;font-size:9px">editable</div></th>'+
+    '<th style="text-align:right">Total</th><th style="text-align:right">Cost of goods</th>'+
+    '<th style="text-align:right">Monthly need</th><th>Status</th>'+
+    '<th style="text-align:right">Coverage</th><th>Order by</th></tr></thead>'+
     '<tbody>'+pkgRows+'</tbody>';
 
   // ── Cycle table ───────────────────────────────────────────────────────────
-  const best=Math.max(1,...[1,2,3,4,6,9,12].filter(m=>computeShip(m)).map(m=>({m,a:computeShip(m).annual})))
-    || 12;
   let bestAnnual=Infinity;
-  [1,2,3,4,6,9,12].forEach(function(m){const r=computeShip(m);if(r.annual<bestAnnual)bestAnnual=r.annual;});
-  let cycleRows='';
+  [1,2,3,4,6,9,12].forEach(function(m){const a=computeShip(m).annual;if(a<bestAnnual)bestAnnual=a;});
+  let cycRows='';
   [1,2,3,4,6,9,12].forEach(function(m){
-    const r=computeShip(m);
-    const isBest=Math.abs(r.annual-bestAnnual)<1;
-    const isCur=m===cycle;
-    const saves=r1.annual-r.annual;
-    cycleRows+='<tr class="'+(isCur?'highlight-row':'')+'">'+
-      '<td><b>'+m+' mo</b>'+(isBest?' <span class="tag best">optimal</span>':'')+(isCur?' ◀':'')+'</td>'+
-      '<td style="font-family:var(--font-mono)">'+(12/m).toFixed(1)+'</td>'+
+    const r=computeShip(m), isBest=Math.abs(r.annual-bestAnnual)<1, isCur=m===cycle;
+    cycRows+='<tr'+(isCur?' class="highlight-row"':'')+'>'+
+      '<td><b>'+m+'mo</b>'+(isBest?' <span class="tag best">optimal</span>':'')+(isCur?' ◀':'')+
+      '<div style="font-size:9px;color:var(--text3)">'+(12/m).toFixed(1)+' orders/yr</div></td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">'+r.cbm.toFixed(3)+' CBM</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(r.sea).toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:'+(isBest?'var(--ok-txt)':'inherit')+'">'+
-      'Ksh '+Math.round(r.annual).toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono);color:var(--ok-txt)">'+
-      (saves>0?'Ksh '+Math.round(saves).toLocaleString():'—')+'</td>'+
-      '</tr>';
+      '<td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:'+(isBest?'var(--ok-txt)':'inherit')+'">Ksh '+Math.round(r.annual).toLocaleString()+'</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono);color:var(--ok-txt)">'+(r1.annual-r.annual>0?'Ksh '+Math.round(r1.annual-r.annual).toLocaleString():'—')+'</td></tr>';
   });
-  document.getElementById('pkgCycleTable').innerHTML=
-    '<thead><tr><th>Cycle</th><th>Orders/yr</th><th style="text-align:right">Volume</th>'+
-    '<th style="text-align:right">Sea freight</th><th style="text-align:right">Annual total</th>'+
-    '<th style="text-align:right">Saves vs monthly</th></tr></thead>'+
-    '<tbody>'+cycleRows+'</tbody>';
+  el('pkgCycleTable').innerHTML='<thead><tr><th>Cycle</th><th style="text-align:right">Volume</th>'+
+    '<th style="text-align:right">Sea freight</th><th style="text-align:right">Annual cost</th>'+
+    '<th style="text-align:right">Saves vs monthly</th></tr></thead><tbody>'+cycRows+'</tbody>';
 
   // ── China order table ─────────────────────────────────────────────────────
-  const shkBlk=parseFloat(document.getElementById('shk-black')?.value)||0;
-  const shkWht=parseFloat(document.getElementById('shk-white')?.value)||0;
-  const shkClr=parseFloat(document.getElementById('shk-clear')?.value)||0;
-  const shkTotal=shkBlk+shkWht+shkClr;
-
-  let orderRows='', totalEw=0, totalCbm=0, totalLanded=0;
+  const shkB=parseFloat(el('shk-black')?.value)||0,shkW=parseFloat(el('shk-white')?.value)||0,shkC=parseFloat(el('shk-clear')?.value)||0;
+  let oRows='',oEw=0,oCbm=0,oLand=0;
   Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
-    const qty=PKG_INCOMING[key]||0;
-    if(!qty) return;
-    const ew=qty*unitKsh(cfg);
-    const cbm=(cfg.cbmPer1000||0)*qty/1000;
-    const kra=ew*(idfPct+rdlPct);
-    const landed=ew+kra;
-    totalEw+=ew; totalCbm+=cbm; totalLanded+=landed;
-    orderRows+='<tr><td><b>'+cfg.label+'</b><div style="font-size:9px;color:var(--text3)">'+cfg.supplier+'</div></td>'+
+    const qty=PKG_INCOMING[key]||0; if(!qty)return;
+    const ew=qty*uKsh(cfg),cbm=(cfg.cbmPer1000||0)*qty/1000,land=ew*1.055;
+    oEw+=ew;oCbm+=cbm;oLand+=land;
+    oRows+='<tr><td><b>'+cfg.label+'</b></td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">'+qty.toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(unitKsh(cfg)).toLocaleString()+'</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(uKsh(cfg)).toLocaleString()+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew).toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(landed).toLocaleString()+'</td>'+
-      '</tr>';
+      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(land).toLocaleString()+'</td></tr>';
   });
-  // Add China stickers
   CHINA_STICKERS.forEach(function(s){
-    const ew=s.orderQty*s.usdUnit*usdKes;
-    totalEw+=ew; totalLanded+=ew*1.055;
-    orderRows+='<tr style="background:#fafaf8"><td><b>'+s.label+'</b>'+
-      '<div style="font-size:9px;color:var(--text3)">Shenzhen Yes Pack · sticker</div></td>'+
+    const ew=s.orderQty*s.usdUnit*usdKes;oEw+=ew;oLand+=ew*1.055;
+    oRows+='<tr style="background:#fafaf8"><td>'+s.label+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">'+s.orderQty.toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(s.usdUnit*usdKes).toFixed(1)+'</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(s.usdUnit*usdKes)+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew).toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew*1.055).toLocaleString()+'</td>'+
-      '</tr>';
+      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew*1.055).toLocaleString()+'</td></tr>';
   });
-  // Shakers
-  if(shkTotal>0){
-    const ew=shkTotal*1.0*usdKes;
-    totalEw+=ew; totalLanded+=ew*1.1;
-    orderRows+='<tr style="background:#fafaf8"><td><b>Shakers</b>'+
-      '<div style="font-size:9px;color:var(--text3)">'+shkBlk+' blk / '+shkWht+' wht / '+shkClr+' clr</div></td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">'+shkTotal+'</td>'+
+  const shkTot=shkB+shkW+shkC;
+  if(shkTot>0){const ew=shkTot*usdKes;oEw+=ew;oLand+=ew*1.1;
+    oRows+='<tr style="background:#fafaf8"><td>Shakers ('+shkB+' blk/'+shkW+' wht/'+shkC+' clr)</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">'+shkTot+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(usdKes)+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew).toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew*1.1).toLocaleString()+'</td>'+
-      '</tr>';
-  }
-  const seaForOrder=seaCost(totalCbm);
-  const totalWithSea=totalLanded+seaForOrder;
-  document.getElementById('pkgOrderTable').innerHTML=
-    '<thead><tr><th>Item</th><th style="text-align:right">Qty</th>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew*1.1).toLocaleString()+'</td></tr>';}
+  const seaThis=seaCost(oCbm),grandTotal=oLand+seaThis;
+  el('pkgOrderTable').innerHTML='<thead><tr><th>Item</th><th style="text-align:right">Qty</th>'+
     '<th style="text-align:right">Unit (Ksh)</th><th style="text-align:right">ExWorks</th>'+
-    '<th style="text-align:right">Landed (excl. sea)</th></tr></thead>'+
-    '<tbody>'+orderRows+'</tbody>'+
+    '<th style="text-align:right">Landed (excl. sea)</th></tr></thead><tbody>'+oRows+'</tbody>'+
     '<tfoot><tr style="background:var(--surface2);font-weight:600;border-top:2px solid var(--border2)">'+
-    '<td colspan="2">Total</td>'+
-    '<td colspan="2" style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(totalEw).toLocaleString()+' ExWorks</td>'+
-    '<td style="text-align:right;font-family:var(--font-mono);color:var(--c-protein);font-size:13px">'+
-    'Ksh '+Math.round(totalWithSea).toLocaleString()+' all-in</td></tr>'+
-    '<tr style="background:var(--surface2)"><td colspan="4" style="font-size:10px;color:var(--text3)">'+
-    'Sea freight ('+totalCbm.toFixed(3)+' CBM): Ksh '+Math.round(seaForOrder).toLocaleString()+'</td>'+
-    '<td style="text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--text3)">'+
-    'Ksh '+Math.round(totalWithSea/Math.max(1,Object.entries(PKG_ITEMS).reduce((s,[k])=>s+(PKG_INCOMING[k]||0),0))).toLocaleString()+'/unit avg</td></tr></tfoot>';
+    '<td colspan="3">Total · '+oCbm.toFixed(3)+' CBM · sea Ksh '+Math.round(seaThis).toLocaleString()+'</td>'+
+    '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(oEw).toLocaleString()+'</td>'+
+    '<td style="text-align:right;font-family:var(--font-mono);color:var(--c-protein);font-size:13px">Ksh '+Math.round(grandTotal).toLocaleString()+'</td></tr></tfoot>';
+  if(el('pkgOrderSub')) el('pkgOrderSub').textContent='— '+cycle+'-month cycle';
 
   // ── Air vs sea ────────────────────────────────────────────────────────────
-  const airKsh=totalCbm*200*airRate*usdKes;  // ~200kg/CBM for mixed packaging
-  const modeRows=[
-    ['Sea freight (Ksh/CBM × '+totalCbm.toFixed(3)+' CBM)','—','Ksh '+Math.round(seaForOrder).toLocaleString()],
-    ['Air freight (~'+Math.round(totalCbm*200)+'kg × $'+airRate+'/kg)','Ksh '+Math.round(airKsh).toLocaleString(),'—'],
-    ['Transit time','5–10 days','30–35 days'],
-    ['Best for','Urgent restocks','Planned cycle orders'],
-  ];
-  document.getElementById('pkgModeTable').innerHTML=
-    '<thead><tr><th>Factor</th><th>✈ Air</th><th>🚢 Sea</th></tr></thead>'+
-    '<tbody>'+modeRows.map(function(r){
-      return '<tr>'+r.map(function(c,i){return '<td'+(i>0?' style="text-align:right;font-family:var(--font-mono)"':'')+'>'+c+'</td>';}).join('')+'</tr>';
-    }).join('')+'</tbody>';
+  const airKg=Math.round(oCbm*200), airCost=airKg*airRate*usdKes;
+  el('pkgModeTable').innerHTML='<thead><tr><th>Factor</th><th>✈ Air</th><th>&#x1F6A2; Sea</th></tr></thead><tbody>'+
+    '<tr><td>Freight cost</td><td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(airCost).toLocaleString()+'</td><td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(seaThis).toLocaleString()+'</td></tr>'+
+    '<tr><td>Transit time</td><td style="text-align:right">5–10 days</td><td style="text-align:right">30–35 days</td></tr>'+
+    '<tr><td>Departure days</td><td style="text-align:right">Thu / Sun</td><td style="text-align:right">Any day</td></tr>'+
+    '<tr style="font-weight:600"><td>Sea saves</td><td></td><td style="text-align:right;font-family:var(--font-mono);color:var(--ok-txt)">Ksh '+Math.round(airCost-seaThis).toLocaleString()+'</td></tr>'+
+    '</tbody>';
 
   // ── Calendar ──────────────────────────────────────────────────────────────
-  const calSub = document.getElementById('pkgCalSub');
-  if(calSub) calSub.textContent = '— '+cycle+'-month cycle · 120-day lead · sea (30–35 days)';
-  const SEA_TRANSIT=32; // midpoint 30-35 days
+  const critCov=Math.min(...Object.entries(PKG_ITEMS).filter(function([k,c]){return (monthly[k]||0)>0;}).map(function([k,c]){
+    return (getPkgStock(c.pkgKey)+(PKG_INCOMING[k]||0))/(monthly[k]||1);
+  }));
+  const daysLeft=Math.max(0,Math.round((critCov*30-120)));
+  let orderDate=new Date(today.getTime()+daysLeft*864e5);
+  const dow=orderDate.getDay(), dSnap=dow<=0?0:dow<=4?(4-dow):(7-dow+4);
+  orderDate=new Date(orderDate.getTime()+dSnap*864e5);
+  if(el('pkgCalSub')) el('pkgCalSub').textContent='— '+cycle+'-month cycle · sea 32-day transit';
   let calHtml='';
-  let d=new Date(today);
-  // Find next order date based on current stock
-  const critItem=Object.entries(PKG_ITEMS).reduce(function(minItem,[key,cfg]){
-    const cur=getPkgStockLive(cfg.odoo)+(PKG_INCOMING[key]||0);
-    const mo=monthly[key]||1;
-    const cov=cur/mo;
-    return cov<(minItem?minItem.cov:99)?{key,cfg,cov}:minItem;
-  },null);
-  const daysUntilOrder=critItem?Math.max(0,Math.round((critItem.cov*30-120))):0;
-  const orderDate=new Date(today.getTime()+daysUntilOrder*864e5);
-  // Snap to next Thu or Sun
-  const dow=orderDate.getDay();
-  const daysToNextShip=dow<=0?0:dow<=4?(4-dow):(7-dow+4);
-  orderDate.setDate(orderDate.getDate()+daysToNextShip);
-  const arrivalDate=new Date(orderDate.getTime()+SEA_TRANSIT*864e5);
-
   for(let i=0;i<3;i++){
     const ord=new Date(orderDate.getTime()+i*cycle*30*864e5);
-    const arr=new Date(ord.getTime()+SEA_TRANSIT*864e5);
-    const next=new Date(ord.getTime()+cycle*30*864e5);
-    calHtml+='<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+
+    const arr=new Date(ord.getTime()+32*864e5);
+    calHtml+='<div style="margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">'+
       '<div style="font-size:11px;font-weight:600;margin-bottom:5px">Cycle '+(i+1)+'</div>'+
       '<div class="calendar-row">'+
-      '<span class="cal-event order">📋 Place order: '+fmtD(ord)+'</span>'+
-      '<span style="color:var(--text3);font-size:10px">→</span>'+
-      '<span class="cal-event arrive">📦 Arrives: '+fmtD(arr)+'</span>'+
-      '<span style="color:var(--text3);font-size:10px">→</span>'+
-      '<span class="cal-event gap">🔄 Next order: '+fmtD(next)+'</span>'+
+      '<span class="cal-event order">&#x1F4CB; Place order '+fmtD(ord)+'</span>'+
+      ' &rarr; <span class="cal-event arrive">&#x1F4E6; Arrives ~'+fmtD(arr)+'</span>'+
       '</div>'+
-      '<div style="font-size:10px;color:var(--text3);margin-top:4px">Ship on '+(ord.getDay()===4?'Thursday':'Sunday')+'</div>'+
+      '<div style="font-size:10px;color:var(--text3);margin-top:3px">Ship '+(ord.getDay()===4?'Thursday':'Sunday')+' with Rolling Cargo</div>'+
       '</div>';
   }
-  const calEl=document.getElementById('pkgCalendar');
-  if(calEl) calEl.innerHTML=calHtml||'<div style="color:var(--text3);font-size:11px">Enter incoming quantities above to generate calendar</div>';
+  el('pkgCalendar').innerHTML=calHtml;
 
-  // ── China stickers table ──────────────────────────────────────────────────
-  let csRows='';
-  CHINA_STICKERS.forEach(function(s){
-    const stock=getStickerStockLive(s.odoo);
-    csRows+='<tr><td>'+s.label+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">'+(stock!==null?stock:'—')+'</td>'+
+  // ── China stickers ────────────────────────────────────────────────────────
+  el('chinaStickerTable').innerHTML='<thead><tr><th>Sticker</th><th style="text-align:right">This order</th><th style="text-align:right">Unit cost</th></tr></thead><tbody>'+
+    CHINA_STICKERS.map(function(s){return '<tr><td>'+s.label+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">'+s.orderQty.toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">$'+s.usdUnit.toFixed(2)+' (Ksh '+Math.round(s.usdUnit*usdKes)+')</td>'+
-      '</tr>';
-  });
-  document.getElementById('chinaStickerTable').innerHTML=
-    '<thead><tr><th>Sticker</th><th style="text-align:right">Stock</th>'+
-    '<th style="text-align:right">This order</th><th style="text-align:right">Unit cost</th></tr></thead>'+
-    '<tbody>'+csRows+'</tbody>';
+      '<td style="text-align:right;font-family:var(--font-mono)">$'+s.usdUnit.toFixed(2)+' (Ksh '+Math.round(s.usdUnit*usdKes)+')</td></tr>';}).join('')+'</tbody>';
 
-  // ── Kenya stickers table ──────────────────────────────────────────────────
-  let ksRows='';
-  KENYA_STICKERS.forEach(function(s){
-    const stock=getStickerStockLive(s.odoo);
-    const low=stock!==null&&stock<10;
-    const neg=stock!==null&&stock<0;
-    ksRows+='<tr>'+
-      '<td>'+s.label+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono);'+(neg?'color:var(--crit-txt);font-weight:700':low?'color:var(--low-txt)':'')+'">'+
-      (stock!==null?stock+(neg?' ⚠':''):' —')+'</td>'+
+  // ── Kenya stickers ────────────────────────────────────────────────────────
+  el('kenyaStickerTable').innerHTML='<thead><tr><th>Sticker</th><th style="text-align:right">Unit cost</th><th>Note</th></tr></thead><tbody>'+
+    KENYA_STICKERS.map(function(s){return '<tr><td>'+s.label+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+s.kshUnit+'</td>'+
-      '<td style="font-size:10px;color:'+(neg?'var(--crit-txt)':low?'var(--low-txt)':'var(--text3)')+'">'+
-      (neg?'ORDER NOW':low?'Reorder soon':'OK')+'</td>'+
-      '</tr>';
-  });
-  document.getElementById('kenyaStickerTable').innerHTML=
-    '<thead><tr><th>Sticker</th><th style="text-align:right">Stock</th>'+
-    '<th style="text-align:right">Unit cost</th><th>Status</th></tr></thead>'+
-    '<tbody>'+ksRows+'</tbody>';
+      '<td style="font-size:10px;color:var(--text3)">Print Knight · 7-day lead</td></tr>';}).join('')+'</tbody>';
 
   // ── Shaker summary ────────────────────────────────────────────────────────
-  const shkSumEl=document.getElementById('shakerSummary');
-  if(shkSumEl) shkSumEl.innerHTML=shkTotal>0?
-    'Total: <b>'+shkTotal+' shakers</b> = Ksh '+Math.round(shkTotal*usdKes).toLocaleString()+
-    ' ExWorks ($'+shkTotal+'). Landed ~Ksh '+Math.round(shkTotal*usdKes*1.1).toLocaleString()+'.':
-    'Enter quantities above.';
+  if(el('shakerSummary')) el('shakerSummary').innerHTML=shkTot>0?
+    'Total: <b>'+shkTot+'</b> = $'+shkTot+' (Ksh '+Math.round(shkTot*usdKes).toLocaleString()+' ExWorks)':'Enter quantities above.';
 }
 
+// switchTab packaging hook
+const _origSwitch = switchTab;
+function switchTab(id, btn) {
+  _origSwitch(id, btn);
+  if(id==='packaging') renderPackaging();
+}
 
 loadAll();
 </script>
