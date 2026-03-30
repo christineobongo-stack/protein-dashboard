@@ -532,6 +532,18 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <!-- TAB 4: SHIPPING OPTIMISER -->
   <div class="tab-page" id="page-shipping">
 
+    <!-- STOCK PLANNING SECTION -->
+    <div class="pg-section" style="margin-top:4px;margin-bottom:14px">
+      <div class="pg-title">Stock position &amp; incoming order planner <span>(current stock live from March Order sheet · edit incoming to model scenarios)</span></div>
+      <div style="overflow-x:auto">
+        <table class="comparison-table" id="wheyStockTable"></table>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text2);line-height:1.7;padding:9px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+        Edit the <b>Incoming (kg)</b> column to model different order quantities. Coverage, cost of goods, and all shipping optimiser figures update instantly.
+        Current stock reads live from the March 2026 ORDER sheet — refresh to get latest figures.
+      </div>
+    </div>
+
     <div id="shippingVerdict"></div>
 
     <!-- TOP RESULTS ROW -->
@@ -1458,6 +1470,7 @@ async function loadAll(forceRefresh=false){
     document.getElementById('loadingOverlay').style.display='none';
     document.getElementById('tableWrap').style.display='block';
     renderProcurement(); renderCosts();
+    if(document.getElementById('wheyStockTable')) renderWheyStockTable();
 
     document.getElementById('lastRefresh').textContent =
       new Date().toLocaleTimeString()+' ('+elapsed+'s · live)';
@@ -2240,6 +2253,158 @@ function computeShipment(cycleMonths, mode){
 function fmtKsh(v){ return Math.round(v).toLocaleString(); }
 function fmtM(v)  { return v.toFixed(1); }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHEY STOCK PLANNER — editable incoming order + live current stock
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const WHEY_CFG = {
+  WPC35:  { label:'WPC 35',    ingName:'35% Whey Concentrate', dot:'dot-proc', eurField:'ew35',  rqField:'rq35'  },
+  WPC80:  { label:'WPC 80',    ingName:'80% Whey Concentrate', dot:'dot-proc', eurField:'ew80',  rqField:'rq80'  },
+  WPI90:  { label:'WPI 90%',   ingName:'90% Whey Isolate',     dot:'dot-proc', eurField:'ewwpi', rqField:'rqwpi' },
+};
+
+// Editable incoming order quantities (kg) — default from Lactelle April 2026 contract
+const WHEY_INCOMING_KG = { WPC35: 120, WPC80: 700, WPI90: 60 };
+
+// Get live stock from procItems.main by matching ingredient name
+function getWheyStockKg(ingName){
+  if(!procItems.main || !procItems.main.length) return 0;
+  const match = procItems.main.find(item =>
+    item.name.toLowerCase().trim() === ingName.toLowerCase().trim()
+  );
+  return match ? (match.stock||0) : 0;
+}
+
+function renderWheyStockTable(){
+  const today   = new Date();
+  const eurKes  = getNum(document.getElementById('eurKes')?.value) || 150;
+  const usdKes  = getNum(document.getElementById('usdKes')?.value) || 129;
+  const airLead = getNum(document.getElementById('airLead')?.value) || 30;
+  const seaLead = getNum(document.getElementById('seaLead')?.value) || 60;
+
+  // Clearance params
+  const idfR   = getNum(document.getElementById('idfRate')?.value)/100  || 0.035;
+  const rdlR   = getNum(document.getElementById('rdlRate')?.value)/100  || 0.020;
+  const agentR = getNum(document.getElementById('agentRate')?.value)/100 || 0.015;
+  const portF  = getNum(document.getElementById('portFlat')?.value)     || 237000;
+  const airR   = getNum(document.getElementById('airRate')?.value)      || 3.50;
+  const airS   = getNum(document.getElementById('airSurcharge')?.value)/100 || 0.22;
+
+  let rows = '';
+  let totalIncKg = 0, totalEwKsh = 0, totalLandedKsh = 0;
+
+  for(const [key, cfg] of Object.entries(WHEY_CFG)){
+    const curKg  = getWheyStockKg(cfg.ingName);
+    const incKg  = WHEY_INCOMING_KG[key] || 0;
+    const totKg  = curKg + incKg;
+    const rqMo   = getNum(document.getElementById(cfg.rqField)?.value) || 0;
+    const ewEurMt= getNum(document.getElementById(cfg.eurField)?.value) || 0;
+
+    // Coverage
+    const covAir = rqMo > 0 ? totKg / rqMo : 99;
+    const covSea = covAir; // same stock, different lead context
+    const stockoutDate = new Date(today.getTime() + covAir*30*864e5);
+    const orderByAir = new Date(stockoutDate.getTime() - airLead*864e5);
+    const orderBySea = new Date(stockoutDate.getTime() - seaLead*864e5);
+    const daysAir = Math.round((orderByAir - today)/864e5);
+    const daysSea = Math.round((orderBySea - today)/864e5);
+
+    // Cost of goods — ExWorks value of current + incoming
+    const ewKshPerKg = (ewEurMt/1000) * eurKes;
+    const cogCurKsh  = curKg * ewKshPerKg;
+    const cogIncKsh  = incKg * ewKshPerKg;
+
+    // Landed cost estimate for incoming (air freight model — current mode)
+    const airUsd    = Math.max(500, incKg * airR) * (1 + airS);
+    const airKsh    = airUsd * usdKes;
+    const insKsh    = (cogIncKsh + airKsh) * 0.005;
+    const cifKsh    = cogIncKsh + airKsh + insKsh;
+    const clearKsh  = cifKsh * (idfR + rdlR + agentR) + (portF * incKg/(totalIncKg||880||1));
+    const landedKsh = cifKsh + clearKsh;
+    const landedPerKg = incKg > 0 ? landedKsh / incKg : 0;
+
+    totalIncKg   += incKg;
+    totalEwKsh   += cogCurKsh + cogIncKsh;
+    totalLandedKsh += landedKsh;
+
+    const st = covAir < 2 ? 'critical' : covAir < 4 ? 'low' : 'ok';
+    const stBadge = `<span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span>`;
+    const fmtDate = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'});
+
+    rows += `<tr>
+      <td>
+        <div style="font-weight:600;font-size:12px">${cfg.label}</div>
+        <div style="font-size:9px;color:var(--text3)">${cfg.ingName}</div>
+      </td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-weight:600">${curKg.toFixed(1)} kg</div>
+        <div style="font-size:9px;color:var(--text3)">live from sheet</div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+          <input type="number" step="5" min="0" value="${incKg}"
+            style="width:72px;font-family:var(--font-mono);font-size:11px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 5px;background:var(--surface2)"
+            onchange="WHEY_INCOMING_KG['${key}']=parseFloat(this.value)||0;renderWheyStockTable();renderShipping()"
+            title="Enter planned incoming kg">
+          <span style="font-size:9px;color:var(--text3)">kg</span>
+        </div>
+        ${incKg>0?`<div style="font-size:9px;color:var(--c-protein);text-align:right;font-weight:600;margin-top:2px">≈Ksh ${Math.round(landedKsh).toLocaleString()} landed</div>`:'<div style="font-size:9px;color:var(--text3);text-align:right">no incoming</div>'}
+      </td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-weight:700;font-size:13px">${totKg.toFixed(1)} kg</div>
+        <div style="font-size:9px;color:var(--text3)">${rqMo>0?(totKg/rqMo).toFixed(1)+' mo stock':''}</div>
+      </td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-size:11px;font-weight:600">Ksh ${Math.round(cogCurKsh).toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--text3)">current stock EW</div>
+        ${incKg>0?`<div style="font-size:9px;color:var(--c-protein);font-weight:600">+Ksh ${Math.round(cogIncKsh).toLocaleString()} incoming EW</div>`:''}
+      </td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-size:11px">${rqMo.toFixed(1)} kg/mo</div>
+      </td>
+      <td>${stBadge}</td>
+      <td style="text-align:right">
+        <div style="font-family:var(--font-mono);font-weight:600;color:${covAir<2?'var(--crit-txt)':covAir<4?'var(--low-txt)':'var(--text)'}">${covAir>=99?'∞':covAir.toFixed(1)+' mo'}</div>
+        <div style="font-size:9px;color:var(--text3)">${covAir>=99?'':fmtDate(stockoutDate)}</div>
+      </td>
+      <td style="font-size:10px;line-height:1.7">
+        <div style="color:${daysAir<0?'var(--crit-txt)':daysAir<30?'var(--low-txt)':'var(--text3)'}">
+          ✈ ${daysAir<0?'AIR OVERDUE':'By '+orderByAir.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
+        </div>
+        <div style="color:${daysSea<0?'var(--crit-txt)':daysSea<30?'var(--low-txt)':'var(--text3)'}">
+          🚢 ${daysSea<0?'SEA OVERDUE':'By '+orderBySea.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  // Totals row
+  rows += `<tr style="background:var(--surface2);font-weight:600;border-top:2px solid var(--border2)">
+    <td>Total</td>
+    <td></td>
+    <td style="text-align:right;font-family:var(--font-mono)">${totalIncKg} kg incoming</td>
+    <td></td>
+    <td style="text-align:right;font-family:var(--font-mono);color:var(--c-protein)">Ksh ${Math.round(totalEwKsh).toLocaleString()}<div style="font-size:9px;font-weight:400;color:var(--text3)">ExWorks value total</div></td>
+    <td colspan="4"></td>
+  </tr>`;
+
+  const el = document.getElementById('wheyStockTable');
+  if(el) el.innerHTML = `
+    <thead><tr>
+      <th>Product</th>
+      <th style="text-align:right">Current stock<div style="font-weight:400;font-style:italic;font-size:9px">live from March Order</div></th>
+      <th style="text-align:right">Incoming order<div style="font-weight:400;font-style:italic;font-size:9px">editable — enter kg</div></th>
+      <th style="text-align:right">Total after order</th>
+      <th style="text-align:right">Cost of goods</th>
+      <th style="text-align:right">Monthly RQ</th>
+      <th>Status</th>
+      <th style="text-align:right">Coverage</th>
+      <th>Order deadline</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>`;
+}
+
 function renderShipping(){
   const cycle = parseInt(document.getElementById('cycleRange')?.value||6);
   document.getElementById('cycleVal').textContent = cycle + ' months';
@@ -2491,7 +2656,7 @@ function switchTab(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   btn.classList.add('active');
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
-  if(id==='shipping') renderShipping();
+  if(id==='shipping'){ renderShipping(); renderWheyStockTable(); }
   if(id==='supplements') renderSupp();
 }
 
