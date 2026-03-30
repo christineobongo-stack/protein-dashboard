@@ -2278,18 +2278,18 @@ function getWheyStockKg(ingName){
 
 function renderWheyStockTable(){
   const today   = new Date();
-  const eurKes  = getNum(document.getElementById('eurKes')?.value) || 150;
-  const usdKes  = getNum(document.getElementById('usdKes')?.value) || 129;
-  const airLead = getNum(document.getElementById('airLead')?.value) || 30;
-  const seaLead = getNum(document.getElementById('seaLead')?.value) || 60;
+  const eurKes  = getNum('eurKes')  || 150;
+  const usdKes  = getNum('usdKes')  || 129;
+  const airLead = getNum('airLead') || 30;
+  const seaLead = getNum('seaLead') || 60;
 
   // Clearance params
-  const idfR   = getNum(document.getElementById('idfRate')?.value)/100  || 0.035;
-  const rdlR   = getNum(document.getElementById('rdlRate')?.value)/100  || 0.020;
-  const agentR = getNum(document.getElementById('agentRate')?.value)/100 || 0.015;
-  const portF  = getNum(document.getElementById('portFlat')?.value)     || 237000;
-  const airR   = getNum(document.getElementById('airRate')?.value)      || 3.50;
-  const airS   = getNum(document.getElementById('airSurcharge')?.value)/100 || 0.22;
+  const idfR   = getNum('idfRate')/100  || 0.035;
+  const rdlR   = getNum('rdlRate')/100  || 0.020;
+  const agentR = getNum('agentRate')/100 || 0.015;
+  const portF  = getNum('portFlat')     || 237000;
+  const airR   = getNum('airRate')      || 3.50;
+  const airS   = getNum('airSurcharge')/100 || 0.22;
 
   let rows = '';
   let totalIncKg = 0, totalEwKsh = 0, totalLandedKsh = 0;
@@ -2298,8 +2298,8 @@ function renderWheyStockTable(){
     const curKg  = getWheyStockKg(cfg.ingName);
     const incKg  = WHEY_INCOMING_KG[key] || 0;
     const totKg  = curKg + incKg;
-    const rqMo   = getNum(document.getElementById(cfg.rqField)?.value) || 0;
-    const ewEurMt= getNum(document.getElementById(cfg.eurField)?.value) || 0;
+    const rqMo   = getNum(cfg.rqField) || 0;
+    const ewEurMt= getNum(cfg.eurField) || 0;
 
     // Coverage
     const covAir = rqMo > 0 ? totKg / rqMo : 99;
@@ -2320,7 +2320,7 @@ function renderWheyStockTable(){
     const airKsh    = airUsd * usdKes;
     const insKsh    = (cogIncKsh + airKsh) * 0.005;
     const cifKsh    = cogIncKsh + airKsh + insKsh;
-    const clearKsh  = cifKsh * (idfR + rdlR + agentR) + (portF * incKg/(totalIncKg||880||1));
+    const clearKsh  = cifKsh * (idfR + rdlR + agentR) + portF * (incKg / (Object.values(WHEY_INCOMING_KG).reduce((s,v)=>s+v,0)||880));
     const landedKsh = cifKsh + clearKsh;
     const landedPerKg = incKg > 0 ? landedKsh / incKg : 0;
 
