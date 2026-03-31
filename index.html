@@ -2725,6 +2725,7 @@ function switchTab(id,btn){
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
   if(id==='shipping'){ renderShipping(); renderWheyStockTable(); }
   if(id==='supplements') renderSupp();
+  if(id==='packaging') renderPackaging();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3502,13 +3503,6 @@ function renderPackaging() {
   // ── Shaker summary ────────────────────────────────────────────────────────
   if(el('shakerSummary')) el('shakerSummary').innerHTML=shkTot>0?
     'Total: <b>'+shkTot+'</b> = $'+shkTot+' (Ksh '+Math.round(shkTot*usdKes).toLocaleString()+' ExWorks)':'Enter quantities above.';
-}
-
-// switchTab packaging hook
-const _origSwitch = switchTab;
-function switchTab(id, btn) {
-  _origSwitch(id, btn);
-  if(id==='packaging') renderPackaging();
 }
 
 loadAll();
