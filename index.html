@@ -49,9 +49,6 @@ main{padding:14px 20px 40px}
 .fbtn{padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);font-family:var(--font-sans);font-size:11px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
 .fbtn:hover{border-color:var(--border2);color:var(--text)}
 .fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-#growthToggle.active{background:#3a7d22;color:#fff;border-color:#3a7d22}
-#growthBanner{display:none;background:#f0faf0;border:1px solid #3a7d22;border-radius:6px;padding:7px 14px;font-size:11px;color:#3a7d22;font-weight:600;margin-bottom:10px}
-#growthBanner.visible{display:flex;align-items:center;gap:8px}
 .search{padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-sans);font-size:11px;background:var(--surface);color:var(--text);width:160px;outline:none}
 .tcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 table{width:100%;border-collapse:collapse;font-size:11.5px}
@@ -267,13 +264,11 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <button class="fbtn" onclick="setFilter('low',this)">Low stock</button>
         <button class="fbtn" onclick="setFilter('ok',this)">OK</button>
         <button class="fbtn" onclick="setFilter('overdue',this)">Overdue</button>
-        <button class="fbtn" id="growthToggle" onclick="toggleGrowth()" title="Apply 20% growth buffer to all RQs" style="border-color:#3a7d22;color:#3a7d22;margin-left:8px">📈 +20% growth</button>
       </div>
       <input class="search" id="search" placeholder="Search…" oninput="renderProcurement()">
     </div>
     <div class="tcard">
       <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div><span>Loading live data…</span></div>
-      <div id="growthBanner">📈 +20% growth buffer active — all RQs and order quantities include a 20% uplift on Jan 2025 actuals</div>
       <div id="tableWrap" style="display:none">
         <div style="overflow-x:auto">
           <table style="table-layout:fixed;min-width:960px">
@@ -540,13 +535,13 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
     <!-- STOCK PLANNING SECTION -->
     <div class="pg-section" style="margin-top:4px;margin-bottom:14px">
-      <div class="pg-title">Stock position &amp; incoming order planner <span>(current stock live from Odoo · edit incoming to model scenarios)</span></div>
+      <div class="pg-title">Stock position &amp; incoming order planner <span>(current stock live from March Order sheet · edit incoming to model scenarios)</span></div>
       <div style="overflow-x:auto">
         <table class="comparison-table" id="wheyStockTable"></table>
       </div>
       <div style="margin-top:10px;font-size:11px;color:var(--text2);line-height:1.7;padding:9px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
         Edit the <b>Incoming (kg)</b> column to model different order quantities. Coverage, cost of goods, and all shipping optimiser figures update instantly.
-        Current stock pulls live from <b>Odoo</b> (falls back to March 2026 ORDER sheet if Odoo is unavailable) — refresh to get latest figures.
+        Current stock reads live from the March 2026 ORDER sheet — refresh to get latest figures.
       </div>
     </div>
 
@@ -727,7 +722,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <table class="comparison-table" id="suppStockTable"></table>
       </div>
       <div style="margin-top:10px;font-size:11px;color:var(--text2);line-height:1.8;padding:10px 14px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
-        <b>Current stock pulls live from Odoo</b> — always up to date when you refresh.
+        <b>Current stock pulls live from the March 2026 ORDER sheet</b> — always up to date when you refresh.
         Enter planned order quantities in the <b>Planned order</b> column to model different scenarios.
         The landed cost estimate uses your confirmed logistics ratios from the Nutra Healthcare March 2026 SAD.
         <b>Key findings:</b> PreWorkout Watermelon overstocked until ~2028 — skip next order. Collagen critical — order now.
@@ -1024,29 +1019,6 @@ let pkgCosts     = {};                   // packaging unit costs from MARCH ORDE
 let packaging    = [];
 let activeFilter = 'all';
 let debugLines   = [];
-let growthBuffer = false;
-
-function getGrowthFactor(){ return growthBuffer ? 1.2 : 1.0; }
-
-function toggleGrowth(){
-  growthBuffer = !growthBuffer;
-  const btn = document.getElementById('growthToggle');
-  const banner = document.getElementById('growthBanner');
-  if(btn){
-    btn.classList.toggle('active', growthBuffer);
-    btn.textContent = growthBuffer ? '📈 +20% ON' : '📈 +20% growth';
-    btn.title = growthBuffer ? '20% growth buffer active — click to remove' : 'Apply 20% growth buffer to all RQs';
-  }
-  if(banner) banner.classList.toggle('visible', growthBuffer);
-  updateWheyRQFields();
-  renderProcurement();
-  if(document.getElementById('page-shipping') && document.getElementById('page-shipping').classList.contains('active')){
-    renderShipping(); renderWheyStockTable();
-  }
-  if(document.getElementById('page-supplements') && document.getElementById('page-supplements').classList.contains('active')){
-    renderSupp();
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // UTILS
@@ -1332,10 +1304,10 @@ function computeRQ(procName){
       }
     }
   }
-  return rq * getGrowthFactor();
+  return rq;
 }
 
-function bulkRQ(sku){ return (SALES[sku]||0)*BULK_CFG[sku].kgPerPack * getGrowthFactor(); }
+function bulkRQ(sku){ return (SALES[sku]||0)*BULK_CFG[sku].kgPerPack; }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COST PER SERVING
@@ -1374,9 +1346,8 @@ function getSt(stock,rq){const d=rq*2-stock;if(d>0&&stock===0)return'critical';i
 // PACKAGING MONTHLY NEEDS
 // ═══════════════════════════════════════════════════════════════════════════════
 function pkgNeeds(){
-  const gf=getGrowthFactor();
-  const prot=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0)*gf;
-  const bulk=Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0)*gf;
+  const prot=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0);
+  const bulk=Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0);
   return{
     large_bag:prot, small_bag:bulk,
     large_sticker:prot*2, small_sticker:bulk*2,
@@ -1469,15 +1440,11 @@ function applyPayload(payload){
     .filter(([,sm])=>sm['CEVAN']>0)
     .forEach(([k,sm])=>dbg(` ${k}: ${(sm['CEVAN']*100).toFixed(2)}%`));
 
-  updateWheyRQFields();
-}
-
-// Update whey RQ input fields — called on data load and when growth toggle changes
-function updateWheyRQFields(){
+  // Auto-populate shipping optimiser RQ fields from actual sales + formulations
   const rq35  = computeRQ('35% Whey Concentrate');
   const rq80  = computeRQ('80% Whey Concentrate');
   const rqWpi = computeRQ('90% Whey Isolate');
-  dbg(`\n── Shipping RQs (kg/mo) ${growthBuffer?'[+20% growth]':''}──`);
+  dbg(`\n── Shipping RQs (kg/mo) ──`);
   dbg(` WPC 35:  ${rq35.toFixed(1)} kg/mo`);
   dbg(` WPC 80:  ${rq80.toFixed(1)} kg/mo`);
   dbg(` WPI 90%: ${rqWpi.toFixed(1)} kg/mo`);
@@ -1633,7 +1600,7 @@ function makeRow(item,rq,units,onchange,cost){
     <td><div class="iname" title="${item.name}">${item.name}</div><div class="imeta">${item.func}</div></td>
     <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cl}</span></div></td>
     <td><span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span></td>
-    <td><input class="editable" type="number" step="0.1" value="${item.stock}" onchange="${onchange}"><div style="font-size:9px;margin-top:2px;color:${item.stockSource==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${item.stockSource==='odoo'?'● Odoo':'● Sheet'}</div></td>
+    <td><input class="editable" type="number" step="0.1" value="${item.stock}" onchange="${onchange}"></td>
     <td class="mono">${displayCost>0?displayCost.toLocaleString():'—'}</td>
     <td class="mono">${rq>0?rq.toFixed(2)+' '+units:'—'}</td>
     <td class="mono">${rq>0?(rq*2).toFixed(2)+' '+units:'—'}</td>
@@ -1702,7 +1669,7 @@ function renderProcurement(){
         <td><div class="iname">${item.name}</div><div class="imeta">${cfg.label} · ${cfg.usable} packs/drum</div>${wf}</td>
         <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cov>=99?'∞':cov.toFixed(1)+'mo'}</span></div></td>
         <td><span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span></td>
-        <td><input class="editable" type="number" step="0.1" value="${item.stock}" onchange="procItems.bulk['${sku}'].stock=parseFloat(this.value)||0;renderProcurement()"><div style="font-size:9px;margin-top:2px;color:${item.stockSource==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${item.stockSource==='odoo'?'● Odoo':'● Sheet'}</div></td>
+        <td><input class="editable" type="number" step="0.1" value="${item.stock}" onchange="procItems.bulk['${sku}'].stock=parseFloat(this.value)||0;renderProcurement()"></td>
         <td class="mono">${item.cost>0?item.cost.toLocaleString():'—'}</td>
         <td class="mono">${rq>0?rq.toFixed(2)+' kg':'—'}</td>
         <td class="mono">${rq>0?(rq*2).toFixed(2)+' kg':'—'}</td>
@@ -2235,9 +2202,9 @@ function getNum(id){ return parseFloat(document.getElementById(id)?.value)||0; }
 
 function computeShipment(cycleMonths, mode){
   // ── Inputs ────────────────────────────────────────────────────────────────
-  const rq35  = getNum('rq35')  * getGrowthFactor();
-  const rq80  = getNum('rq80')  * getGrowthFactor();
-  const rqWpi = getNum('rqwpi') * getGrowthFactor();
+  const rq35  = getNum('rq35');
+  const rq80  = getNum('rq80');
+  const rqWpi = getNum('rqwpi');
   const ew35  = getNum('ew35');   // EUR/MT
   const ew80  = getNum('ew80');
   const ewWpi = getNum('ewwpi');
@@ -2398,7 +2365,7 @@ function renderWheyStockTable(){
     const curKg  = getWheyStockKg(cfg.ingName);
     const incKg  = WHEY_INCOMING_KG[key] || 0;
     const totKg  = curKg + incKg;
-    const rqMo   = (getNum(cfg.rqField) || 0) * getGrowthFactor();
+    const rqMo   = getNum(cfg.rqField) || 0;
     const ewEurMt= getNum(cfg.eurField) || 0;
 
     // Coverage
@@ -2758,7 +2725,6 @@ function switchTab(id,btn){
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
   if(id==='shipping'){ renderShipping(); renderWheyStockTable(); }
   if(id==='supplements') renderSupp();
-  if(id==='packaging') renderPackaging();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3090,9 +3056,7 @@ function renderSupp(){
   document.getElementById('s-cycleVal').textContent = cycle+' months';
   document.getElementById('suppOrderSub').textContent = '— '+cycle+'-month cycle';
 
-  const rawSales = getSuppSales();
-  const gf = getGrowthFactor();
-  const sales = Object.fromEntries(Object.entries(rawSales).map(([k,v])=>[k, v*gf]));
+  const sales  = getSuppSales();
   renderSuppStockTable(sales);
 
   const res6   = computeSuppShipment(cycle, sales);
@@ -3538,6 +3502,13 @@ function renderPackaging() {
   // ── Shaker summary ────────────────────────────────────────────────────────
   if(el('shakerSummary')) el('shakerSummary').innerHTML=shkTot>0?
     'Total: <b>'+shkTot+'</b> = $'+shkTot+' (Ksh '+Math.round(shkTot*usdKes).toLocaleString()+' ExWorks)':'Enter quantities above.';
+}
+
+// switchTab packaging hook
+const _origSwitch = switchTab;
+function switchTab(id, btn) {
+  _origSwitch(id, btn);
+  if(id==='packaging') renderPackaging();
 }
 
 loadAll();
