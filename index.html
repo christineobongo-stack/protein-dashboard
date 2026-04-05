@@ -2725,6 +2725,7 @@ function switchTab(id,btn){
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
   if(id==='shipping'){ renderShipping(); renderWheyStockTable(); }
   if(id==='supplements') renderSupp();
+  if(id==='packaging') renderPackaging();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3299,6 +3300,7 @@ function getPkgStock(pkgKey) {
 }
 
 function renderPackaging() {
+  if (!SALES || Object.keys(SALES).length === 0) return;
   const seaRate = parseFloat(document.getElementById('pkg-searate')?.value)||60000;
   const seaMin  = parseFloat(document.getElementById('pkg-seamin')?.value)||12000;
   const airRate = parseFloat(document.getElementById('pkg-airrate')?.value)||12;
@@ -3309,7 +3311,7 @@ function renderPackaging() {
   const today = new Date();
   const fmtD = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 
-  const protMo = Object.values(FORM_TABS).flatMap(c=>c.skus).reduce((s,sku)=>s+(SALES[sku]||0),0);
+  const protMo = Object.values(FORM_TABS).reduce((s,c)=>s+(c.skus||[]).reduce((a,sku)=>a+(SALES[sku]||0),0),0);
   const bulkMo = Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0);
   const monthly = {large_bag:protMo,small_bag:bulkMo,scoop_30g:protMo,scoop_5g:bulkMo,silicon:bulkMo*2,shaker_blk:0,shaker_wht:0,shaker_clr:0};
 
