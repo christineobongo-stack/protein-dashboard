@@ -49,7 +49,10 @@ main{padding:14px 20px 40px}
 .fbtn{padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);font-family:var(--font-sans);font-size:11px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
 .fbtn:hover{border-color:var(--border2);color:var(--text)}
 .fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-#growthToggle.active{background:#3a7d22;color:#fff;border-color:#3a7d22}
+#growthToggle.active,
+#growthToggle-shipping.active,
+#growthToggle-supplements.active,
+#growthToggle-packaging.active{background:#3a7d22;color:#fff;border-color:#3a7d22}
 #growthBanner{display:none;background:#f0faf0;border:1px solid #3a7d22;border-radius:6px;padding:7px 14px;font-size:11px;color:#3a7d22;font-weight:600;margin-bottom:10px}
 #growthBanner.visible{display:flex;align-items:center;gap:8px}
 .search{padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-sans);font-size:11px;background:var(--surface);color:var(--text);width:160px;outline:none}
@@ -540,7 +543,10 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
     <!-- STOCK PLANNING SECTION -->
     <div class="pg-section" style="margin-top:4px;margin-bottom:14px">
-      <div class="pg-title">Stock position &amp; incoming order planner <span>(current stock live from Odoo · edit incoming to model scenarios)</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+        <div class="pg-title" style="margin-bottom:0">Stock position &amp; incoming order planner <span>(current stock live from Odoo · edit incoming to model scenarios)</span></div>
+        <button class="fbtn" id="growthToggle-shipping" onclick="toggleGrowth()" title="Apply 20% growth buffer to all RQs" style="border-color:#3a7d22;color:#3a7d22;white-space:nowrap">📈 +20% growth</button>
+      </div>
       <div style="overflow-x:auto">
         <table class="comparison-table" id="wheyStockTable"></table>
       </div>
@@ -722,7 +728,10 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
     <!-- Stock status -->
     <div class="pg-section" style="margin-top:4px">
-      <div class="pg-title">Current stock status <span>(after incoming Nutra Healthcare shipment)</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+        <div class="pg-title" style="margin-bottom:0">Current stock status <span>(after incoming Nutra Healthcare shipment)</span></div>
+        <button class="fbtn" id="growthToggle-supplements" onclick="toggleGrowth()" title="Apply 20% growth buffer to all RQs" style="border-color:#3a7d22;color:#3a7d22;white-space:nowrap">📈 +20% growth</button>
+      </div>
       <div style="overflow-x:auto">
         <table class="comparison-table" id="suppStockTable"></table>
       </div>
@@ -850,7 +859,10 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     <div id="pkgVerdict" style="margin-top:4px"></div>
     <div id="pkgAlerts" style="margin-bottom:10px"></div>
     <div class="pg-section">
-      <div class="pg-title">Stock position &amp; incoming order planner <span>(live from Odoo · 120-day lead all China items)</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+        <div class="pg-title" style="margin-bottom:0">Stock position &amp; incoming order planner <span>(live from Odoo · 120-day lead all China items)</span></div>
+        <button class="fbtn" id="growthToggle-packaging" onclick="toggleGrowth()" title="Apply 20% growth buffer to all RQs" style="border-color:#3a7d22;color:#3a7d22;white-space:nowrap">📈 +20% growth</button>
+      </div>
       <div style="overflow-x:auto"><table class="comparison-table" id="pkgStockTable"></table></div>
       <div style="margin-top:8px;font-size:11px;color:var(--text2);padding:8px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
         <b>Rolling Cargo:</b> Air $12/kg · 5–10 days · Thu/Sun. Sea Ksh 60,000/CBM · min 0.2CBM = Ksh 12,000 · 30–35 days.
@@ -1030,21 +1042,31 @@ function getGrowthFactor(){ return growthBuffer ? 1.2 : 1.0; }
 
 function toggleGrowth(){
   growthBuffer = !growthBuffer;
-  const btn = document.getElementById('growthToggle');
-  const banner = document.getElementById('growthBanner');
-  if(btn){
+  // Sync all growth toggle buttons across every tab
+  ['growthToggle','growthToggle-shipping','growthToggle-supplements','growthToggle-packaging'].forEach(function(id){
+    const btn = document.getElementById(id);
+    if(!btn) return;
     btn.classList.toggle('active', growthBuffer);
     btn.textContent = growthBuffer ? '📈 +20% ON' : '📈 +20% growth';
     btn.title = growthBuffer ? '20% growth buffer active — click to remove' : 'Apply 20% growth buffer to all RQs';
-  }
+    if(growthBuffer){
+      btn.style.borderColor=''; btn.style.color='';
+    } else {
+      btn.style.borderColor='#3a7d22'; btn.style.color='#3a7d22';
+    }
+  });
+  const banner = document.getElementById('growthBanner');
   if(banner) banner.classList.toggle('visible', growthBuffer);
   updateWheyRQFields();
   renderProcurement();
-  if(document.getElementById('page-shipping') && document.getElementById('page-shipping').classList.contains('active')){
+  if(document.getElementById('page-shipping').classList.contains('active')){
     renderShipping(); renderWheyStockTable();
   }
-  if(document.getElementById('page-supplements') && document.getElementById('page-supplements').classList.contains('active')){
+  if(document.getElementById('page-supplements').classList.contains('active')){
     renderSupp();
+  }
+  if(document.getElementById('page-packaging').classList.contains('active')){
+    renderPackaging();
   }
 }
 
@@ -2368,12 +2390,13 @@ const WHEY_CFG = {
 const WHEY_INCOMING_KG = { WPC35: 120, WPC80: 700, WPI90: 60 };
 
 // Get live stock from procItems.main by matching ingredient name
+// Returns { kg, source } where source is 'odoo' or 'sheet'
 function getWheyStockKg(ingName){
-  if(!procItems.main || !procItems.main.length) return 0;
+  if(!procItems.main || !procItems.main.length) return { kg:0, source:'sheet' };
   const match = procItems.main.find(item =>
     item.name.toLowerCase().trim() === ingName.toLowerCase().trim()
   );
-  return match ? (match.stock||0) : 0;
+  return match ? { kg: match.stock||0, source: match.stockSource||'sheet' } : { kg:0, source:'sheet' };
 }
 
 function renderWheyStockTable(){
@@ -2395,7 +2418,9 @@ function renderWheyStockTable(){
   let totalIncKg = 0, totalEwKsh = 0, totalLandedKsh = 0;
 
   for(const [key, cfg] of Object.entries(WHEY_CFG)){
-    const curKg  = getWheyStockKg(cfg.ingName);
+    const wheyStock = getWheyStockKg(cfg.ingName);
+    const curKg  = wheyStock.kg;
+    const curSrc = wheyStock.source;
     const incKg  = WHEY_INCOMING_KG[key] || 0;
     const totKg  = curKg + incKg;
     const rqMo   = (getNum(cfg.rqField) || 0) * getGrowthFactor();
@@ -2439,7 +2464,7 @@ function renderWheyStockTable(){
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-weight:600">${curKg.toFixed(1)} kg</div>
-        <div style="font-size:9px;color:var(--text3)">live from sheet</div>
+        <div style="font-size:9px;color:${curSrc==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${curSrc==='odoo'?'● Odoo':'● Sheet'}</div>
       </td>
       <td>
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
@@ -2493,7 +2518,7 @@ function renderWheyStockTable(){
   if(el) el.innerHTML = `
     <thead><tr>
       <th>Product</th>
-      <th style="text-align:right">Current stock<div style="font-weight:400;font-style:italic;font-size:9px">live from March Order</div></th>
+      <th style="text-align:right">Current stock<div style="font-weight:400;font-style:italic;font-size:9px">live from Odoo</div></th>
       <th style="text-align:right">Incoming order<div style="font-weight:400;font-style:italic;font-size:9px">editable — enter kg</div></th>
       <th style="text-align:right">Total after order</th>
       <th style="text-align:right">Cost of goods</th>
@@ -2918,8 +2943,10 @@ const SUPP_CFG = {
 // Current stock in KG (from procurement sheet) + incoming from Nutra shipment
 // Live stock from March Order sheet (via procItems.bulk)
 // Falls back to 0 if data not yet loaded
+// Returns { kg, source } where source is 'odoo' or 'sheet'
 function getSuppStockKg(sku){
-  return procItems.bulk[sku] ? procItems.bulk[sku].stock : 0;
+  const item = procItems.bulk[sku];
+  return item ? { kg: item.stock||0, source: item.stockSource||'sheet' } : { kg:0, source:'sheet' };
 }
 // Planned order quantities — user-editable in the supplements tab
 const SUPP_ORDER_KG = {
@@ -3073,7 +3100,7 @@ function renderSuppStockTable(sales){
   document.getElementById('suppStockTable').innerHTML=`
     <thead><tr>
       <th>SKU</th>
-      <th style="text-align:right">Current stock <div style="font-weight:400;font-style:italic;font-size:9px">live from March Order</div></th>
+      <th style="text-align:right">Current stock <div style="font-weight:400;font-style:italic;font-size:9px">live from Odoo</div></th>
       <th style="text-align:right">Incoming order <div style="font-weight:400;font-style:italic;font-size:9px">editable — enter kg to order</div></th>
       <th style="text-align:right">Total after order</th>
       <th style="text-align:right">Cost of goods</th>
@@ -3184,7 +3211,9 @@ function renderSupp(){
   let grandTotalKg=0, grandTotalEw=0, grandTotalLanded=0;
 
   for(const[sku,cfg]of Object.entries(SUPP_CFG)){
-    const curKg   = getSuppStockKg(sku);
+    const suppStock = getSuppStockKg(sku);
+    const curKg   = suppStock.kg;
+    const curSrc  = suppStock.source;
     const orderKg = SUPP_ORDER_KG[sku]||0;
     const totKg   = curKg+orderKg;
     const totPacks = Math.floor(totKg/cfg.kgPerPack);
@@ -3219,7 +3248,7 @@ function renderSupp(){
         <div style="font-weight:600;font-size:12px">${cfg.label}</div>
         <div style="font-size:9px;color:var(--text3)">${covMo>=99?'∞':covMo.toFixed(1)+' mo coverage after order'}</div>
       </td>
-      <td style="text-align:right;font-family:var(--font-mono)">${Math.floor(curKg/cfg.kgPerPack)} packs<div style="font-size:9px;color:var(--text3)">${curKg}kg</div></td>
+      <td style="text-align:right;font-family:var(--font-mono)">${Math.floor(curKg/cfg.kgPerPack)} packs<div style="font-size:9px;color:var(--text3)">${curKg}kg</div><div style="font-size:9px;color:${curSrc==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${curSrc==='odoo'?'● Odoo':'● Sheet'}</div></td>
       <td style="text-align:right;font-family:var(--font-mono)">${sal}/mo</td>
       <td style="text-align:right;font-family:var(--font-mono);font-weight:600">${orderKg>0?orderDrums.toFixed(1)+' drums':'—'}<div style="font-size:9px;color:var(--text3);font-weight:400">${orderKg>0?orderKg+'kg':''}</div></td>
       <td style="text-align:right;font-family:var(--font-mono)">${orderKg>0?'Ksh '+Math.round(ewKsh).toLocaleString():'—'}</td>
@@ -3329,9 +3358,10 @@ const KENYA_STICKERS = [
 ];
 
 // Look up stock using pkgKey via pkgCosts — populated by applyPayload from Odoo
+// Returns { stock, source } where source is 'odoo' or 'sheet'
 function getPkgStock(pkgKey) {
-  if (pkgCosts[pkgKey]) return pkgCosts[pkgKey].stock || 0;
-  return 0;
+  if (pkgCosts[pkgKey]) return { stock: pkgCosts[pkgKey].stock || 0, source: pkgCosts[pkgKey].stockSource || 'sheet' };
+  return { stock: 0, source: 'sheet' };
 }
 
 function renderPackaging() {
@@ -3345,8 +3375,9 @@ function renderPackaging() {
   const today = new Date();
   const fmtD = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 
-  const protMo = Object.values(FORM_TABS).flatMap(c=>c.skus).reduce((s,sku)=>s+(SALES[sku]||0),0);
-  const bulkMo = Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0);
+  const gf = getGrowthFactor();
+  const protMo = Object.values(FORM_TABS).flatMap(c=>c.skus).reduce((s,sku)=>s+(SALES[sku]||0),0) * gf;
+  const bulkMo = Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0) * gf;
   const monthly = {large_bag:protMo,small_bag:bulkMo,scoop_30g:protMo,scoop_5g:bulkMo,silicon:bulkMo*2,shaker_blk:0,shaker_wht:0,shaker_clr:0};
 
   function uKsh(cfg){ return cfg.kshUnit || (cfg.usdUnit*usdKes); }
@@ -3379,7 +3410,7 @@ function renderPackaging() {
   // ── Alerts ────────────────────────────────────────────────────────────────
   const alerts=[];
   Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
-    const cur=getPkgStock(cfg.pkgKey), inc=PKG_INCOMING[key]||0, tot=cur+inc;
+    const {stock:cur,source:curSrc}=getPkgStock(cfg.pkgKey), inc=PKG_INCOMING[key]||0, tot=cur+inc;
     const mo=monthly[key]||0;
     if(mo>0){
       const cov=tot/mo, days=Math.round(cov*30-cfg.lead);
@@ -3397,7 +3428,7 @@ function renderPackaging() {
   // ── Stock table ───────────────────────────────────────────────────────────
   let pkgRows='';
   Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
-    const cur=getPkgStock(cfg.pkgKey);
+    const {stock:cur,source:curSrc}=getPkgStock(cfg.pkgKey);
     const inc=PKG_INCOMING[key]||0, tot=cur+inc;
     const mo=monthly[key]||0;
     const cov=mo>0?tot/mo:99;
@@ -3412,7 +3443,7 @@ function renderPackaging() {
                   '<span style="color:var(--text3)">By '+oby.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</span>';
     pkgRows+='<tr>'+
       '<td><b>'+cfg.label+'</b><div style="font-size:9px;color:var(--text3)">'+cfg.supplier+' · '+cfg.lead+'d lead · pkgKey:'+cfg.pkgKey+'</div></td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">'+cur.toLocaleString()+'</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">'+cur.toLocaleString()+'<div style="font-size:9px;color:'+(curSrc==='odoo'?'#0F6E56':'#aaa')+';font-weight:600">'+(curSrc==='odoo'?'● Odoo':'● Sheet')+'</div></td>'+
       '<td><div style="display:flex;justify-content:flex-end;gap:3px;align-items:center">'+
       '<input type="number" min="0" value="'+inc+'" data-pkey="'+key+'"'+
       ' style="width:80px;font-family:var(--font-mono);font-size:11px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 5px;background:var(--surface2)"'+
@@ -3501,7 +3532,7 @@ function renderPackaging() {
 
   // ── Calendar ──────────────────────────────────────────────────────────────
   const critCov=Math.min(...Object.entries(PKG_ITEMS).filter(function([k,c]){return (monthly[k]||0)>0;}).map(function([k,c]){
-    return (getPkgStock(c.pkgKey)+(PKG_INCOMING[k]||0))/(monthly[k]||1);
+    return (getPkgStock(c.pkgKey).stock+(PKG_INCOMING[k]||0))/(monthly[k]||1);
   }));
   const daysLeft=Math.max(0,Math.round((critCov*30-120)));
   let orderDate=new Date(today.getTime()+daysLeft*864e5);
