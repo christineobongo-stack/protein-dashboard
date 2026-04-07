@@ -3506,12 +3506,6 @@ function renderPackaging() {
     'Total: <b>'+shkTot+'</b> = $'+shkTot+' (Ksh '+Math.round(shkTot*usdKes).toLocaleString()+' ExWorks)':'Enter quantities above.';
 }
 
-// switchTab packaging hook
-const _origSwitch = switchTab;
-function switchTab(id, btn) {
-  _origSwitch(id, btn);
-  if(id==='packaging') renderPackaging();
-}
 
 loadAll();
 </script>
