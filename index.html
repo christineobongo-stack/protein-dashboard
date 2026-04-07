@@ -548,6 +548,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <button class="fbtn" id="growthToggle-shipping" onclick="toggleGrowth()" title="Apply 20% growth buffer to all RQs" style="border-color:#3a7d22;color:#3a7d22;white-space:nowrap">📈 +20% growth</button>
       </div>
       <div style="overflow-x:auto">
+        <div id="wheyGapBanner" style="display:none;background:#fff0f0;border:1px solid #c0341d;border-radius:6px;padding:8px 12px;font-size:11px;color:#c0341d;margin-bottom:8px;line-height:1.7"></div>
         <table class="comparison-table" id="wheyStockTable"></table>
       </div>
       <div style="margin-top:10px;font-size:11px;color:var(--text2);line-height:1.7;padding:9px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
@@ -732,6 +733,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-title" style="margin-bottom:0">Current stock status <span>(after incoming Nutra Healthcare shipment)</span></div>
         <button class="fbtn" id="growthToggle-supplements" onclick="toggleGrowth()" title="Apply 20% growth buffer to all RQs" style="border-color:#3a7d22;color:#3a7d22;white-space:nowrap">📈 +20% growth</button>
       </div>
+      <div id="suppGapBanner" style="display:none;background:#fff0f0;border:1px solid #c0341d;border-radius:6px;padding:8px 12px;font-size:11px;color:#c0341d;margin-bottom:8px;line-height:1.7"></div>
       <div style="overflow-x:auto">
         <table class="comparison-table" id="suppStockTable"></table>
       </div>
@@ -1035,6 +1037,41 @@ let procItems    = {main:[], bulk:{}};   // stock, supplier, deadline from MARCH
 let pkgCosts     = {};                   // packaging unit costs from MARCH ORDER
 let packaging    = [];
 let activeFilter = 'all';
+let incomingData  = {};  // Odoo incoming receipts: { key: [{qty,date,supplier,ref,overdue,flagged}] }
+// User-edited incoming overrides (persist within session)
+let incomingOverride = {};  // { 'WPC80_0': {qty:150, date:'2026-05-06'}, ... }
+
+// Get Odoo incoming rows for a product key, merged with any user overrides
+function getIncoming(key) {
+  const rows = incomingData[key] || [];
+  if (!rows.length) return [{ qty: 0, date: '', supplier: '', ref: '', odoo: false }];
+  return rows.map(function(r, i) {
+    const ovKey = key + '_' + i;
+    return {
+      qty:      incomingOverride[ovKey] !== undefined ? incomingOverride[ovKey].qty : r.qty,
+      date:     incomingOverride[ovKey] !== undefined ? incomingOverride[ovKey].date : r.date,
+      supplier: r.supplier,
+      ref:      r.ref,
+      overdue:  r.overdue,
+      flagged:  r.flagged,
+      odoo:     true,
+      idx:      i,
+    };
+  });
+}
+
+// Sum all incoming qty for a product key (for table totals and planning)
+function totalIncomingQty(key) {
+  return getIncoming(key).reduce(function(s, r) { return s + (parseFloat(r.qty) || 0); }, 0);
+}
+
+// Earliest upcoming receipt date for a product (for shortage gap)
+function earliestIncomingDate(key) {
+  const rows = getIncoming(key).filter(function(r) { return r.date; });
+  if (!rows.length) return null;
+  rows.sort(function(a, b) { return a.date.localeCompare(b.date); });
+  return new Date(rows[0].date);
+}
 let debugLines   = [];
 let growthBuffer = false;
 
@@ -1467,6 +1504,10 @@ function applyPayload(payload){
   // Formulations and costs
   formulations = form || {};
   ingCosts     = costs || {};
+
+  // Incoming orders from Odoo POs
+  incomingData = payload.incoming || {};
+  incomingOverride = {};  // clear overrides on fresh data load
 
   // ISPVAN fraction fix: ISOPRO sheet mixes % numbers (98.39) and decimals (0.9839)
   // in the same column, causing the column-scale logic to wrongly divide 0.9839 by 100.
@@ -2417,93 +2458,113 @@ function renderWheyStockTable(){
   let rows = '';
   let totalIncKg = 0, totalEwKsh = 0, totalLandedKsh = 0;
 
+  const fmtDate = d => d ? d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+  const gapAlerts = [];
+
   for(const [key, cfg] of Object.entries(WHEY_CFG)){
     const wheyStock = getWheyStockKg(cfg.ingName);
     const curKg  = wheyStock.kg;
     const curSrc = wheyStock.source;
-    const incKg  = WHEY_INCOMING_KG[key] || 0;
-    const totKg  = curKg + incKg;
     const rqMo   = (getNum(cfg.rqField) || 0) * getGrowthFactor();
     const ewEurMt= getNum(cfg.eurField) || 0;
+    const ewKshPerKg = (ewEurMt/1000) * eurKes;
+
+    // Get all incoming rows for this product (Odoo pre-filled, user-editable)
+    const incRows = getIncoming(key);
+    const incKgTotal = incRows.reduce((s,r) => s + (parseFloat(r.qty)||0), 0);
+    const totKg  = curKg + incKgTotal;
 
     // Coverage
-    const covAir = rqMo > 0 ? totKg / rqMo : 99;
-    const covSea = covAir; // same stock, different lead context
-    const stockoutDate = new Date(today.getTime() + covAir*30*864e5);
+    const covCur = rqMo > 0 ? curKg / rqMo : 99;
+    const covTot = rqMo > 0 ? totKg / rqMo : 99;
+    const stockoutDate = new Date(today.getTime() + covCur*30*864e5);
+
+    // Shortage gap: does earliest incoming arrive AFTER stockout?
+    const earliestInc = earliestIncomingDate(key);
+    const hasGap  = earliestInc && rqMo > 0 && earliestInc > stockoutDate && curKg > 0;
+    const gapDays = hasGap ? Math.round((earliestInc - stockoutDate) / 864e5) : 0;
+    if(hasGap) gapAlerts.push({ label: cfg.label, gapDays, stockoutDate, earliestInc });
+
     const orderByAir = new Date(stockoutDate.getTime() - airLead*864e5);
     const orderBySea = new Date(stockoutDate.getTime() - seaLead*864e5);
     const daysAir = Math.round((orderByAir - today)/864e5);
     const daysSea = Math.round((orderBySea - today)/864e5);
 
-    // Cost of goods — ExWorks value of current + incoming
-    const ewKshPerKg = (ewEurMt/1000) * eurKes;
-    const cogCurKsh  = curKg * ewKshPerKg;
-    const cogIncKsh  = incKg * ewKshPerKg;
-
-    // Landed cost estimate for incoming (air freight model — current mode)
-    const airUsd    = Math.max(500, incKg * airR) * (1 + airS);
-    const airKsh    = airUsd * usdKes;
-    const insKsh    = (cogIncKsh + airKsh) * 0.005;
-    const cifKsh    = cogIncKsh + airKsh + insKsh;
-    const clearKsh  = cifKsh * (idfR + rdlR + agentR) + portF * (incKg / (Object.values(WHEY_INCOMING_KG).reduce((s,v)=>s+v,0)||880));
-    const landedKsh = cifKsh + clearKsh;
-    const landedPerKg = incKg > 0 ? landedKsh / incKg : 0;
-
-    totalIncKg   += incKg;
-    totalEwKsh   += cogCurKsh + cogIncKsh;
-    totalLandedKsh += landedKsh;
-
-    const st = covAir < 2 ? 'critical' : covAir < 4 ? 'low' : 'ok';
+    const cogCurKsh = curKg * ewKshPerKg;
+    const st = covTot < 2 ? 'critical' : covTot < 4 ? 'low' : 'ok';
     const stBadge = `<span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span>`;
-    const fmtDate = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'});
 
-    rows += `<tr>
+    totalIncKg += incKgTotal;
+    totalEwKsh += cogCurKsh + incKgTotal * ewKshPerKg;
+
+    // One editable row per Odoo receipt
+    const incHtml = incRows.map((r, i) => {
+      const ovKey = key + '_' + i;
+      const isOverdue = r.date && new Date(r.date) < today;
+      const isFlagged = r.flagged;
+      const incKg = parseFloat(r.qty) || 0;
+      const landedEst = incKg * ewKshPerKg * 1.35;  // rough 35% logistics markup
+      return `<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;padding:3px 5px;background:${isOverdue?'#fff8f0':r.odoo?'#f0faf5':'var(--surface2)'};border-radius:4px;border:1px solid ${isOverdue?'#f0a070':r.odoo?'#0F6E5640':'var(--border)'}">
+        <div style="flex:0 0 auto;font-size:9px;font-weight:600;color:${isOverdue?'#c06020':'#0F6E56'};white-space:nowrap">${r.odoo?(isOverdue?'⚠ OD':'● Odoo'):'✎'}</div>
+        <input type="number" step="5" min="0" value="${incKg}" id="wheyqty_${ovKey}"
+          style="width:60px;font-family:var(--font-mono);font-size:11px;text-align:right;border:1px solid var(--border);border-radius:3px;padding:2px 4px;background:var(--surface)"
+          onchange="incomingOverride['${ovKey}']={qty:parseFloat(this.value)||0,date:document.getElementById('wheydate_${ovKey}')?.value||'${r.date||''}'}; renderWheyStockTable();renderShipping();" title="${r.supplier||''} · ${r.ref||''}">
+        <span style="font-size:9px;color:var(--text3)">kg</span>
+        <input type="date" id="wheydate_${ovKey}" value="${r.date||''}"
+          style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:2px 3px;background:var(--surface);color:${isOverdue?'#c06020':'inherit'}"
+          onchange="incomingOverride['${ovKey}']={qty:parseFloat(document.getElementById('wheyqty_${ovKey}')?.value)||${incKg},date:this.value}; renderWheyStockTable();">
+        ${r.odoo && incKg>0 ? `<span style="font-size:9px;color:var(--c-protein);font-weight:600;white-space:nowrap">≈Ksh ${Math.round(landedEst/1000)}k</span>` : ''}
+        ${isFlagged ? '<span style="font-size:9px;color:#c0341d;font-weight:600">⚠qty?</span>' : ''}
+      </div>`;
+    }).join('');
+
+    rows += `<tr${hasGap ? ' style="background:#fff8f5"' : ''}>
       <td>
         <div style="font-weight:600;font-size:12px">${cfg.label}</div>
         <div style="font-size:9px;color:var(--text3)">${cfg.ingName}</div>
+        ${hasGap ? `<div style="font-size:9px;color:#c0341d;font-weight:600;margin-top:2px">⚠ ${gapDays}-day gap · runs out ${fmtDate(stockoutDate)}</div>` : ''}
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-weight:600">${curKg.toFixed(1)} kg</div>
         <div style="font-size:9px;color:${curSrc==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${curSrc==='odoo'?'● Odoo':'● Sheet'}</div>
+        <div style="font-size:9px;color:var(--text3)">${rqMo>0?covCur.toFixed(1)+' mo':'—'}</div>
       </td>
-      <td>
-        <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
-          <input type="number" step="5" min="0" value="${incKg}"
-            style="width:72px;font-family:var(--font-mono);font-size:11px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 5px;background:var(--surface2)"
-            onchange="WHEY_INCOMING_KG['${key}']=parseFloat(this.value)||0;renderWheyStockTable();renderShipping()"
-            title="Enter planned incoming kg">
-          <span style="font-size:9px;color:var(--text3)">kg</span>
-        </div>
-        ${incKg>0?`<div style="font-size:9px;color:var(--c-protein);text-align:right;font-weight:600;margin-top:2px">≈Ksh ${Math.round(landedKsh).toLocaleString()} landed</div>`:'<div style="font-size:9px;color:var(--text3);text-align:right">no incoming</div>'}
-      </td>
+      <td style="min-width:200px">${incHtml}</td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-weight:700;font-size:13px">${totKg.toFixed(1)} kg</div>
-        <div style="font-size:9px;color:var(--text3)">${rqMo>0?(totKg/rqMo).toFixed(1)+' mo stock':''}</div>
+        <div style="font-size:9px;color:var(--text3)">${rqMo>0?covTot.toFixed(1)+' mo':''}</div>
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-size:11px;font-weight:600">Ksh ${Math.round(cogCurKsh).toLocaleString()}</div>
-        <div style="font-size:9px;color:var(--text3)">current stock EW</div>
-        ${incKg>0?`<div style="font-size:9px;color:var(--c-protein);font-weight:600">+Ksh ${Math.round(cogIncKsh).toLocaleString()} incoming EW</div>`:''}
+        <div style="font-size:9px;color:var(--text3)">current EW</div>
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-size:11px">${rqMo.toFixed(1)} kg/mo</div>
       </td>
       <td>${stBadge}</td>
       <td style="text-align:right">
-        <div style="font-family:var(--font-mono);font-weight:600;color:${covAir<2?'var(--crit-txt)':covAir<4?'var(--low-txt)':'var(--text)'}">${covAir>=99?'∞':covAir.toFixed(1)+' mo'}</div>
-        <div style="font-size:9px;color:var(--text3)">${covAir>=99?'':fmtDate(stockoutDate)}</div>
+        <div style="font-family:var(--font-mono);font-weight:600;color:${covTot<2?'var(--crit-txt)':covTot<4?'var(--low-txt)':'var(--text)'}"> ${covTot>=99?'∞':covTot.toFixed(1)+' mo'}</div>
+        <div style="font-size:9px;color:var(--text3)">${covTot>=99?'':fmtDate(new Date(today.getTime()+covTot*30*864e5))}</div>
       </td>
       <td style="font-size:10px;line-height:1.7">
-        <div style="color:${daysAir<0?'var(--crit-txt)':daysAir<30?'var(--low-txt)':'var(--text3)'}">
-          ✈ ${daysAir<0?'AIR OVERDUE':'By '+orderByAir.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
-        </div>
-        <div style="color:${daysSea<0?'var(--crit-txt)':daysSea<30?'var(--low-txt)':'var(--text3)'}">
-          🚢 ${daysSea<0?'SEA OVERDUE':'By '+orderBySea.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
-        </div>
+        <div style="color:${daysAir<0?'var(--crit-txt)':daysAir<30?'var(--low-txt)':'var(--text3)'}">✈ ${daysAir<0?'OVERDUE':'By '+orderByAir.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
+        <div style="color:${daysSea<0?'var(--crit-txt)':daysSea<30?'var(--low-txt)':'var(--text3)'}">🚢 ${daysSea<0?'OVERDUE':'By '+orderBySea.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
       </td>
     </tr>`;
   }
 
+  // Shortage gap banner
+  const bannerEl = document.getElementById('wheyGapBanner');
+  if(bannerEl){
+    if(gapAlerts.length){
+      bannerEl.style.display='block';
+      bannerEl.innerHTML = '<b>⚠ Supply gap alert:</b> ' + gapAlerts.map(g =>
+        `<b>${g.label}</b>: ${g.gapDays}-day gap — stock runs out ${fmtDate(g.stockoutDate)}, first receipt due ${fmtDate(g.earliestInc)}`
+      ).join(' &nbsp;·&nbsp; ');
+    } else {
+      bannerEl.style.display = 'none';
+    }
+  }
   // Totals row
   rows += `<tr style="background:var(--surface2);font-weight:600;border-top:2px solid var(--border2)">
     <td>Total</td>
@@ -3020,7 +3081,9 @@ function renderSuppStockTable(sales){
 
   let rows='';
   for(const[sku,cfg]of Object.entries(SUPP_CFG)){
-    const curKg    = getSuppStockKg(sku);          // LIVE from March Order sheet (already includes Nutra shipment)
+    const suppStock = getSuppStockKg(sku);
+    const curKg    = suppStock.kg;
+    const curSrc   = suppStock.source;
     const incKg    = SUPP_ORDER_KG[sku]||0;        // editable — next planned order
     const totKg    = curKg + incKg;
     const kpp      = cfg.kgPerPack;
@@ -3051,14 +3114,16 @@ function renderSuppStockTable(sales){
     const landedKsh = cifKsh + kraKsh;
     const incDrums  = incKg/cfg.drumKg;
 
-    rows+=`<tr${overstock?' style="background:#fff8f0"':''}>
+    rows+=`<tr${overstock?' style="background:#fff8f0"':suppHasGap?' style="background:#fff5f5"':''}>
       <td>
         <div style="font-weight:600;font-size:12px">${cfg.label}</div>
         <div style="font-size:9px;color:var(--text3)">${sku} · ${cfg.drumKg}kg/drum · ${cfg.packsPerDrum} packs/drum</div>
+        ${suppHasGap ? `<div style="font-size:9px;color:#c0341d;font-weight:600;margin-top:2px">⚠ ${suppGapDays}-day gap</div>` : ''}
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-weight:600">${curPacks} packs</div>
-        <div style="font-size:9px;color:var(--text3)">${curKg}kg</div>
+        <div style="font-size:9px;color:var(--text3)">${Number.isInteger(curKg)?curKg:curKg.toFixed(1)}kg</div>
+        <div style="font-size:9px;color:${curSrc==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${curSrc==='odoo'?'● Odoo':'● Sheet'}</div>
       </td>
       <td>
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
@@ -3070,17 +3135,18 @@ function renderSuppStockTable(sales){
         </div>
         <div style="font-size:9px;color:var(--text3);text-align:right">${incKg>0?(incDrums.toFixed(1)+' drums · '+incPacks+' packs'):'—'}</div>
         ${incKg>0?`<div style="font-size:9px;color:var(--c-protein);text-align:right;font-weight:600">Ksh ${Math.round(landedKsh).toLocaleString()} landed</div>`:''}
+        ${(()=>{ const d = earliestIncomingDate(sku); return d ? `<div style="font-size:9px;color:${d<today?'#c06020':'#0F6E56'};font-weight:600;text-align:right">● ${d<today?'OD ':''}${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>` : ''; })()}
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-weight:700;font-size:13px">${totPacks} packs</div>
-        <div style="font-size:9px;color:var(--text3)">${totKg}kg total</div>
+        <div style="font-size:9px;color:var(--text3)">${Number.isInteger(totKg)?totKg:totKg.toFixed(1)}kg total</div>
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-size:11px">Ksh ${Math.round(cogCurKsh).toLocaleString()}</div>
         <div style="font-size:9px;color:var(--text3)">ExWorks value</div>
         ${incKg>0?`<div style="font-size:9px;color:var(--c-protein)">(+Ksh ${Math.round(landedKsh).toLocaleString()} inc)</div>`:''}
       </td>
-      <td style="text-align:right;font-family:var(--font-mono)">${sal} / mo</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${Number.isInteger(sal)?sal:sal.toFixed(1)} / mo</td>
       <td>
         ${stBadge}
         ${overstock?'<div style="font-size:9px;color:#8a5c0a;font-weight:600;margin-top:3px">⚠ Overstocked</div>':''}
@@ -3120,7 +3186,41 @@ function renderSupp(){
   const rawSales = getSuppSales();
   const gf = getGrowthFactor();
   const sales = Object.fromEntries(Object.entries(rawSales).map(([k,v])=>[k, v*gf]));
+
+  // Pre-fill SUPP_ORDER_KG from Odoo incoming data (first time or on refresh)
+  // Only pre-fill if user hasn't manually changed the value
+  ['CREATUN','CREATFP','CREATPG','PWORKWM','PWORKGA','BCAA','COLUN'].forEach(function(sku) {
+    const odooQty = totalIncomingQty(sku);
+    if(odooQty > 0 && SUPP_ORDER_KG[sku] === 0) SUPP_ORDER_KG[sku] = odooQty;
+  });
+
   renderSuppStockTable(sales);
+
+  // Update supp gap banner
+  const suppBanner = document.getElementById('suppGapBanner');
+  if(suppBanner){
+    const suppGaps = ['CREATUN','CREATFP','CREATPG','PWORKWM','PWORKGA','BCAA','COLUN'].map(function(sku){
+      const inc = earliestIncomingDate(sku);
+      const item = procItems.bulk[sku];
+      if(!item || !inc) return null;
+      const rq = bulkRQ(sku);
+      if(!rq) return null;
+      const covMo = rq > 0 ? item.stock / rq : 99;
+      const stockout = new Date(new Date().getTime() + covMo*30*864e5);
+      if(inc > stockout && item.stock > 0) {
+        const gapD = Math.round((inc - stockout)/864e5);
+        const label = (SUPP_CFG[sku]||{}).label || sku;
+        return `<b>${label}</b>: ${gapD}-day gap`;
+      }
+      return null;
+    }).filter(Boolean);
+    if(suppGaps.length){
+      suppBanner.style.display = 'block';
+      suppBanner.innerHTML = '<b>⚠ Supply gap alert:</b> ' + suppGaps.join(' &nbsp;·&nbsp; ');
+    } else {
+      suppBanner.style.display = 'none';
+    }
+  }
 
   const res6   = computeSuppShipment(cycle, sales);
 
@@ -3222,6 +3322,10 @@ function renderSupp(){
     const stockout = new Date(today.getTime()+covMo*30*864e5);
     const orderBy  = new Date(stockout.getTime()-lead*864e5);
     const daysTo   = (orderBy-today)/864e5;
+    // Shortage gap for supplements
+    const suppEarliestInc = earliestIncomingDate(sku);
+    const suppHasGap = suppEarliestInc && sal>0 && suppEarliestInc > stockout && curKg>0;
+    const suppGapDays = suppHasGap ? Math.round((suppEarliestInc - stockout)/864e5) : 0;
     const urgency  = daysTo<0?'<span style="color:var(--crit-txt);font-weight:700">⚠ ORDER NOW</span>':
                      daysTo<60?`<span style="color:var(--low-txt);font-weight:600">By ${orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>`:
                      `<span style="color:var(--text3)">${orderBy.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>`;
@@ -3248,8 +3352,8 @@ function renderSupp(){
         <div style="font-weight:600;font-size:12px">${cfg.label}</div>
         <div style="font-size:9px;color:var(--text3)">${covMo>=99?'∞':covMo.toFixed(1)+' mo coverage after order'}</div>
       </td>
-      <td style="text-align:right;font-family:var(--font-mono)">${Math.floor(curKg/cfg.kgPerPack)} packs<div style="font-size:9px;color:var(--text3)">${curKg}kg</div><div style="font-size:9px;color:${curSrc==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${curSrc==='odoo'?'● Odoo':'● Sheet'}</div></td>
-      <td style="text-align:right;font-family:var(--font-mono)">${sal}/mo</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${Math.floor(curKg/cfg.kgPerPack)} packs<div style="font-size:9px;color:var(--text3)">${Number.isInteger(curKg)?curKg:curKg.toFixed(1)}kg</div><div style="font-size:9px;color:${curSrc==='odoo'?'#0F6E56':'#aaa'};font-weight:600">${curSrc==='odoo'?'● Odoo':'● Sheet'}</div></td>
+      <td style="text-align:right;font-family:var(--font-mono)">${Number.isInteger(sal)?sal:sal.toFixed(1)}/mo</td>
       <td style="text-align:right;font-family:var(--font-mono);font-weight:600">${orderKg>0?orderDrums.toFixed(1)+' drums':'—'}<div style="font-size:9px;color:var(--text3);font-weight:400">${orderKg>0?orderKg+'kg':''}</div></td>
       <td style="text-align:right;font-family:var(--font-mono)">${orderKg>0?'Ksh '+Math.round(ewKsh).toLocaleString():'—'}</td>
       <td style="text-align:right;font-family:var(--font-mono);color:var(--low-txt)">${orderKg>0?'Ksh '+Math.round(dutyKsh).toLocaleString():'—'}</td>
