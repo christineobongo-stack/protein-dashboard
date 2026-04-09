@@ -2512,7 +2512,7 @@ function renderWheyStockTable(){
         <span style="font-size:9px;color:var(--text3)">kg</span>
         <input type="date" id="wheydate_${ovKey}" value="${r.date||''}"
           style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:2px 3px;background:var(--surface);color:${isOverdue?'#c06020':'inherit'}"
-          onchange="incomingOverride['${ovKey}']={qty:parseFloat(document.getElementById('wheyqty_${ovKey}')?.value)||${incKg},date:this.value}; renderWheyStockTable();">
+          onchange="(function(){const q=parseFloat(document.getElementById('wheyqty_${ovKey}')?.value)||${incKg};incomingOverride['${ovKey}']={qty:q,date:this.value};renderWheyStockTable();})()">
         ${r.odoo && incKg>0 ? `<span style="font-size:9px;color:var(--c-protein);font-weight:600;white-space:nowrap">≈Ksh ${Math.round(landedEst/1000)}k</span>` : ''}
         ${isFlagged ? '<span style="font-size:9px;color:#c0341d;font-weight:600">⚠qty?</span>' : ''}
       </div>`;
@@ -3113,6 +3113,18 @@ function renderSuppStockTable(sales){
     const kraKsh    = cifKsh * (dutyPct + idfPct + rdlPct);
     const landedKsh = cifKsh + kraKsh;
     const incDrums  = incKg/cfg.drumKg;
+    // Pre-compute arrival date display (avoid nested backtick in template)
+    const suppArrivalDate = earliestIncomingDate(sku);
+    const suppArrivalHtml = suppArrivalDate
+      ? '<div style="font-size:9px;color:' + (suppArrivalDate<today?'#c06020':'#0F6E56') + ';font-weight:600;text-align:right">● ' + (suppArrivalDate<today?'OD ':'') + suppArrivalDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}) + '</div>'
+      : '';
+
+    // Shortage gap calculation (need here AND in order plan below)
+    const suppEarliestInc = earliestIncomingDate(sku);
+    const covCurMo = sal > 0 ? Math.floor(curKg/kpp) / sal : 99;
+    const suppStockout = new Date(today.getTime() + covCurMo*30*864e5);
+    const suppHasGap  = suppEarliestInc && sal>0 && suppEarliestInc > suppStockout && curKg>0;
+    const suppGapDays = suppHasGap ? Math.round((suppEarliestInc - suppStockout)/864e5) : 0;
 
     rows+=`<tr${overstock?' style="background:#fff8f0"':suppHasGap?' style="background:#fff5f5"':''}>
       <td>
@@ -3135,7 +3147,7 @@ function renderSuppStockTable(sales){
         </div>
         <div style="font-size:9px;color:var(--text3);text-align:right">${incKg>0?(incDrums.toFixed(1)+' drums · '+incPacks+' packs'):'—'}</div>
         ${incKg>0?`<div style="font-size:9px;color:var(--c-protein);text-align:right;font-weight:600">Ksh ${Math.round(landedKsh).toLocaleString()} landed</div>`:''}
-        ${(()=>{ const d = earliestIncomingDate(sku); return d ? `<div style="font-size:9px;color:${d<today?'#c06020':'#0F6E56'};font-weight:600;text-align:right">● ${d<today?'OD ':''}${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>` : ''; })()}
+        ${suppArrivalHtml}
       </td>
       <td style="text-align:right">
         <div style="font-family:var(--font-mono);font-weight:700;font-size:13px">${totPacks} packs</div>
