@@ -324,6 +324,8 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
             <th style="text-align:right">Packaging / pack</th>
             <th style="text-align:right">Total / pack</th>
             <th style="text-align:right">Total / serving</th>
+            <th style="text-align:right">FG Stock<div style="font-style:italic;font-weight:400;font-size:9px">Baobab+SCNB</div></th>
+            <th style="text-align:right">Coverage<div style="font-style:italic;font-weight:400;font-size:9px">vs avg sales</div></th>
             <th>Ingredient detail</th>
           </tr></thead>
           <tbody id="costProtTbody"></tbody>
@@ -343,6 +345,8 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
             <th style="text-align:right">Total / pack</th>
             <th style="text-align:right">Drum cost</th>
             <th style="text-align:right">Cost / usable pack</th>
+            <th style="text-align:right">FG Stock</th>
+            <th style="text-align:right">Coverage</th>
             <th style="text-align:right">Yield</th>
           </tr></thead>
           <tbody id="costBulkTbody"></tbody>
@@ -1033,6 +1037,109 @@ const CC={protein:'#185FA5',flavour:'#BA7517',active:'#0F6E56',excipient:'#88878
 // ingCosts[ingNameExact]          = Ksh per kg  (from VERSION 8)
 let formulations = {};
 let ingCosts     = {};
+// New Odoo-driven data (populated by applyPayload)
+let boms           = {};   // { 'CEVAN30': [{comp,compLower,qty,uom,isKg,isPcs},...] }
+let monthlySales   = {};   // { '2026-03': { 'CEVAN30': 41, ... }, ... }
+let fgStock        = {};   // { 'CEVAN30': {baobab,scnb,nbo,total} }
+let rawConsumption = {};   // keyed by BoM component name (lowercase) → kg/mo
+let avgSales       = {};   // { 'CEVAN30': 41.3, ... } avg monthly
+
+// Map abstract SKU codes → Odoo product refs (for FG stock + sales lookup)
+const PROT_ODOO_REFS = {
+  CEVAN:   ['CEVAN30','CEVAN15','CEVAN04'],
+  CECHOC:  ['CECHOC30','CECHOC15','CECHOC04'],
+  CEBAN:   ['CEBAN30','CEBAN15','CEBAN04'],
+  CECREAM: ['CECREAM30','CECREAM15','CECREAM04'],
+  CESC:    ['CESC30','CESC15','CESC04'],
+  CEVBC:   ['CEVBC30','CEVBC15','CEVBC04'],
+  CEVCHAI: ['CEVCHAI30','CEVCHAI15','CEVCHAI04'],
+  PureForm:['PFORMUN30'],
+  ECOVAN:  ['ECOVAN28','ECOVAN14'],
+  ECOCHOC: ['ECOCHOC28','ECOCHOC14'],
+  ECOBAN:  ['ECOBAN28','ECOBAN14'],
+  ISPVAN:  ['ISPVAN28','ISPVAN14'],
+  ISPUN:   ['ISPUN28','ISPUN14'],
+  BIOVAN:  ['BIOVAN30','BIOVAN15','BIOVAN04'],
+  BIOUN:   ['BIOUN30','BIOUN15','BIOUN04'],
+};
+const BULK_ODOO_REFS = {
+  CREATUN:'CREATUN200', CREATFP:'CREATFP200', CREATPG:'CREATPG200',
+  PWORKWM:'PWORKWM200', PWORKGA:'PWORKGA200', BCAA:'BCAA200',
+  COLUN:  'COLPG18',
+};
+function getFGTotal(abstractSku) {
+  const refs = PROT_ODOO_REFS[abstractSku] || (BULK_ODOO_REFS[abstractSku] ? [BULK_ODOO_REFS[abstractSku]] : []);
+  return refs.reduce(function(s,ref){ return s+((fgStock[ref]||{}).total||0); },0);
+}
+function getAvgSales(abstractSku) {
+  const refs = PROT_ODOO_REFS[abstractSku] || (BULK_ODOO_REFS[abstractSku] ? [BULK_ODOO_REFS[abstractSku]] : []);
+  return refs.reduce(function(s,ref){ return s+(avgSales[ref]||0); },0);
+}
+
+// BoM component name → ingCosts key lookup
+// Maps Odoo product names (lowercase) to Sheet ingredient cost keys (lowercase)
+const COMP_TO_COST = {
+  '(wpc35) 35% whey protein concentrate': ['35% whey concentrate','35% whey protein concentrate'],
+  '(wpc35) 35% whey protein concentrate ': ['35% whey concentrate','35% whey protein concentrate'],
+  '(wpc 80)80% whey protein concentrate': ['80% whey concentrate','80% whey protein concentrate'],
+  '(wpi 90) 90% whey protein isolate':    ['90% whey isolate','90% whey protein isolate'],
+  'dark alkalised cocoa powder ':         ['alkalized cocoa powder','dark alkalised cocoa powder','cocoa powder'],
+  'dark alkalised cocoa powder':          ['alkalized cocoa powder','dark alkalised cocoa powder','cocoa powder'],
+  'soy lecithin ':                        ['soy lecithin'],
+  'soy lecithin':                         ['soy lecithin'],
+  'xanthan gum':                          ['xanthan gum'],
+  'cmc ':                                 ['carboxymethylcellulose (cmc)','cmc'],
+  'cmc':                                  ['carboxymethylcellulose (cmc)','cmc'],
+  'sucralose':                            ['sucralose'],
+  'magrabar 4965 antifoam':               ['antifoam','magrabar'],
+  'pepzyme pro plus':                     ['digesist','pepzyme','enzyme'],
+  'banana flavouring 9011b -pdr ':        ['banana flavouring'],
+  'banana flavouring 9011b -pdr':         ['banana flavouring'],
+  'banana flavouring 4493a':              ['banana flavouring'],
+  'vanilla 4320c flavoring':              ['vanilla flavouring'],
+  'vanilla 5378b flavoring':              ['vanilla flavouring'],
+  'vanilla chai flavoring 4537b':         ['vanilla chai flavouring'],
+  'vanilla chai flavoring 8752a':         ['vanilla chai flavouring'],
+  'vanilla birthday cake flavoring 9325b':['vanilla birthday cake','vanilla birthday flavouring'],
+  'cookies n cream flavoring 8776b':      ['cookies & cream flavouring','cookies and cream flavouring'],
+  'organic flavor hazelnut nat 2124b-o pdr':['hazelnut flavouring','hazelnut flavoring'],
+  'organic flavor caramel nw 6134-o':     ['salted caramel flavouring','salted caramel flavoring'],
+  'cinnamon flavoring 2971c':             ['cinnamon flavouring'],
+  'chocolate flavouring 8703a':           ['chocolate flavouring'],
+  'non-dairy creamer':                    ['non-dairy creamer'],
+  'bulk creatine unflavoured':            ['bulk pure creatine'],
+  'bulk creatine fruit punch':            ['bulk fruit punch creatine'],
+  'bulk creatine pink guava':             ['bulk pink guava creatine'],
+  'bulk pre-workout watermelon':          ['bulk preworkout watermelon'],
+  'bulk pre-workout green apple':         ['bulk preworkout green apple'],
+  'bulk bcaas':                           ['bulk bcaas','bcaas'],
+  'bulk collagen pink guava':             ['bulk collagen'],
+};
+
+function findIngCost(compNameLower) {
+  // 1. Case-insensitive exact match
+  for (const [k, v] of Object.entries(ingCosts)) {
+    if (k.toLowerCase().trim() === compNameLower.trim()) return v;
+  }
+  // 2. Known alias map
+  const aliases = COMP_TO_COST[compNameLower] || COMP_TO_COST[compNameLower.trim()] || [];
+  for (const alias of aliases) {
+    for (const [k, v] of Object.entries(ingCosts)) {
+      if (k.toLowerCase().trim() === alias) return v;
+    }
+  }
+  // 3. Word-overlap fallback (>=50% overlap)
+  const qw = compNameLower.replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w=>w.length>2);
+  if (!qw.length) return 0;
+  let best=0, bestCost=0;
+  for (const [k, v] of Object.entries(ingCosts)) {
+    const kw = k.toLowerCase().replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w=>w.length>2);
+    const m = qw.filter(w=>kw.includes(w)).length;
+    const score = m / Math.max(qw.length, kw.length);
+    if (score > best && score >= 0.4) { best=score; bestCost=v; }
+  }
+  return bestCost;
+}
 let procItems    = {main:[], bulk:{}};   // stock, supplier, deadline from MARCH ORDER
 let pkgCosts     = {};                   // packaging unit costs from MARCH ORDER
 let packaging    = [];
@@ -1380,18 +1487,25 @@ function getFormNames(procName){
 // Formula: Σ_SKU( frac[SKU] × sales[SKU] × rqW[SKU] )
 // ═══════════════════════════════════════════════════════════════════════════════
 function computeRQ(procName){
+  const gf=getGrowthFactor();
+  // Primary: BoM × avg monthly sales (pre-computed server-side)
+  if(Object.keys(rawConsumption).length>0){
+    const nl=procName.toLowerCase().trim();
+    const v=rawConsumption[nl]??rawConsumption[nl+' ']??rawConsumption[nl.replace(/ +$/,'')];
+    if(v!==undefined) return v*gf;
+  }
+  // Fallback: legacy formulation-fraction calculation
   const targets=getFormNames(procName);
   let rq=0;
   for(const target of targets){
-    // Find formulation entry matching this target name
     for(const[formName,skuMap]of Object.entries(formulations)){
       if(formName.toLowerCase().trim()!==target) continue;
       for(const[sku,f]of Object.entries(skuMap)){
-        rq += f * (SALES[sku]||0) * (RQ_W[sku]||1);
+        rq+=f*(SALES[sku]||0)*(RQ_W[sku]||1);
       }
     }
   }
-  return rq * getGrowthFactor();
+  return rq*gf;
 }
 
 function bulkRQ(sku){ return (SALES[sku]||0)*BULK_CFG[sku].kgPerPack * getGrowthFactor(); }
@@ -1401,30 +1515,85 @@ function bulkRQ(sku){ return (SALES[sku]||0)*BULK_CFG[sku].kgPerPack * getGrowth
 // Formula (exact match to sheet): Σ(frac_i × cost_i_per_kg) × (33/1000)
 // ═══════════════════════════════════════════════════════════════════════════════
 function computeCostPerServing(sku){
+  // Try BoM-driven first (uses actual manufacturing quantities from Odoo)
+  if(Object.keys(boms).length>0){
+    const v=computeCostPerServingBoM(sku);
+    if(v>0) return v;
+  }
+  // Legacy fallback: formulation fractions from Google Sheets
   let sum=0;
   for(const[formName,skuMap]of Object.entries(formulations)){
-    const f=skuMap[sku];
-    if(!f||f<=0) continue;
-    const cost=ingCosts[formName]||0;
-    if(!cost) continue;
-    sum += f*cost;
+    const f=skuMap[sku]; if(!f||f<=0) continue;
+    const cost=ingCosts[formName]||0; if(!cost) continue;
+    sum+=f*cost;
   }
   return sum*(SERVING_G/1000);
 }
 
+function computeCostPerServingBoM(sku){
+  // Use largest pack ref for canonical cost (best BoM data)
+  const refs=(PROT_ODOO_REFS[sku]||[]).concat(BULK_ODOO_REFS[sku]?[BULK_ODOO_REFS[sku]]:[]);
+  const sorted=refs.slice().sort((a,b)=>(parseInt(b.match(/\d+$/)?.[0]||0)-parseInt(a.match(/\d+$/)?.[0]||0)));
+  for(const ref of sorted){
+    const lines=boms[ref]; if(!lines||!lines.length) continue;
+    let costPerPack=0, hasAnyCost=false;
+    lines.forEach(function(line){
+      if(!line.isKg||line.qty<=0) return;
+      const cost=findIngCost(line.compLower);
+      if(cost>0){costPerPack+=line.qty*cost; hasAnyCost=true;}
+    });
+    if(!hasAnyCost) continue;
+    // costPerPack is cost for one pack. Divide by servings per pack to get cost/serving.
+    const tabCfg=SKU_TAB[sku];
+    const servings=tabCfg?tabCfg.packG/SERVING_G:30;
+    return costPerPack/servings;
+  }
+  return 0;
+}
+
 // Ingredient-level breakdown for verification
 function costDetail(sku){
+  if(Object.keys(boms).length>0){
+    const d=costDetailBoM(sku); if(d.length>0) return d;
+  }
+  // Legacy fallback
   const lines=[];
   for(const[formName,skuMap]of Object.entries(formulations)){
-    const f=skuMap[sku];
-    if(!f||f<=0) continue;
+    const f=skuMap[sku]; if(!f||f<=0) continue;
     const cost=ingCosts[formName]||0;
-    lines.push({name:formName, fracPct:(f*100).toFixed(2), costPerKg:cost,
-      contribPerServing: cost>0 ? f*cost*(SERVING_G/1000) : 0,
-      hasCost: cost>0});
+    lines.push({name:formName,fracPct:(f*100).toFixed(2),costPerKg:cost,
+      contribPerServing:cost>0?f*cost*(SERVING_G/1000):0,hasCost:cost>0});
   }
   lines.sort((a,b)=>b.contribPerServing-a.contribPerServing);
   return lines;
+}
+
+function costDetailBoM(sku){
+  const refs=(PROT_ODOO_REFS[sku]||[]).concat(BULK_ODOO_REFS[sku]?[BULK_ODOO_REFS[sku]]:[]);
+  const sorted=refs.slice().sort((a,b)=>parseInt(b.match(/\d+$/)?.[0]||0)-parseInt(a.match(/\d+$/)?.[0]||0));
+  for(const ref of sorted){
+    const lines=boms[ref]; if(!lines||!lines.length) continue;
+    const tabCfg=SKU_TAB[sku];
+    const servings=tabCfg?tabCfg.packG/SERVING_G:30;
+    const kgLines=lines.filter(l=>l.isKg&&l.qty>0);
+    if(!kgLines.length) continue;
+    const totalKg=kgLines.reduce((s,l)=>s+l.qty,0);
+    const detail=kgLines.map(function(line){
+      const cost=findIngCost(line.compLower);
+      const costPerPack=line.qty*cost;
+      return{
+        name:line.comp,
+        fracPct:(line.qty/totalKg*100).toFixed(2),
+        costPerKg:cost,
+        contribPerServing:cost>0?costPerPack/servings:0,
+        hasCost:cost>0,
+        bomDriven:true,
+      };
+    });
+    detail.sort((a,b)=>b.contribPerServing-a.contribPerServing);
+    if(detail.length>0) return detail;
+  }
+  return [];
 }
 
 function getSt(stock,rq){const d=rq*2-stock;if(d>0&&stock===0)return'critical';if(d>0)return'low';return'ok';}
@@ -1456,7 +1625,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v3';
+const CACHE_KEY_LS = 'pk_payload_v4';
 
 function lsCacheGet(){
   try{
@@ -1513,6 +1682,33 @@ function applyPayload(payload){
   // Formulations and costs
   formulations = form || {};
   ingCosts     = costs || {};
+
+  // Load new Odoo-driven payload fields
+  boms           = payload.boms           || {};
+  monthlySales   = payload.monthlySales   || {};
+  fgStock        = payload.fgStock        || {};
+  rawConsumption = payload.rawConsumption || {};
+  avgSales       = payload.avgSales       || {};
+
+  // Backfill SALES object from live avgSales so all existing tabs stay in sync
+  Object.entries(PROT_ODOO_REFS).forEach(function([key, refs]) {
+    const total = refs.reduce(function(s,r){ return s+(avgSales[r]||0); },0);
+    if (total > 0) SALES[key] = total;
+  });
+  Object.entries(BULK_ODOO_REFS).forEach(function([key, ref]) {
+    if (avgSales[ref] > 0) SALES[key] = avgSales[ref];
+  });
+
+  // Update supplement sales input fields from live avgSales
+  const suppInputMap = {
+    CREATUN:'s-creatun', CREATFP:'s-creatfp', CREATPG:'s-creatpg',
+    PWORKWM:'s-pworkwm', PWORKGA:'s-pworkga', BCAA:'s-bcaa', COLUN:'s-colun'
+  };
+  Object.entries(suppInputMap).forEach(function([key, inputId]) {
+    const ref = BULK_ODOO_REFS[key];
+    const v = ref ? Math.round(avgSales[ref]||0) : 0;
+    if (v > 0) { const el=document.getElementById(inputId); if(el) el.value=v; }
+  });
 
   // Incoming orders from Odoo POs
   incomingData = payload.incoming || {};
@@ -1848,9 +2044,13 @@ function renderCosts(){
     // Category breakdown
     const byCat={protein:0,flavour:0,active:0,excipient:0};
     detail.forEach(d=>{ if(d.hasCost) byCat[getCat(d.name)]+=d.contribPerServing; });
+    const fgTotalProt = getFGTotal(sku);
+    const avgSalesProt = getAvgSales(sku);
+    const coverageProt = avgSalesProt > 0 ? fgTotalProt / avgSalesProt : null;
     protRows.push({sku,label:PROT_INFO[sku],packG:tabCfg.packG,servings,
       cpServ,ingPack,pkgPack:pkgLarge,total,
-      perServ:total/servings,byCat,detail});
+      perServ:total/servings,byCat,detail,
+      fgTotal:fgTotalProt, avgSalesVal:avgSalesProt, coverage:coverageProt});
   }
   protRows.sort((a,b)=>b.total-a.total);
 
@@ -1863,9 +2063,13 @@ function renderCosts(){
     const total=ingPack+pkgSmall;
     const drumCost=costPerKg*cfg.drumKg;
     const yieldPct=(cfg.usable/(cfg.sachets||cfg.usable)*100).toFixed(0);
+    const fgTotalBulk = getFGTotal(sku);
+    const avgSalesBulk = getAvgSales(sku);
+    const coverageBulk = avgSalesBulk > 0 ? fgTotalBulk / avgSalesBulk : null;
     bulkRows.push({sku,cfg,costPerKg,drumCost,ingPack,pkgPack:pkgSmall,
       total,yieldPct,wastedPacks:cfg.sachets?(cfg.sachets-cfg.usable):0,
-      nominalPerPack:drumCost/(cfg.sachets||cfg.usable)});
+      nominalPerPack:drumCost/(cfg.sachets||cfg.usable),
+      fgTotal:fgTotalBulk, avgSalesVal:avgSalesBulk, coverage:coverageBulk});
   }
   bulkRows.sort((a,b)=>b.total-a.total);
 
@@ -1932,6 +2136,14 @@ function renderCosts(){
       <td style="text-align:right"><span class="cost-sm" style="color:var(--c-pkg)">Ksh ${ksh(r.pkgPack)}</span></td>
       <td style="text-align:right"><span class="cost-big">Ksh ${ksh(r.total)}</span></td>
       <td style="text-align:right"><span class="cost-sm">Ksh ${r.perServ.toFixed(0)}</span></td>
+      <td style="text-align:right;font-family:var(--font-mono)">
+        ${r.fgTotal > 0 ? r.fgTotal.toLocaleString() : '<span style="color:var(--text3)">—</span>'}
+        <div style="font-size:9px;color:#0F6E56">${r.fgTotal > 0 ? '● Odoo' : ''}</div>
+      </td>
+      <td style="text-align:right">
+        ${r.coverage !== null ? '<span style="font-family:var(--font-mono);color:' + (r.coverage < 2 ? 'var(--crit-txt)' : r.coverage < 4 ? 'var(--low-txt)' : 'var(--ok-txt)') + '">' + r.coverage.toFixed(1) + ' mo</span>' : '<span style="color:var(--text3)">—</span>'}
+        <div style="font-size:9px;color:var(--text3)">${r.avgSalesVal > 0 ? r.avgSalesVal.toFixed(1) + '/mo' : ''}</div>
+      </td>
       <td style="min-width:160px">
         <div class="stackbar" style="margin-bottom:3px">
           <div class="stackbar-seg" style="width:${bP}%;background:var(--c-protein)"></div>
@@ -1947,7 +2159,7 @@ function renderCosts(){
   document.getElementById('costProtFoot').innerHTML=
     `<span>Costs from Protein Product Development VERSION 8 · Packaging: 1 large bag Ksh${bagL} + 1×30g scoop Ksh${sc30} + 2×large sticker Ksh${(stkL*2).toFixed(2)} = Ksh${pkgLarge.toFixed(2)}/pack</span>`;
 
-  document.getElementById('costBulkTbody').innerHTML=bulkRows.map(({sku,cfg,costPerKg,drumCost,ingPack,pkgPack,total,yieldPct,wastedPacks,nominalPerPack})=>{
+  document.getElementById('costBulkTbody').innerHTML=bulkRows.map(({sku,cfg,costPerKg,drumCost,ingPack,pkgPack,total,yieldPct,wastedPacks,nominalPerPack,fgTotal,avgSalesVal,coverage})=>{
     const yc=parseInt(yieldPct)<50?'var(--crit-txt)':parseInt(yieldPct)<80?'var(--low-txt)':'var(--ok-txt)';
     const wf=wastedPacks>0?`<div style="font-size:9px;color:var(--crit-txt);margin-top:2px">⚠ ${wastedPacks} sachets wasted/drum</div>`:'';
     return`<tr>
@@ -1958,6 +2170,8 @@ function renderCosts(){
       <td style="text-align:right"><span class="cost-big">Ksh ${ksh(total)}</span></td>
       <td style="text-align:right"><span class="cost-sm">Ksh ${ksh(drumCost)}</span></td>
       <td style="text-align:right"><span class="cost-sm">Ksh ${ksh(ingPack)}</span>${wastedPacks>0?`<div style="font-size:9px;color:var(--text3)">vs Ksh${ksh(nominalPerPack)} w/o waste</div>`:''}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${fgTotal > 0 ? fgTotal.toLocaleString() : '<span style="color:var(--text3)">—</span>'}<div style="font-size:9px;color:#0F6E56">${fgTotal>0?'● Odoo':''}</div></td>
+      <td style="text-align:right">${coverage !== null ? `<span style="font-family:var(--font-mono);color:${coverage<2?'var(--crit-txt)':coverage<4?'var(--low-txt)':'var(--ok-txt)'}">${coverage.toFixed(1)} mo</span><div style="font-size:9px;color:var(--text3)">${avgSalesVal.toFixed(1)}/mo</div>` : '<span style="color:var(--text3)">—</span>'}</td>
       <td style="text-align:right"><span style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:${yc}">${yieldPct}%</span><div style="font-size:9px;color:var(--text3)">${cfg.usable}/${cfg.sachets||cfg.usable}</div></td>
     </tr>`;
   }).join('');
