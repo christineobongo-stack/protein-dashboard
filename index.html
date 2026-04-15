@@ -144,6 +144,15 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 .tag.warn{background:#fef0ee;color:#c0341d;border:1px solid #f5c4b3}
 
 .debug-box{background:#1a1916;color:#7dd3a8;font-family:var(--font-mono);font-size:10px;padding:12px 14px;border-radius:8px;margin-bottom:12px;line-height:1.8;white-space:pre-wrap;display:none}
+/* ── Phase 1: Data freshness banner ──────────────────────────────── */
+#dataFreshnessBanner{display:none;background:#fff0e8;border-bottom:2px solid #f5c4b3;padding:9px 20px;font-size:11px;font-weight:500;color:#c0341d;line-height:1.6}
+#dataFreshnessBanner a{color:#c0341d;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px}
+/* ── Phase 1: Input validation states ────────────────────────────── */
+.pg-input.input-warn{border-color:#e08020!important;background:#fffdf5}
+.pg-input.input-error{border-color:#c0341d!important;background:#fff5f5}
+/* ── Phase 1: Error boundary card ────────────────────────────────── */
+.render-error{margin:20px;padding:14px 16px;background:#fff0f0;border:1px solid #f5c4b3;border-radius:8px;font-size:11px;color:#c0341d;line-height:1.7}
+.render-error code{display:block;font-family:var(--font-mono);font-size:10px;opacity:.75;margin-top:6px;word-break:break-all}
 /* Market intelligence tab */
 .signal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
 .signal-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
@@ -225,7 +234,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 <header>
   <div>
     <div class="htitle">Procurement Dashboard — protein.ke</div>
-    <div class="hsub">Live · MARCH 2026 ORDER + Protein Product Development VERSION 8</div>
+    <div class="hsub" id="headerSub">Live · MARCH 2026 ORDER + Protein Product Development VERSION 8</div>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
     <button onclick="toggleDebug()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);font-size:10px;padding:4px 10px;border-radius:5px;cursor:pointer">debug</button>
@@ -233,6 +242,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   </div>
 </header>
 
+<div id="dataFreshnessBanner"></div>
 <div class="sources">
   <div class="src"><span class="dot idle" id="dot-proc"></span><span id="lbl-proc">MARCH 2026 ORDER</span></div>
   <div class="src" id="cacheStatus" style="margin-left:auto;font-size:10px;color:var(--text3)"></div>
@@ -575,9 +585,9 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">Monthly RQs <span>(kg/month — calculated from your Jan 2025 sales × formulations · edit to override)</span></div>
           <div class="pg-grid c3">
-            <div><div class="pg-label">WPC 35 (kg/mo)</div><input class="pg-input" id="rq35" type="number" value="142" oninput="renderShipping()"></div>
-            <div><div class="pg-label">WPC 80 (kg/mo)</div><input class="pg-input" id="rq80" type="number" value="303" oninput="renderShipping()"></div>
-            <div><div class="pg-label">WPI 90% (kg/mo)</div><input class="pg-input" id="rqwpi" type="number" value="63" oninput="renderShipping()"></div>
+            <div><div class="pg-label">WPC 35 (kg/mo)</div><input class="pg-input" id="rq35" type="number" value="142" oninput="validateInput(this);renderShipping()"></div>
+            <div><div class="pg-label">WPC 80 (kg/mo)</div><input class="pg-input" id="rq80" type="number" value="303" oninput="validateInput(this);renderShipping()"></div>
+            <div><div class="pg-label">WPI 90% (kg/mo)</div><input class="pg-input" id="rqwpi" type="number" value="63" oninput="validateInput(this);renderShipping()"></div>
           </div>
           <div style="margin-top:8px;font-size:10px;color:var(--text3);line-height:1.6;padding:7px 10px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
             These figures are computed as <b>Σ(ingredient fraction × monthly pack sales × pack weight)</b> across all SKUs using your January 2025 actuals. 
@@ -589,13 +599,13 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">ExWorks prices <span>(EUR/MT — edit with latest quotes)</span></div>
           <div class="pg-grid c3">
-            <div><div class="pg-label">WPC 35 (EUR/MT)</div><input class="pg-input" id="ew35" type="number" value="4200" oninput="renderShipping()"></div>
-            <div><div class="pg-label">WPC 80 (EUR/MT)</div><input class="pg-input" id="ew80" type="number" value="15000" oninput="renderShipping()"></div>
-            <div><div class="pg-label">WPI 90% (EUR/MT)</div><input class="pg-input" id="ewwpi" type="number" value="20200" oninput="renderShipping()"></div>
+            <div><div class="pg-label">WPC 35 (EUR/MT)</div><input class="pg-input" id="ew35" type="number" value="4200" oninput="validateInput(this);renderShipping()"></div>
+            <div><div class="pg-label">WPC 80 (EUR/MT)</div><input class="pg-input" id="ew80" type="number" value="15000" oninput="validateInput(this);renderShipping()"></div>
+            <div><div class="pg-label">WPI 90% (EUR/MT)</div><input class="pg-input" id="ewwpi" type="number" value="20200" oninput="validateInput(this);renderShipping()"></div>
           </div>
           <div style="margin-top:10px">
             <div class="pg-label">EUR/KES rate</div>
-            <input class="pg-input" id="eurKes" type="number" value="150" oninput="renderShipping()" style="width:120px">
+            <input class="pg-input" id="eurKes" type="number" value="150" oninput="validateInput(this);renderShipping()" style="width:120px">
             <span style="font-size:10px;color:var(--text3);margin-left:8px">auto-updated from live feed when market tab loads</span>
           </div>
         </div>
@@ -627,10 +637,10 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">✈ Air freight <span>(JKIA — 30-day lead time)</span></div>
           <div class="pg-grid c2">
-            <div><div class="pg-label">Rate (USD/kg)</div><input class="pg-input" id="airRate" type="number" step="0.1" value="3.50" oninput="renderShipping()"></div>
+            <div><div class="pg-label">Rate (USD/kg)</div><input class="pg-input" id="airRate" type="number" step="0.1" value="3.50" oninput="validateInput(this);renderShipping()"></div>
             <div><div class="pg-label">Min. charge (USD)</div><input class="pg-input" id="airMin" type="number" value="500" oninput="renderShipping()"></div>
           </div>
-          <div style="margin-top:10px"><div class="pg-label">Fuel & handling surcharge (%)</div><input class="pg-input" id="airSurcharge" type="number" value="22" oninput="renderShipping()" style="width:100px"><span style="font-size:10px;color:var(--text3);margin-left:8px">typical 15–30%</span></div>
+          <div style="margin-top:10px"><div class="pg-label">Fuel & handling surcharge (%)</div><input class="pg-input" id="airSurcharge" type="number" value="22" oninput="validateInput(this);renderShipping()" style="width:100px"><span style="font-size:10px;color:var(--text3);margin-left:8px">typical 15–30%</span></div>
           <div style="margin-top:10px"><div class="pg-label">Lead time (days)</div><input class="pg-input" id="airLead" type="number" value="30" oninput="renderShipping()" style="width:100px"></div>
         </div>
 
@@ -659,12 +669,12 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">🛃 Clearance <span>(scales with CIF value)</span></div>
           <div class="pg-grid c2">
-            <div><div class="pg-label">IDF rate (%)</div><input class="pg-input" id="idfRate" type="number" step="0.1" value="3.5" oninput="renderShipping()"></div>
-            <div><div class="pg-label">RDL rate (%)</div><input class="pg-input" id="rdlRate" type="number" step="0.1" value="2.0" oninput="renderShipping()"></div>
+            <div><div class="pg-label">IDF rate (%)</div><input class="pg-input" id="idfRate" type="number" step="0.1" value="3.5" oninput="validateInput(this);renderShipping()"></div>
+            <div><div class="pg-label">RDL rate (%)</div><input class="pg-input" id="rdlRate" type="number" step="0.1" value="2.0" oninput="validateInput(this);renderShipping()"></div>
           </div>
           <div class="pg-grid c2" style="margin-top:10px">
-            <div><div class="pg-label">Agent commission (%)</div><input class="pg-input" id="agentRate" type="number" step="0.1" value="1.5" oninput="renderShipping()"></div>
-            <div><div class="pg-label">Port/CFS/KEBS (Ksh flat)</div><input class="pg-input" id="portFlat" type="number" value="237000" oninput="renderShipping()"></div>
+            <div><div class="pg-label">Agent commission (%)</div><input class="pg-input" id="agentRate" type="number" step="0.1" value="1.5" oninput="validateInput(this);renderShipping()"></div>
+            <div><div class="pg-label">Port/CFS/KEBS (Ksh flat)</div><input class="pg-input" id="portFlat" type="number" value="237000" oninput="validateInput(this);renderShipping()"></div>
           </div>
           <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.7;padding:8px;background:var(--surface2);border-radius:6px">
             Clearance = (IDF + RDL + Agent) % × CIF value + flat port charges.<br>
@@ -676,7 +686,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">Currency</div>
           <div class="pg-grid c2">
-            <div><div class="pg-label">USD/KES</div><input class="pg-input" id="usdKes" type="number" value="129" oninput="renderShipping()"></div>
+            <div><div class="pg-label">USD/KES</div><input class="pg-input" id="usdKes" type="number" value="129" oninput="validateInput(this);renderShipping()"></div>
             <div><div class="pg-label">Insurance (% of CIF)</div><input class="pg-input" id="insuranceRate" type="number" step="0.1" value="0.5" oninput="renderShipping()"></div>
           </div>
         </div>
@@ -761,13 +771,13 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">Monthly consumption <span>(packs/month — from Jan 2025 actuals)</span></div>
           <div class="pg-grid c2">
-            <div><div class="pg-label">Creatine Unflav (pks/mo)</div><input class="pg-input" id="s-creatun" type="number" value="126" oninput="renderSupp()"></div>
-            <div><div class="pg-label">Creatine FP (pks/mo)</div><input class="pg-input" id="s-creatfp" type="number" value="49" oninput="renderSupp()"></div>
-            <div><div class="pg-label">Creatine PG (pks/mo)</div><input class="pg-input" id="s-creatpg" type="number" value="37" oninput="renderSupp()"></div>
-            <div><div class="pg-label">PreWorkout WM (pks/mo)</div><input class="pg-input" id="s-pworkwm" type="number" value="11" oninput="renderSupp()"></div>
-            <div><div class="pg-label">PreWorkout GA (pks/mo)</div><input class="pg-input" id="s-pworkga" type="number" value="19" oninput="renderSupp()"></div>
-            <div><div class="pg-label">BCAAs (pks/mo)</div><input class="pg-input" id="s-bcaa" type="number" value="9" oninput="renderSupp()"></div>
-            <div><div class="pg-label">Collagen (pks/mo)</div><input class="pg-input" id="s-colun" type="number" value="37" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Creatine Unflav (pks/mo)</div><input class="pg-input" id="s-creatun" type="number" value="126" oninput="validateInput(this);renderSupp()"></div>
+            <div><div class="pg-label">Creatine FP (pks/mo)</div><input class="pg-input" id="s-creatfp" type="number" value="49" oninput="validateInput(this);renderSupp()"></div>
+            <div><div class="pg-label">Creatine PG (pks/mo)</div><input class="pg-input" id="s-creatpg" type="number" value="37" oninput="validateInput(this);renderSupp()"></div>
+            <div><div class="pg-label">PreWorkout WM (pks/mo)</div><input class="pg-input" id="s-pworkwm" type="number" value="11" oninput="validateInput(this);renderSupp()"></div>
+            <div><div class="pg-label">PreWorkout GA (pks/mo)</div><input class="pg-input" id="s-pworkga" type="number" value="19" oninput="validateInput(this);renderSupp()"></div>
+            <div><div class="pg-label">BCAAs (pks/mo)</div><input class="pg-input" id="s-bcaa" type="number" value="9" oninput="validateInput(this);renderSupp()"></div>
+            <div><div class="pg-label">Collagen (pks/mo)</div><input class="pg-input" id="s-colun" type="number" value="37" oninput="validateInput(this);renderSupp()"></div>
           </div>
         </div>
 
@@ -782,7 +792,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
           </div>
           <div style="margin-top:10px">
             <div class="pg-label">USD/KES rate</div>
-            <input class="pg-input" id="s-usdkes" type="number" value="129.52" oninput="renderSupp()" style="width:120px">
+            <input class="pg-input" id="s-usdkes" type="number" value="129.52" oninput="validateInput(this);renderSupp()" style="width:120px">
           </div>
         </div>
 
@@ -804,10 +814,10 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
             ⚠ Supplements from India attract <b>25% import duty</b> — unlike whey from EU (0%). This is the dominant logistics cost.
           </div>
           <div class="pg-grid c2">
-            <div><div class="pg-label">Import duty (%)</div><input class="pg-input" id="s-duty" type="number" step="0.1" value="25" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Import duty (%)</div><input class="pg-input" id="s-duty" type="number" step="0.1" value="25" oninput="validateInput(this);renderSupp()"></div>
             <div><div class="pg-label">IDF (%)</div><input class="pg-input" id="s-idf" type="number" step="0.1" value="2.5" oninput="renderSupp()"></div>
             <div><div class="pg-label">RDL (%)</div><input class="pg-input" id="s-rdl" type="number" step="0.1" value="2.0" oninput="renderSupp()"></div>
-            <div><div class="pg-label">Lead time (days)</div><input class="pg-input" id="s-lead" type="number" value="65" oninput="renderSupp()"></div>
+            <div><div class="pg-label">Lead time (days)</div><input class="pg-input" id="s-lead" type="number" value="65" oninput="validateInput(this);renderSupp()"></div>
           </div>
           <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.6;padding:7px 10px;background:var(--surface2);border-radius:6px">
             Lead time confirmed at 65 days (Nutra invoice Jan 19 → Mombasa customs Mar 25, 2026).
@@ -879,10 +889,10 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">Shipping parameters</div>
           <div class="pg-grid c2">
-            <div><div class="pg-label">Sea rate (Ksh/CBM)</div><input class="pg-input" id="pkg-searate" type="number" value="60000" oninput="renderPackaging()"></div>
+            <div><div class="pg-label">Sea rate (Ksh/CBM)</div><input class="pg-input" id="pkg-searate" type="number" value="60000" oninput="validateInput(this);renderPackaging()"></div>
             <div><div class="pg-label">Sea minimum (Ksh)</div><input class="pg-input" id="pkg-seamin" type="number" value="12000" oninput="renderPackaging()"></div>
-            <div><div class="pg-label">Air rate (USD/kg)</div><input class="pg-input" id="pkg-airrate" type="number" value="12" oninput="renderPackaging()"></div>
-            <div><div class="pg-label">USD/KES</div><input class="pg-input" id="pkg-usdkes" type="number" value="129.52" oninput="renderPackaging()"></div>
+            <div><div class="pg-label">Air rate (USD/kg)</div><input class="pg-input" id="pkg-airrate" type="number" value="12" oninput="validateInput(this);renderPackaging()"></div>
+            <div><div class="pg-label">USD/KES</div><input class="pg-input" id="pkg-usdkes" type="number" value="129.52" oninput="validateInput(this);renderPackaging()"></div>
           </div>
         </div>
         <div class="pg-section">
@@ -1202,15 +1212,15 @@ function toggleGrowth(){
   const banner = document.getElementById('growthBanner');
   if(banner) banner.classList.toggle('visible', growthBuffer);
   updateWheyRQFields();
-  renderProcurement();
+  safeRender('procurement',renderProcurement);
   if(document.getElementById('page-shipping').classList.contains('active')){
-    renderShipping(); renderWheyStockTable();
+    safeRender('shipping',renderShipping); safeRender('shipping',renderWheyStockTable);
   }
   if(document.getElementById('page-supplements').classList.contains('active')){
-    renderSupp();
+    safeRender('supplements',renderSupp);
   }
   if(document.getElementById('page-packaging').classList.contains('active')){
-    renderPackaging();
+    safeRender('packaging',renderPackaging);
   }
 }
 
@@ -1731,7 +1741,59 @@ function applyPayload(payload){
     dbg(`ISPVAN fraction corrected: ${wrong} → ${wrong*100} (was divided by 100 erroneously)`);
   }
 
-  dbg('Ingredients loaded: '+procItems.main.length);
+  // ── Phase 1: data freshness & source warning ─────────────────────────────
+  (function(){
+    var meta   = payload.meta || {};
+    var genAt  = meta.generatedAt ? new Date(meta.generatedAt) : null;
+    var ageMs  = genAt ? Date.now() - genAt.getTime() : null;
+    var ageHrs = ageMs ? ageMs / 3600000 : null;
+    var isLive = (meta.stockSource || '').toLowerCase() === 'live';
+    var isStale = ageHrs !== null && ageHrs > 2;
+
+    // Header subtitle — colour-coded live/fallback with timestamp
+    var sub = document.getElementById('headerSub');
+    if (sub && genAt) {
+      var col = isLive ? '#6ee7c0' : '#f4a96a';
+      var dot = isLive ? '●' : '⚠';
+      var src = isLive ? 'Live from Odoo' : 'Sheet fallback';
+      var t   = genAt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      var d   = genAt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      sub.innerHTML = '<span style="color:'+col+';font-weight:600">'+dot+' '+src+'</span>'
+        +' · Updated '+t+' · '+d
+        +(isStale?' <span style="color:#f4a96a;font-weight:700">· '+ageHrs.toFixed(1)+'h old</span>':'');
+    }
+
+    // Freshness banner — only visible when there's a problem
+    var banner = document.getElementById('dataFreshnessBanner');
+    if (banner) {
+      var parts = [];
+      if (!isLive)  parts.push('⚠ Stock data is from the ORDER sheet — Odoo unavailable');
+      if (isStale)  parts.push('⏰ Data is '+ageHrs.toFixed(1)+' hours old');
+      if (parts.length) {
+        parts.push('<a onclick="cacheClear();loadAll(true)">↻ Refresh now for live data</a>');
+        banner.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    // Cache status bar
+    var cs = document.getElementById('cacheStatus');
+    if (cs) {
+      if (genAt) {
+        var t2 = genAt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+        cs.textContent = isStale
+          ? 'Data '+ageHrs.toFixed(1)+'h old · click ↻ for live'
+          : 'Updated '+t2+' · click ↻ for live';
+        cs.style.color = isStale ? '#c0341d' : '';
+      } else {
+        cs.textContent = 'Serving cached data · click ↻ for live';
+      }
+    }
+  })();
+
+    dbg('Ingredients loaded: '+procItems.main.length);
   dbg('Bulk supps: '+Object.keys(procItems.bulk).length);
   dbg('Packaging rows: '+packaging.length);
   dbg('Formulation entries: '+Object.keys(formulations).length);
@@ -1745,6 +1807,8 @@ function applyPayload(payload){
     .forEach(([k,sm])=>dbg(` ${k}: ${(sm['CEVAN']*100).toFixed(2)}%`));
 
   updateWheyRQFields();
+  // Phase 1: validate all inputs after live data loads
+  setTimeout(validateAllInputs, 600);
 }
 
 // Update whey RQ input fields — called on data load and when growth toggle changes
@@ -1784,7 +1848,7 @@ async function loadAll(forceRefresh=false){
   // Use memory cache within same session (instant)
   if(!forceRefresh && _memCache){
     applyPayload(_memCache);
-    renderProcurement(); renderCosts();
+    safeRender('procurement',renderProcurement); safeRender('costs',renderCosts);
     document.getElementById('loadingOverlay').style.display='none';
     document.getElementById('tableWrap').style.display='block';
     document.getElementById('lastRefresh').textContent=new Date().toLocaleTimeString()+' (memory)';
@@ -1800,7 +1864,7 @@ async function loadAll(forceRefresh=false){
       applyPayload(cached);
       document.getElementById('loadingOverlay').style.display='none';
       document.getElementById('tableWrap').style.display='block';
-      renderProcurement(); renderCosts();
+      safeRender('procurement',renderProcurement); safeRender('costs',renderCosts);
       document.getElementById('lastRefresh').textContent=new Date().toLocaleTimeString()+' (cached)';
       const cacheEl=document.getElementById('cacheStatus');
       if(cacheEl) cacheEl.textContent='Serving cached data · click ↻ for live';
@@ -1844,8 +1908,8 @@ async function loadAll(forceRefresh=false){
 
     document.getElementById('loadingOverlay').style.display='none';
     document.getElementById('tableWrap').style.display='block';
-    renderProcurement(); renderCosts();
-    if(document.getElementById('wheyStockTable')) renderWheyStockTable();
+    safeRender('procurement',renderProcurement); safeRender('costs',renderCosts);
+    if(document.getElementById('wheyStockTable')) safeRender('shipping',renderWheyStockTable);
 
     document.getElementById('lastRefresh').textContent =
       new Date().toLocaleTimeString()+' ('+elapsed+'s · live)';
@@ -1918,6 +1982,97 @@ function makeRow(item,rq,units,onchange,cost){
     <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
     <td style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.supplier}">${item.supplier||'—'}</td>
   </tr>`;
+}
+
+// ── Phase 1: Input validation ────────────────────────────────────────────────
+var INPUT_BOUNDS = {
+  // Whey shipping
+  'eurKes':      {min:100,  max:250,    warn:true,  label:'EUR/KES rate'},
+  'usdKes':      {min:80,   max:200,    warn:true,  label:'USD/KES rate (whey)'},
+  'rq35':        {min:0,    max:5000,   warn:false, label:'WPC 35 monthly RQ'},
+  'rq80':        {min:0,    max:5000,   warn:false, label:'WPC 80 monthly RQ'},
+  'rqwpi':       {min:0,    max:2000,   warn:false, label:'WPI 90% monthly RQ'},
+  'ew35':        {min:1000, max:20000,  warn:false, label:'WPC 35 ExWorks (EUR/MT)'},
+  'ew80':        {min:1000, max:60000,  warn:false, label:'WPC 80 ExWorks (EUR/MT)'},
+  'ewwpi':       {min:1000, max:80000,  warn:false, label:'WPI ExWorks (EUR/MT)'},
+  'idfRate':     {min:0,    max:10,     warn:false, label:'IDF rate (%)'},
+  'rdlRate':     {min:0,    max:10,     warn:false, label:'RDL rate (%)'},
+  'agentRate':   {min:0,    max:10,     warn:false, label:'Agent commission (%)'},
+  'portFlat':    {min:50000,max:800000, warn:true,  label:'Port/CFS/KEBS (Ksh)'},
+  'airRate':     {min:1,    max:25,     warn:false, label:'Air freight rate (USD/kg)'},
+  'airSurcharge':{min:0,    max:60,     warn:false, label:'Air surcharge (%)'},
+  // Supplements
+  's-usdkes':    {min:80,   max:200,    warn:true,  label:'USD/KES (supplements)'},
+  's-duty':      {min:0,    max:100,    warn:false, label:'Import duty (%)'},
+  's-lead':      {min:1,    max:180,    warn:false, label:'Lead time (days)'},
+  's-creatun':   {min:0,    max:2000,   warn:false, label:'Creatine UN sales/mo'},
+  's-creatfp':   {min:0,    max:2000,   warn:false, label:'Creatine FP sales/mo'},
+  's-creatpg':   {min:0,    max:2000,   warn:false, label:'Creatine PG sales/mo'},
+  's-pworkwm':   {min:0,    max:2000,   warn:false, label:'PreWorkout WM sales/mo'},
+  's-pworkga':   {min:0,    max:2000,   warn:false, label:'PreWorkout GA sales/mo'},
+  's-bcaa':      {min:0,    max:2000,   warn:false, label:'BCAAs sales/mo'},
+  's-colun':     {min:0,    max:2000,   warn:false, label:'Collagen sales/mo'},
+  // Packaging
+  'pkg-searate': {min:20000,max:200000, warn:true,  label:'Sea rate (Ksh/CBM)'},
+  'pkg-usdkes':  {min:80,   max:200,    warn:true,  label:'USD/KES (packaging)'},
+  'pkg-airrate': {min:1,    max:30,     warn:false, label:'Air rate (USD/kg)'},
+};
+
+function validateInput(el) {
+  if (!el || el.type !== 'number') return true;
+  var bounds = INPUT_BOUNDS[el.id];
+  if (!bounds) return true;
+  var v = parseFloat(el.value);
+
+  // Clear previous state
+  el.classList.remove('input-warn','input-error');
+  el.title = '';
+
+  if (isNaN(v)) {
+    el.classList.add('input-error');
+    el.title = bounds.label + ': please enter a number';
+    return false;
+  }
+  if (v < bounds.min || v > bounds.max) {
+    el.classList.add(bounds.warn ? 'input-warn' : 'input-error');
+    el.title = bounds.label + ': expected between ' + bounds.min + ' and ' + bounds.max;
+    return false;
+  }
+  return true;
+}
+
+function validateAllInputs() {
+  var warnings = 0;
+  Object.keys(INPUT_BOUNDS).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && !validateInput(el)) warnings++;
+  });
+  return warnings;
+}
+
+// ── Phase 1: Safe render wrapper — catches crashes in any tab ────────────────
+function safeRender(tabId, renderFn) {
+  try {
+    // Remove any previous error card for this tab before re-rendering
+    var page = document.getElementById('page-' + tabId);
+    if (page) {
+      var prev = page.querySelector('.render-error');
+      if (prev) prev.parentNode.removeChild(prev);
+    }
+    renderFn();
+  } catch(err) {
+    console.error('Render error [' + tabId + ']:', err);
+    var page2 = document.getElementById('page-' + tabId);
+    if (page2) {
+      var card = document.createElement('div');
+      card.className = 'render-error';
+      card.innerHTML = '<strong>⚠ Could not render the ' + tabId + ' tab.</strong>'
+        + ' This is usually caused by unexpected data from Odoo or the sheets.'
+        + ' Try refreshing — if it persists, contact your developer.<br>'
+        + '<code>' + (err.message || String(err)) + '</code>';
+      page2.insertBefore(card, page2.firstChild);
+    }
+  }
 }
 
 function renderProcurement(){
@@ -3072,9 +3227,9 @@ function switchTab(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   btn.classList.add('active');
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
-  if(id==='shipping'){ renderShipping(); renderWheyStockTable(); }
-  if(id==='supplements') renderSupp();
-  if(id==='packaging') renderPackaging();
+  if(id==='shipping'){ safeRender('shipping',renderShipping); safeRender('shipping',renderWheyStockTable); }
+  if(id==='supplements') safeRender('supplements',renderSupp);
+  if(id==='packaging') safeRender('packaging',renderPackaging);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
