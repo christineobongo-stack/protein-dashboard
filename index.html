@@ -393,7 +393,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
             <th style="text-align:right">Packaging / pack</th>
             <th style="text-align:right">Total / pack</th>
             <th style="text-align:right">Total / serving</th>
-            <th style="text-align:right">FG Stock<div style="font-style:italic;font-weight:400;font-size:9px">Baobab+SCNB</div></th>
+            <th style="text-align:right">FG Stock<div style="font-style:italic;font-weight:400;font-size:9px">servings · Baobab+SCNB</div></th>
             <th style="text-align:right">Coverage<div style="font-style:italic;font-weight:400;font-size:9px">vs avg sales</div></th>
             <th style="text-align:right">Margin %<div style="font-style:italic;font-weight:400;font-size:9px">30-serve price</div></th>
             <th>Ingredient detail</th>
@@ -1154,21 +1154,23 @@ let sellingPrices  = {};   // { 'CEVAN30': 4495, ... } Shopify website prices (p
 
 // Map abstract SKU codes → Odoo product refs (for FG stock + sales lookup)
 const PROT_ODOO_REFS = {
-  CEVAN:   ['CEVAN30','CEVAN15','CEVAN04'],
-  CECHOC:  ['CECHOC30','CECHOC15','CECHOC04'],
-  CEBAN:   ['CEBAN30','CEBAN15','CEBAN04'],
-  CECREAM: ['CECREAM30','CECREAM15','CECREAM04'],
-  CESC:    ['CESC30','CESC15','CESC04'],
-  CEVBC:   ['CEVBC30','CEVBC15','CEVBC04'],
-  CEVCHAI: ['CEVCHAI30','CEVCHAI15','CEVCHAI04'],
-  PureForm:['PFORMUN30'],
-  ECOVAN:  ['ECOVAN28','ECOVAN14'],
-  ECOCHOC: ['ECOCHOC28','ECOCHOC14'],
-  ECOBAN:  ['ECOBAN28','ECOBAN14'],
-  ISPVAN:  ['ISPVAN28','ISPVAN14'],
-  ISPUN:   ['ISPUN28','ISPUN14'],
-  BIOVAN:  ['BIOVAN30','BIOVAN15','BIOVAN04'],
-  BIOUN:   ['BIOUN30','BIOUN15','BIOUN04'],
+  // Each entry: { ref: Odoo product code, serves: servings per pack }
+  // serves is the canonical unit for FG stock and demand — covers all pack sizes correctly
+  CEVAN:   [{ref:'CEVAN30',  serves:30},{ref:'CEVAN15',  serves:15},{ref:'CEVAN04',  serves:4}],
+  CECHOC:  [{ref:'CECHOC30', serves:30},{ref:'CECHOC15', serves:15},{ref:'CECHOC04', serves:4}],
+  CEBAN:   [{ref:'CEBAN30',  serves:30},{ref:'CEBAN15',  serves:15},{ref:'CEBAN04',  serves:4}],
+  CECREAM: [{ref:'CECREAM30',serves:30},{ref:'CECREAM15',serves:15},{ref:'CECREAM04',serves:4}],
+  CESC:    [{ref:'CESC30',   serves:30},{ref:'CESC15',   serves:15},{ref:'CESC04',   serves:4}],
+  CEVBC:   [{ref:'CEVBC30',  serves:30},{ref:'CEVBC15',  serves:15},{ref:'CEVBC04',  serves:4}],
+  CEVCHAI: [{ref:'CEVCHAI30',serves:30},{ref:'CEVCHAI15',serves:15},{ref:'CEVCHAI04',serves:4}],
+  PureForm:[{ref:'PFORMUN30',serves:30}],
+  ECOVAN:  [{ref:'ECOVAN28', serves:28},{ref:'ECOVAN14', serves:14}],
+  ECOCHOC: [{ref:'ECOCHOC28',serves:28},{ref:'ECOCHOC14',serves:14}],
+  ECOBAN:  [{ref:'ECOBAN28', serves:28},{ref:'ECOBAN14', serves:14}],
+  ISPVAN:  [{ref:'ISPVAN28', serves:28},{ref:'ISPVAN14', serves:14}],
+  ISPUN:   [{ref:'ISPUN28',  serves:28},{ref:'ISPUN14',  serves:14}],
+  BIOVAN:  [{ref:'BIOVAN30', serves:30},{ref:'BIOVAN15', serves:15},{ref:'BIOVAN04', serves:4}],
+  BIOUN:   [{ref:'BIOUN30',  serves:30},{ref:'BIOUN15',  serves:15},{ref:'BIOUN04',  serves:4}],
 };
 const BULK_ODOO_REFS = {
   CREATUN:'CREATUN200', CREATFP:'CREATFP200', CREATPG:'CREATPG200',
@@ -1176,12 +1178,56 @@ const BULK_ODOO_REFS = {
   COLUN:  'COLPG18',
 };
 function getFGTotal(abstractSku) {
-  const refs = PROT_ODOO_REFS[abstractSku] || (BULK_ODOO_REFS[abstractSku] ? [BULK_ODOO_REFS[abstractSku]] : []);
-  return refs.reduce(function(s,ref){ return s+((fgStock[ref]||{}).total||0); },0);
+  // Returns raw pack count (units) across all variants — used by repacking planner
+  const variants = PROT_ODOO_REFS[abstractSku];
+  if (variants) return variants.reduce(function(s,v){ return s+((fgStock[v.ref]||{}).total||0); },0);
+  const ref = BULK_ODOO_REFS[abstractSku];
+  return ref ? ((fgStock[ref]||{}).total||0) : 0;
 }
 function getAvgSales(abstractSku) {
-  const refs = PROT_ODOO_REFS[abstractSku] || (BULK_ODOO_REFS[abstractSku] ? [BULK_ODOO_REFS[abstractSku]] : []);
-  return refs.reduce(function(s,ref){ return s+(avgSales[ref]||0); },0);
+  // Returns total monthly units sold across all variants — used by repacking planner & SALES backfill
+  const variants = PROT_ODOO_REFS[abstractSku];
+  if (variants) return variants.reduce(function(s,v){ return s+(avgSales[v.ref]||0); },0);
+  const ref = BULK_ODOO_REFS[abstractSku];
+  return ref ? (avgSales[ref]||0) : 0;
+}
+
+
+// ── Serving-based FG helpers ──────────────────────────────────────────────────
+// protRefs(sku): returns plain string array of Odoo refs (for BoM lookups, trendBadge, Shopify prices)
+function protRefs(sku) {
+  var variants = PROT_ODOO_REFS[sku];
+  if (variants) return variants.map(function(v){ return v.ref; });
+  var ref = BULK_ODOO_REFS[sku];
+  return ref ? [ref] : [];
+}
+
+// getFGServings(sku): total servings physically in stock across all pack sizes
+// e.g. 400×CEVAN30 + 40×CEVAN15 + 7×CEVAN04 = 400×30 + 40×15 + 7×4 = 12,628 servings
+function getFGServings(sku) {
+  var variants = PROT_ODOO_REFS[sku];
+  if (!variants) return getFGTotal(sku); // bulk: one pack size, falls back correctly
+  return variants.reduce(function(s,v){ return s+((fgStock[v.ref]||{}).total||0)*v.serves; },0);
+}
+
+// getAvgServingsPerMonth(sku): monthly demand expressed in servings
+// e.g. 150×CEVAN30 + 20×CEVAN15 + 12×CEVAN04 = 4,500+300+48 = 4,848 srv/mo
+function getAvgServingsPerMonth(sku) {
+  var variants = PROT_ODOO_REFS[sku];
+  if (!variants) return getAvgSales(sku); // bulk: units == servings
+  return variants.reduce(function(s,v){ return s+(avgSales[v.ref]||0)*v.serves; },0);
+}
+
+// getFGBreakdown(sku): compact display string showing stock by pack size
+// e.g. "400×30s · 40×15s · 7×4s"  — empty string if no stock or bulk SKU
+function getFGBreakdown(sku) {
+  var variants = PROT_ODOO_REFS[sku];
+  if (!variants) return '';
+  var parts = variants
+    .map(function(v){ return {units:Math.round((fgStock[v.ref]||{}).total||0), serves:v.serves}; })
+    .filter(function(x){ return x.units > 0; })
+    .map(function(x){ return x.units.toLocaleString()+'×'+x.serves+'s'; });
+  return parts.join(' · ');
 }
 
 // BoM component name → ingCosts key lookup
@@ -1642,7 +1688,7 @@ function computeCostPerServing(sku){
 
 function computeCostPerServingBoM(sku){
   // Use largest pack ref for canonical cost (best BoM data)
-  const refs=(PROT_ODOO_REFS[sku]||[]).concat(BULK_ODOO_REFS[sku]?[BULK_ODOO_REFS[sku]]:[]);
+  const refs=protRefs(sku);
   const sorted=refs.slice().sort((a,b)=>(parseInt(b.match(/\d+$/)?.[0]||0)-parseInt(a.match(/\d+$/)?.[0]||0)));
   for(const ref of sorted){
     const lines=boms[ref]; if(!lines||!lines.length) continue;
@@ -1679,7 +1725,7 @@ function costDetail(sku){
 }
 
 function costDetailBoM(sku){
-  const refs=(PROT_ODOO_REFS[sku]||[]).concat(BULK_ODOO_REFS[sku]?[BULK_ODOO_REFS[sku]]:[]);
+  const refs=protRefs(sku);
   const sorted=refs.slice().sort((a,b)=>parseInt(b.match(/\d+$/)?.[0]||0)-parseInt(a.match(/\d+$/)?.[0]||0));
   for(const ref of sorted){
     const lines=boms[ref]; if(!lines||!lines.length) continue;
@@ -1802,8 +1848,8 @@ function applyPayload(payload){
   // sellingPrices populated by fetchShopifyPrices() — runs in parallel with this payload fetch
 
   // Backfill SALES object from live avgSales so all existing tabs stay in sync
-  Object.entries(PROT_ODOO_REFS).forEach(function([key, refs]) {
-    const total = refs.reduce(function(s,r){ return s+(avgSales[r]||0); },0);
+  Object.entries(PROT_ODOO_REFS).forEach(function([key, variants]) {
+    const total = variants.reduce(function(s,v){ return s+(avgSales[v.ref]||0); },0);
     if (total > 0) SALES[key] = total;
   });
   Object.entries(BULK_ODOO_REFS).forEach(function([key, ref]) {
@@ -2371,9 +2417,9 @@ function getMarginPct(sku, costPerPack) {
   var refs;
   if (PROT_ODOO_REFS[sku]) {
     // Protein: use largest pack (highest trailing number = 30-serve for CE/ECO/ISO/BIO)
-    refs = PROT_ODOO_REFS[sku].slice().sort(function(a, b) {
-      return parseInt((b.match(/\d+$/) || [0])[0]) - parseInt((a.match(/\d+$/) || [0])[0]);
-    });
+    refs = PROT_ODOO_REFS[sku].slice()
+      .sort(function(a, b) { return b.serves - a.serves; })  // largest pack first
+      .map(function(v) { return v.ref; });
   } else if (BULK_ODOO_REFS[sku]) {
     refs = [BULK_ODOO_REFS[sku]]; // e.g. 'CREATUN200' — only one pack size
   } else {
@@ -2587,10 +2633,10 @@ function renderExecSummary() {
   var coverageItems = [];
   // Protein SKUs
   PROT_SKUS.forEach(function(sku) {
-    var fg = getFGTotal(sku);
-    var sales = getAvgSales(sku);
+    var fg    = getFGServings(sku);            // servings in stock
+    var sales = getAvgServingsPerMonth(sku);    // servings/month demand
     if (sales <= 0) return;
-    var cov = fg / sales;
+    var cov = fg / sales;                       // months of coverage — now correct
     coverageItems.push({ label: (PROT_INFO[sku] || sku), cov: cov, sales: sales, fg: fg, type: 'prot' });
   });
   // Bulk SKUs
@@ -2624,7 +2670,7 @@ function renderExecSummary() {
           + '<span class="exec-cov-name">' + item.label.substring(0, 28) + '</span>'
           + '<span class="exec-cov-val" style="color:' + col + '">'
           + item.cov.toFixed(1) + ' mo'
-          + '<span style="color:var(--text3);font-weight:400;margin-left:4px">(' + Math.round(item.sales) + '/mo)</span>'
+          + '<span style="color:var(--text3);font-weight:400;margin-left:4px">(' + Math.round(item.sales).toLocaleString() + ' srv/mo)</span>'
           + '</span>'
           + '</div>';
       }).join('');
@@ -2784,14 +2830,16 @@ function renderCosts(){
     // Category breakdown
     const byCat={protein:0,flavour:0,active:0,excipient:0};
     detail.forEach(d=>{ if(d.hasCost) byCat[getCat(d.name)]+=d.contribPerServing; });
-    const fgTotalProt = getFGTotal(sku);
-    const avgSalesProt = getAvgSales(sku);
-    const coverageProt = avgSalesProt > 0 ? fgTotalProt / avgSalesProt : null;
-    const trendHtmlProt = trendBadge(PROT_ODOO_REFS[sku] || []);
+    const fgTotalProt    = getFGServings(sku);           // total servings in stock
+    const fgBreakdownProt = getFGBreakdown(sku);          // '300×30s · 20×15s · 12×4s'
+    const avgSalesProt   = getAvgServingsPerMonth(sku);   // servings/month demand
+    const coverageProt   = avgSalesProt > 0 ? fgTotalProt / avgSalesProt : null;
+    const trendHtmlProt  = trendBadge(protRefs(sku));
     protRows.push({sku,label:PROT_INFO[sku],packG:tabCfg.packG,servings,
       cpServ,ingPack,pkgPack:pkgLarge,total,
       perServ:total/servings,byCat,detail,
-      fgTotal:fgTotalProt, avgSalesVal:avgSalesProt, coverage:coverageProt,
+      fgTotal:fgTotalProt, fgBreakdown:fgBreakdownProt,
+      avgSalesVal:avgSalesProt, coverage:coverageProt,
       trendHtml:trendHtmlProt});
   }
   protRows.sort((a,b)=>b.total-a.total);
@@ -2881,12 +2929,13 @@ function renderCosts(){
       <td style="text-align:right"><span class="cost-big">Ksh ${ksh(r.total)}</span></td>
       <td style="text-align:right"><span class="cost-sm">Ksh ${r.perServ.toFixed(0)}</span></td>
       <td style="text-align:right;font-family:var(--font-mono)">
-        ${r.fgTotal > 0 ? r.fgTotal.toLocaleString() : '<span style="color:var(--text3)">—</span>'}
+        ${r.fgTotal > 0 ? r.fgTotal.toLocaleString() + '<span style="font-size:9px;margin-left:2px">srv</span>' : '<span style="color:var(--text3)">—</span>'}
         <div style="font-size:9px;color:#0F6E56">${r.fgTotal > 0 ? '● Odoo' : ''}</div>
+        <div style="font-size:9px;color:var(--text3);white-space:nowrap">${r.fgBreakdown||''}</div>
       </td>
       <td style="text-align:right">
         ${r.coverage !== null ? '<span style="font-family:var(--font-mono);color:' + (r.coverage < 2 ? 'var(--crit-txt)' : r.coverage < 4 ? 'var(--low-txt)' : 'var(--ok-txt)') + '">' + r.coverage.toFixed(1) + ' mo</span>' : '<span style="color:var(--text3)">—</span>'}
-        <div style="font-size:9px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:4px">${r.avgSalesVal > 0 ? r.avgSalesVal.toFixed(1) + '/mo' : ''}${r.trendHtml||''}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:4px">${r.avgSalesVal > 0 ? Math.round(r.avgSalesVal).toLocaleString() + ' srv/mo' : ''}${r.trendHtml||''}</div>
       </td>
       <td style="text-align:right">${marginCell(getMarginPct(r.sku, r.total))}</td>
       <td style="min-width:160px">
