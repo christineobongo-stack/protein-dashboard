@@ -185,6 +185,61 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 .exec-cov-name{color:var(--text2);font-size:10px}
 .exec-cov-val{font-family:var(--font-mono);font-size:10px;font-weight:600}
 
+
+/* ── Phase 6: Order sheet print styles ────────────────────── */
+@media print {
+  header, .sources, #execSummary, .tabs, #dataFreshnessBanner,
+  #growthBanner, .debug-box, .err-box, .toolbar, #loadingOverlay { display:none!important; }
+  body { background:#fff; font-size:11px; }
+  main { padding:0; }
+  .tab-page { display:none!important; }
+  #page-ordersheet { display:block!important; }
+  .os-no-print { display:none!important; }
+  .os-section { page-break-inside:avoid; }
+}
+.os-doc { max-width:900px; margin:0 auto; padding:4px 0 40px; }
+.os-header { display:flex; justify-content:space-between; align-items:flex-start;
+  padding:16px 0 12px; border-bottom:2px solid var(--accent); margin-bottom:20px; }
+.os-company { font-size:16px; font-weight:700; color:var(--text); }
+.os-meta { font-size:10px; color:var(--text3); margin-top:3px; line-height:1.6; }
+.os-docinfo { text-align:right; font-size:11px; color:var(--text2); }
+.os-section { background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+.os-section-title { font-size:12px; font-weight:700; color:var(--text);
+  margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:10px; }
+.os-supplier { font-size:10px; font-weight:400; color:var(--text3); margin-left:auto; }
+.os-table { width:100%; border-collapse:collapse; font-size:11px; }
+.os-table th { background:var(--surface2); font-size:9.5px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.3px; color:var(--text3);
+  padding:7px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+.os-table td { padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.os-table tr:last-child td { border-bottom:none; }
+.os-table tfoot td { background:var(--surface2); font-weight:600;
+  border-top:2px solid var(--border2); border-bottom:none; }
+.os-ksh { font-family:var(--font-mono); font-size:11px; }
+.os-ksh-big { font-family:var(--font-mono); font-size:13px; font-weight:700;
+  color:var(--c-protein); }
+.os-total-bar { background:var(--accent); color:#fff; border-radius:8px;
+  padding:16px 20px; display:flex; justify-content:space-between; align-items:center;
+  margin-top:16px; }
+.os-total-label { font-size:11px; font-weight:600; opacity:.8; }
+.os-total-ksh { font-family:var(--font-mono); font-size:22px; font-weight:700; }
+.os-total-fx { font-size:11px; opacity:.7; margin-top:2px; }
+.os-actions { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.os-btn { padding:8px 16px; border-radius:6px; border:1px solid var(--border);
+  font-family:var(--font-sans); font-size:12px; font-weight:600; cursor:pointer;
+  background:var(--surface); color:var(--text); transition:all .15s; }
+.os-btn:hover { background:var(--surface2); }
+.os-btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.os-btn.primary:hover { opacity:.9; }
+.os-alert { background:var(--crit-bg); border:1px solid var(--crit-bdr);
+  border-radius:6px; padding:10px 14px; margin-bottom:14px;
+  font-size:11px; color:var(--crit-txt); line-height:1.7; }
+.os-date-chip { display:inline-block; font-size:10px; font-weight:600; padding:2px 8px;
+  border-radius:4px; font-family:var(--font-mono); }
+.os-date-chip.order { background:#e8f0fb; color:#185FA5; }
+.os-date-chip.arrive { background:#eef6ea; color:#0F6E56; }
 /* ── Phase 1: Data freshness banner ──────────────────────────────── */
 #dataFreshnessBanner{display:none;background:#fff0e8;border-bottom:2px solid #f5c4b3;padding:9px 20px;font-size:11px;font-weight:500;color:#c0341d;line-height:1.6}
 #dataFreshnessBanner a{color:#c0341d;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px}
@@ -318,6 +373,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <button class="tab-btn" onclick="switchTab('supplements',this)">Supplements shipping</button>
   <button class="tab-btn" onclick="switchTab('packaging',this)">Packaging &amp; China</button>
     <button class="tab-btn" onclick="switchTab('repacking',this)">Repacking</button>
+    <button class="tab-btn" onclick="switchTab('ordersheet',this)">📋 Order Sheet</button>
 </div>
 
 <main>
@@ -1030,6 +1086,90 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
           </table>
         </div>
         <div class="tfoot" id="repackFoot"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- TAB 8: UNIFIED ORDER SHEET -->
+  <div class="tab-page" id="page-ordersheet">
+    <div class="os-doc">
+
+      <!-- Action buttons -->
+      <div class="os-actions os-no-print">
+        <button class="os-btn primary" onclick="window.print()">🖨 Print / Save as PDF</button>
+        <button class="os-btn" onclick="copyOrderSheet()">📋 Copy to clipboard (TSV)</button>
+        <button class="os-btn" onclick="safeRender('ordersheet',renderOrderSheet)">↻ Refresh figures</button>
+        <span style="font-size:10px;color:var(--text3);align-self:center;margin-left:4px">
+          Figures pulled live from your tab settings — change cycle or quantities in the shipping tabs and hit Refresh.
+        </span>
+      </div>
+
+      <!-- Critical alerts (if any) -->
+      <div id="os-alerts"></div>
+
+      <!-- Document header -->
+      <div class="os-header">
+        <div>
+          <div class="os-company">ERO Proteins Ltd — protein.ke</div>
+          <div class="os-meta">Procurement Order Sheet · Generated <span id="os-generated"></span></div>
+          <div class="os-meta" id="os-datastate"></div>
+        </div>
+        <div class="os-docinfo">
+          <div style="font-weight:700" id="os-cycle-label"></div>
+          <div id="os-date-range" style="margin-top:3px"></div>
+        </div>
+      </div>
+
+      <!-- Section A: Whey -->
+      <div class="os-section">
+        <div class="os-section-title">
+          🥛 Section A — Whey Protein (Lactelle, Poland)
+          <span class="os-supplier" id="os-whey-mode"></span>
+        </div>
+        <div id="os-whey-dates" style="margin-bottom:10px;font-size:11px;color:var(--text2)"></div>
+        <div style="overflow-x:auto">
+          <table class="os-table" id="os-whey-table"></table>
+        </div>
+      </div>
+
+      <!-- Section B: Supplements -->
+      <div class="os-section">
+        <div class="os-section-title">
+          💊 Section B — Supplements (Nutra Healthcare, India)
+          <span class="os-supplier">Sea freight · 65-day lead · 25% import duty</span>
+        </div>
+        <div id="os-supp-dates" style="margin-bottom:10px;font-size:11px;color:var(--text2)"></div>
+        <div style="overflow-x:auto">
+          <table class="os-table" id="os-supp-table"></table>
+        </div>
+      </div>
+
+      <!-- Section C: Packaging -->
+      <div class="os-section">
+        <div class="os-section-title">
+          📦 Section C — Packaging &amp; China (Rolling Cargo)
+          <span class="os-supplier">Sea · 120-day lead · Shenzhen Yes Pack + Ningbo P&amp;M + AbsorbKing</span>
+        </div>
+        <div id="os-pkg-dates" style="margin-bottom:10px;font-size:11px;color:var(--text2)"></div>
+        <div style="overflow-x:auto">
+          <table class="os-table" id="os-pkg-table"></table>
+        </div>
+      </div>
+
+      <!-- Total commitment -->
+      <div id="os-total-bar"></div>
+
+      <!-- Critical procurement items for context -->
+      <div class="os-section" style="margin-top:16px">
+        <div class="os-section-title">⚠ Critical raw materials requiring attention</div>
+        <div id="os-crits"></div>
+      </div>
+
+      <div style="font-size:10px;color:var(--text3);margin-top:12px;line-height:1.7;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+        This order sheet is generated from your dashboard settings. All quantities and costs are estimates based on current stock, sales averages, and configured prices.
+        Confirm all figures with your suppliers before placing orders. Landed costs include freight, insurance, and applicable duties — exchange rates from live feed.
+        <b>Not a legal purchase order.</b>
       </div>
     </div>
   </div>
@@ -2103,7 +2243,6 @@ function renderRepacking() {
     var runCost = bulkNeeded * bulkCostPerKg;
     totalBulkKsh += runCost;
 
-    var skuTarget = sku;
     rows += '<tr style="' + (priority === 0 ? 'background:#fff8f7' : priority === 1 ? 'background:#fffdf5' : '') + '">'
       + '<td><div style="font-weight:600;font-size:12px">' + cfg.label + '</div>'
       +   '<div style="font-size:9px;color:var(--text3)">' + sku + ' · Ksh ' + (bulkCostPerKg > 0 ? bulkCostPerKg.toLocaleString() : '—') + '/kg</div></td>'
@@ -2115,7 +2254,7 @@ function renderRepacking() {
       + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600">' + canFill.toLocaleString() + '</td>'
       + '<td style="text-align:right">'
       +   '<input class="editable" type="number" style="width:70px;text-align:right" value="' + target + '" '
-      +   'onchange="repackTargets['' + skuTarget + '']=Math.max(0,parseFloat(this.value)||0);renderRepacking()">'
+      +   'data-sku="' + sku + '" onchange="repackTargets[this.dataset.sku]=Math.max(0,parseFloat(this.value)||0);renderRepacking()">'
       + '</td>'
       + '<td style="text-align:right;font-family:var(--font-mono)">' + bulkNeeded.toFixed(2) + ' kg</td>'
       + '<td style="text-align:right;font-family:var(--font-mono)">'
@@ -2143,6 +2282,448 @@ function renderRepacking() {
     '<span>Bulk stock from Odoo · FG stock from Odoo · Monthly sales from avg of last 3 months · '
     + 'Sachets = 2× silicon sachets per pack (preworkout only). '
     + 'Edit <b>Target packs</b> to plan a specific repack run.</span>';
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE 6 — UNIFIED ORDER SHEET
+// Reads from existing tab settings — no separate data entry needed.
+// All three procurement streams consolidated into one printable document.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function renderOrderSheet() {
+  var today      = new Date();
+  var fmtDate    = function(d){ return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); };
+  var fmtDateShort = function(d){ return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); };
+  var fmtKsh     = function(n){ return 'Ksh ' + Math.round(n).toLocaleString(); };
+  var fmtNum     = function(n){ return Math.round(n).toLocaleString(); };
+
+  // Cycle & meta
+  var cycle       = parseInt(document.getElementById('cycleRange')?.value) || 6;
+  var suppCycle   = parseInt(document.getElementById('s-cycleRange')?.value) || 6;
+  var eurKes      = getNum('eurKes') || 150;
+  var usdKesWhey  = getNum('usdKes') || 129;
+  var usdKesSupp  = getSuppNum('s-usdkes') || 129;
+  var pkgUsdKes   = getNum('pkg-usdkes') || 129.52;
+
+  // Header metadata
+  var generatedEl = document.getElementById('os-generated');
+  if (generatedEl) generatedEl.textContent = fmtDate(today) + ' at ' + today.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  var dataStateEl = document.getElementById('os-datastate');
+  if (dataStateEl) {
+    var sub = document.getElementById('headerSub');
+    dataStateEl.textContent = sub ? sub.textContent : '';
+  }
+
+  var cycleLabelEl = document.getElementById('os-cycle-label');
+  if (cycleLabelEl) cycleLabelEl.textContent = cycle + '-month order cycle (whey)';
+
+  var dateRangeEl = document.getElementById('os-date-range');
+  var cycleEnd = new Date(today.getTime() + cycle * 30 * 864e5);
+  if (dateRangeEl) dateRangeEl.textContent = 'Covers: ' + fmtDateShort(today) + ' → ' + fmtDateShort(cycleEnd);
+
+  // ── SECTION A: Whey ───────────────────────────────────────────────────────
+  var wheyMode = cycle >= 4 ? 'sea' : 'air';
+  var whey = null;
+  try { whey = computeShipment(cycle, wheyMode); } catch(e) {}
+  if (!whey) try { whey = computeShipment(cycle, wheyMode === 'sea' ? 'air' : 'sea'); } catch(e) {}
+
+  var wheyModeEl = document.getElementById('os-whey-mode');
+  if (wheyModeEl && whey) {
+    wheyModeEl.textContent = (wheyMode === 'sea' ? '🚢 Sea freight' : '✈ Air freight')
+      + ' · ' + whey.leadDays + '-day lead · EUR/KES ' + eurKes.toFixed(1);
+  }
+
+  var wheyLeadDays = whey ? whey.leadDays : (wheyMode === 'sea' ? 60 : 30);
+  var wheyOrderBy  = new Date(today.getTime());
+  var wheyArrival  = new Date(today.getTime() + wheyLeadDays * 864e5);
+
+  var wheyDatesEl = document.getElementById('os-whey-dates');
+  if (wheyDatesEl) {
+    wheyDatesEl.innerHTML =
+      '<span class="os-date-chip order">📋 Order by: ' + fmtDateShort(wheyOrderBy) + '</span>'
+      + ' &nbsp;→&nbsp; '
+      + '<span class="os-date-chip arrive">📦 Arrives: ~' + fmtDateShort(wheyArrival) + '</span>';
+  }
+
+  var wheyTable = document.getElementById('os-whey-table');
+  if (wheyTable && whey) {
+    var ew35  = getNum('ew35');
+    var ew80  = getNum('ew80');
+    var ewWpi = getNum('ewwpi');
+    var wRows = whey.products.map(function(p) {
+      var ewEurMt = p.name === 'WPC 35' ? ew35 : p.name === 'WPC 80' ? ew80 : ewWpi;
+      var ewEurTotal = (ewEurMt / 1000) * p.vol;
+      if (p.vol <= 0) return '';
+      return '<tr>'
+        + '<td style="font-weight:600">' + p.name + '</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtNum(p.vol) + ' kg</td>'
+        + '<td style="text-align:right" class="os-ksh">EUR ' + ewEurMt.toLocaleString() + '/MT</td>'
+        + '<td style="text-align:right" class="os-ksh">EUR ' + Math.round(ewEurTotal).toLocaleString() + '</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(p.ewKsh) + '</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(p.logAlloc) + '</td>'
+        + '<td style="text-align:right" class="os-ksh-big">' + fmtKsh(p.ewKsh + p.logAlloc) + '</td>'
+        + '</tr>';
+    }).join('');
+    var wheyEurTotal = whey.ewTotalKsh / eurKes;
+    wheyTable.innerHTML =
+      '<thead><tr><th>Product</th><th style="text-align:right">Volume</th>'
+      + '<th style="text-align:right">EUR/MT</th><th style="text-align:right">ExWorks (EUR)</th>'
+      + '<th style="text-align:right">ExWorks (Ksh)</th><th style="text-align:right">Logistics</th>'
+      + '<th style="text-align:right">Landed (Ksh)</th></tr></thead>'
+      + '<tbody>' + wRows + '</tbody>'
+      + '<tfoot><tr>'
+      + '<td colspan="3">Total · ' + fmtNum(whey.totalKg) + ' kg · ' + (wheyMode === 'sea' ? '🚢 Sea' : '✈ Air') + '</td>'
+      + '<td style="text-align:right" class="os-ksh">EUR ' + Math.round(wheyEurTotal).toLocaleString() + '</td>'
+      + '<td style="text-align:right" class="os-ksh">' + fmtKsh(whey.ewTotalKsh) + '</td>'
+      + '<td style="text-align:right" class="os-ksh">' + fmtKsh(whey.logisticsKsh) + '</td>'
+      + '<td style="text-align:right" class="os-ksh-big">' + fmtKsh(whey.totalLandedKsh) + '</td>'
+      + '</tr></tfoot>';
+  }
+
+  // ── SECTION B: Supplements ────────────────────────────────────────────────
+  var suppLead = getSuppNum('s-lead') || 65;
+  var suppArrival = new Date(today.getTime() + suppLead * 864e5);
+  var suppOrderBy = new Date(today.getTime());
+
+  var suppDatesEl = document.getElementById('os-supp-dates');
+  if (suppDatesEl) {
+    suppDatesEl.innerHTML =
+      '<span class="os-date-chip order">📋 Order by: ' + fmtDateShort(suppOrderBy) + '</span>'
+      + ' &nbsp;→&nbsp; '
+      + '<span class="os-date-chip arrive">📦 Arrives: ~' + fmtDateShort(suppArrival) + '</span>';
+  }
+
+  var suppSales   = getSuppSales();
+  var suppShipAll = null;
+  try { suppShipAll = computeSuppShipment(suppCycle, suppSales); } catch(e) {}
+
+  var suppTable = document.getElementById('os-supp-table');
+  if (suppTable) {
+    var dutyPct = getSuppNum('s-duty') / 100 || 0.25;
+    var idfPct  = getSuppNum('s-idf')  / 100 || 0.025;
+    var rdlPct  = getSuppNum('s-rdl')  / 100 || 0.020;
+    var inlandKg = getSuppNum('s-inland') || 2.83;
+    var seaKg   = getSuppNum('s-sea')    || 2.34;
+    var insPct  = getSuppNum('s-ins') / 100 || 0.005;
+
+    var sRows = '', grandKg = 0, grandEw = 0, grandDuty = 0, grandLanded = 0;
+
+    Object.entries(SUPP_ORDER_KG).forEach(function(entry) {
+      var sku = entry[0], orderKg = entry[1];
+      if (!orderKg || orderKg <= 0) return;
+      var cfg    = SUPP_CFG[sku];
+      if (!cfg) return;
+      var ewUsd  = getSuppNum(cfg.ewField);
+      var ewKsh  = orderKg * ewUsd * usdKesSupp;
+      var inlKsh = orderKg * inlandKg * usdKesSupp;
+      var seaAlc = orderKg * seaKg * usdKesSupp;
+      var fobKsh = ewKsh + inlKsh;
+      var insKsh = (fobKsh + seaAlc) * insPct;
+      var cifKsh = fobKsh + seaAlc + insKsh;
+      var dutyKsh = cifKsh * dutyPct;
+      var kraKsh  = cifKsh * (dutyPct + idfPct + rdlPct);
+      var landedKsh = cifKsh + kraKsh;
+      var drums  = orderKg / cfg.drumKg;
+      var packs  = Math.floor(orderKg / cfg.kgPerPack);
+      grandKg += orderKg; grandEw += ewKsh; grandDuty += dutyKsh; grandLanded += landedKsh;
+      sRows += '<tr>'
+        + '<td style="font-weight:600">' + cfg.label + '</td>'
+        + '<td style="text-align:right" class="os-ksh">' + orderKg + ' kg (' + drums.toFixed(1) + ' drums)</td>'
+        + '<td style="text-align:right" class="os-ksh">$' + ewUsd.toFixed(2) + '/kg</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(ewKsh) + '</td>'
+        + '<td style="text-align:right" class="os-ksh" style="color:var(--low-txt)">' + fmtKsh(dutyKsh) + '</td>'
+        + '<td style="text-align:right" class="os-ksh-big">' + fmtKsh(landedKsh) + '</td>'
+        + '</tr>';
+    });
+
+    if (!sRows) {
+      sRows = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">'
+        + 'No supplement quantities set — enter planned order kg in the Supplements Shipping tab.</td></tr>';
+    }
+
+    var agentKsh = getSuppNum('s-agent') || 12013;
+    var totalWithAgent = grandLanded + agentKsh;
+
+    suppTable.innerHTML =
+      '<thead><tr><th>SKU</th><th style="text-align:right">Order qty</th>'
+      + '<th style="text-align:right">USD/kg</th><th style="text-align:right">ExWorks (Ksh)</th>'
+      + '<th style="text-align:right">25% Duty (Ksh)</th><th style="text-align:right">Landed (Ksh)</th>'
+      + '</tr></thead>'
+      + '<tbody>' + sRows + '</tbody>'
+      + (grandKg > 0 ? '<tfoot><tr>'
+        + '<td colspan="2">Total · ' + fmtNum(grandKg) + ' kg · incl. Ksh ' + fmtNum(agentKsh) + ' agent</td>'
+        + '<td></td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(grandEw) + '</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(grandDuty) + '</td>'
+        + '<td style="text-align:right" class="os-ksh-big">' + fmtKsh(totalWithAgent) + '</td>'
+        + '</tr></tfoot>' : '');
+  }
+
+  // ── SECTION C: Packaging ──────────────────────────────────────────────────
+  var pkgLead    = 120;
+  var pkgArrival = new Date(today.getTime() + pkgLead * 864e5);
+  var pkgOrderBy = new Date(today.getTime());
+
+  var pkgDatesEl = document.getElementById('os-pkg-dates');
+  if (pkgDatesEl) {
+    pkgDatesEl.innerHTML =
+      '<span class="os-date-chip order">📋 Order by: ' + fmtDateShort(pkgOrderBy) + '</span>'
+      + ' &nbsp;→&nbsp; '
+      + '<span class="os-date-chip arrive">📦 Arrives: ~' + fmtDateShort(pkgArrival) + '</span>'
+      + ' <span style="color:var(--text3);font-size:10px">(120-day lead)</span>';
+  }
+
+  var pkgTable = document.getElementById('os-pkg-table');
+  if (pkgTable) {
+    function uKsh(cfg) {
+      if (cfg.kshUnit) return cfg.kshUnit;
+      return (cfg.usdUnit || 0) * pkgUsdKes;
+    }
+    function seaCostOrder(cbm) {
+      var rate = getNum('pkg-searate') || 60000;
+      var minC = getNum('pkg-seamin') || 12000;
+      return Math.max(minC, cbm * rate);
+    }
+
+    var pkgRows = '', pkgEw = 0, pkgCbm = 0;
+    Object.entries(PKG_ITEMS).forEach(function(entry) {
+      var key = entry[0], cfg = entry[1];
+      var qty = PKG_INCOMING[key] || 0;
+      if (!qty) return;
+      var unitKsh = uKsh(cfg);
+      var ew = qty * unitKsh;
+      var cbm = (cfg.cbmPer1000 || 0) * qty / 1000;
+      pkgEw += ew; pkgCbm += cbm;
+      var unitDisplay = cfg.usdUnit
+        ? '$' + cfg.usdUnit.toFixed(2) + ' (Ksh ' + Math.round(cfg.usdUnit * pkgUsdKes) + ')'
+        : 'Ksh ' + cfg.kshUnit;
+      pkgRows += '<tr>'
+        + '<td style="font-weight:600">' + cfg.label + '<div style="font-size:9px;color:var(--text3)">' + cfg.supplier + '</div></td>'
+        + '<td style="text-align:right" class="os-ksh">' + qty.toLocaleString() + ' pcs</td>'
+        + '<td style="text-align:right" class="os-ksh">' + unitDisplay + '</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(ew) + '</td>'
+        + '</tr>';
+    });
+
+    // Stickers
+    CHINA_STICKERS.forEach(function(s) {
+      var ew = s.orderQty * s.usdUnit * pkgUsdKes;
+      pkgEw += ew;
+      pkgRows += '<tr style="background:#fafaf8">'
+        + '<td>' + s.label + ' sticker<div style="font-size:9px;color:var(--text3)">Shenzhen Yes Pack</div></td>'
+        + '<td style="text-align:right" class="os-ksh">' + s.orderQty.toLocaleString() + ' pcs</td>'
+        + '<td style="text-align:right" class="os-ksh">$' + s.usdUnit.toFixed(2) + ' (Ksh ' + Math.round(s.usdUnit * pkgUsdKes) + ')</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(ew) + '</td>'
+        + '</tr>';
+    });
+
+    // Shakers
+    var shkB = parseFloat(document.getElementById('shk-black')?.value) || 0;
+    var shkW = parseFloat(document.getElementById('shk-white')?.value) || 0;
+    var shkC = parseFloat(document.getElementById('shk-clear')?.value) || 0;
+    var shkTot = shkB + shkW + shkC;
+    if (shkTot > 0) {
+      var shkEw = shkTot * pkgUsdKes;
+      pkgEw += shkEw;
+      pkgRows += '<tr style="background:#fafaf8">'
+        + '<td>Shakers (' + shkB + ' blk / ' + shkW + ' wht / ' + shkC + ' clr)<div style="font-size:9px;color:var(--text3)">TBC supplier</div></td>'
+        + '<td style="text-align:right" class="os-ksh">' + shkTot.toLocaleString() + ' pcs</td>'
+        + '<td style="text-align:right" class="os-ksh">$1.00 (Ksh ' + Math.round(pkgUsdKes) + ')</td>'
+        + '<td style="text-align:right" class="os-ksh">' + fmtKsh(shkEw) + '</td>'
+        + '</tr>';
+    }
+
+    if (!pkgRows) {
+      pkgRows = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text3)">'
+        + 'No packaging quantities set — configure in the Packaging & China tab.</td></tr>';
+    }
+
+    var seaKsh   = seaCostOrder(pkgCbm);
+    var pkgKra   = (pkgEw + seaKsh) * 0.055;
+    var pkgTotal = pkgEw + seaKsh + pkgKra;
+
+    pkgTable.innerHTML =
+      '<thead><tr><th>Item</th><th style="text-align:right">Qty</th>'
+      + '<th style="text-align:right">Unit cost</th><th style="text-align:right">ExWorks (Ksh)</th>'
+      + '</tr></thead>'
+      + '<tbody>' + pkgRows + '</tbody>'
+      + '<tfoot><tr>'
+      + '<td colspan="2">Total · ' + pkgCbm.toFixed(3) + ' CBM · Sea Ksh ' + fmtNum(seaKsh) + ' · Duties Ksh ' + fmtNum(pkgKra) + '</td>'
+      + '<td></td>'
+      + '<td style="text-align:right" class="os-ksh-big">' + fmtKsh(pkgTotal) + '</td>'
+      + '</tr></tfoot>';
+  }
+
+  // ── TOTAL COMMITMENT BAR ──────────────────────────────────────────────────
+  var wheyTotal  = whey ? whey.totalLandedKsh : 0;
+  var suppTotal  = 0;
+  if (document.getElementById('os-supp-table')) {
+    // Re-compute supplement total from SUPP_ORDER_KG
+    var dutyP = getSuppNum('s-duty') / 100 || 0.25;
+    var idfP  = getSuppNum('s-idf')  / 100 || 0.025;
+    var rdlP  = getSuppNum('s-rdl')  / 100 || 0.020;
+    var inlP  = getSuppNum('s-inland') || 2.83;
+    var seaP  = getSuppNum('s-sea')    || 2.34;
+    var insP  = getSuppNum('s-ins')  / 100 || 0.005;
+    var agentP = getSuppNum('s-agent') || 12013;
+    Object.entries(SUPP_ORDER_KG).forEach(function(e) {
+      var sku = e[0], kg = e[1];
+      if (!kg) return;
+      var cfg = SUPP_CFG[sku]; if (!cfg) return;
+      var ew = kg * getSuppNum(cfg.ewField) * usdKesSupp;
+      var inl = kg * inlP * usdKesSupp;
+      var sea = kg * seaP * usdKesSupp;
+      var fob = ew + inl;
+      var ins = (fob + sea) * insP;
+      var cif = fob + sea + ins;
+      suppTotal += cif + cif * (dutyP + idfP + rdlP);
+    });
+    suppTotal += agentP;
+  }
+  var pkgTotalFinal = 0;
+  if (pkgCbm !== undefined) {
+    var pEw = 0;
+    Object.entries(PKG_ITEMS).forEach(function(e) {
+      pEw += (PKG_INCOMING[e[0]] || 0) * (e[1].usdUnit ? e[1].usdUnit * pkgUsdKes : e[1].kshUnit);
+    });
+    CHINA_STICKERS.forEach(function(s) { pEw += s.orderQty * s.usdUnit * pkgUsdKes; });
+    var shkBv = parseFloat(document.getElementById('shk-black')?.value) || 0;
+    var shkWv = parseFloat(document.getElementById('shk-white')?.value) || 0;
+    var shkCv = parseFloat(document.getElementById('shk-clear')?.value) || 0;
+    pEw += (shkBv + shkWv + shkCv) * pkgUsdKes;
+    var pSea = Math.max(getNum('pkg-seamin') || 12000, pkgCbm * (getNum('pkg-searate') || 60000));
+    pkgTotalFinal = pEw + pSea + (pEw + pSea) * 0.055;
+  }
+
+  var grandTotal = wheyTotal + suppTotal + pkgTotalFinal;
+  var wheyEurFx  = whey ? Math.round(whey.ewTotalKsh / eurKes) : 0;
+  var suppUsdFx  = 0;
+  Object.entries(SUPP_ORDER_KG).forEach(function(e) {
+    var cfg = SUPP_CFG[e[0]]; if (!cfg) return;
+    suppUsdFx += e[1] * getSuppNum(cfg.ewField);
+  });
+
+  var totalBarEl = document.getElementById('os-total-bar');
+  if (totalBarEl && grandTotal > 0) {
+    totalBarEl.innerHTML =
+      '<div class="os-total-bar">'
+      + '<div>'
+      +   '<div class="os-total-label">Total commitment this cycle</div>'
+      +   '<div class="os-total-ksh">Ksh ' + Math.round(grandTotal).toLocaleString() + '</div>'
+      +   '<div class="os-total-fx">'
+      +     (wheyEurFx > 0 ? 'EUR ' + wheyEurFx.toLocaleString() + ' (whey) &nbsp;·&nbsp; ' : '')
+      +     (suppUsdFx > 0 ? 'USD ' + Math.round(suppUsdFx).toLocaleString() + ' (supplements)' : '')
+      +   '</div>'
+      + '</div>'
+      + '<div style="text-align:right;font-size:11px;opacity:.8">'
+      +   '<div>Whey: Ksh ' + Math.round(wheyTotal).toLocaleString() + '</div>'
+      +   '<div>Supplements: Ksh ' + Math.round(suppTotal).toLocaleString() + '</div>'
+      +   '<div>Packaging: Ksh ' + Math.round(pkgTotalFinal).toLocaleString() + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // ── CRITICAL ITEMS ────────────────────────────────────────────────────────
+  var critsEl = document.getElementById('os-crits');
+  if (critsEl) {
+    var crits = procItems.main.filter(function(item) {
+      var rq = computeRQ(item.name);
+      return rq > 0 && getSt(item.stock, rq) !== 'ok';
+    }).map(function(item) {
+      var rq = computeRQ(item.name);
+      var cov = rq > 0 ? (item.stock / rq).toFixed(1) : '0';
+      var st  = getSt(item.stock, rq);
+      var dl  = item.deadline instanceof Date ? item.deadline : null;
+      var overdue = dl && dl < today;
+      return { name: item.name, st, cov, overdue, supplier: item.supplier };
+    }).sort(function(a, b) {
+      var as = (a.overdue ? 0 : a.st === 'critical' ? 1 : 2);
+      var bs = (b.overdue ? 0 : b.st === 'critical' ? 1 : 2);
+      return as - bs;
+    }).slice(0, 6);
+
+    if (!crits.length) {
+      critsEl.innerHTML = '<div style="font-size:11px;color:var(--ok-txt);padding:8px 0">✓ All raw materials at healthy stock levels</div>';
+    } else {
+      critsEl.innerHTML = crits.map(function(c) {
+        var col = c.overdue ? 'var(--crit-txt)' : c.st === 'critical' ? 'var(--crit-txt)' : 'var(--low-txt)';
+        var badge = c.overdue ? 'OVERDUE' : c.st === 'critical' ? 'Critical' : 'Low';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">'
+          + '<span style="font-weight:600;min-width:180px">' + c.name + '</span>'
+          + '<span style="color:var(--text3)">' + c.cov + 'mo stock</span>'
+          + '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--crit-bg);color:' + col + '">' + badge + '</span>'
+          + (c.supplier ? '<span style="font-size:10px;color:var(--text3);margin-left:auto">' + c.supplier + '</span>' : '')
+          + '</div>';
+      }).join('');
+    }
+  }
+
+  // ── ALERTS ────────────────────────────────────────────────────────────────
+  var alertsEl = document.getElementById('os-alerts');
+  if (alertsEl) {
+    var alerts = [];
+    if (!whey || whey.totalKg <= 0)  alerts.push('⚠ No whey quantities found — check cycle and RQ settings in the Whey Shipping tab.');
+    var suppHasAny = Object.values(SUPP_ORDER_KG).some(function(v){ return v > 0; });
+    if (!suppHasAny) alerts.push('ℹ No supplement order quantities set — enter planned kg in the Supplements Shipping tab to include in totals.');
+    var pkgHasAny = Object.values(PKG_INCOMING).some(function(v){ return v > 0; });
+    if (!pkgHasAny) alerts.push('ℹ No packaging quantities set — configure in the Packaging & China tab.');
+    alertsEl.innerHTML = alerts.map(function(a) {
+      return '<div class="os-alert">' + a + '</div>';
+    }).join('');
+  }
+}
+
+// ── TSV clipboard export ──────────────────────────────────────────────────────
+function copyOrderSheet() {
+  var rows = [['Section','Item','Qty','Unit','ExWorks (Ksh)','Landed (Ksh)']];
+  var cycle   = parseInt(document.getElementById('cycleRange')?.value) || 6;
+  var eurKes  = getNum('eurKes') || 150;
+  var usdKes  = getSuppNum('s-usdkes') || 129;
+  var pkgUsd  = getNum('pkg-usdkes') || 129.52;
+
+  // Whey
+  var wheyMode = cycle >= 4 ? 'sea' : 'air';
+  var whey = null;
+  try { whey = computeShipment(cycle, wheyMode); } catch(e) {}
+  if (whey) {
+    whey.products.forEach(function(p) {
+      if (p.vol <= 0) return;
+      var ewEurMt = p.name === 'WPC 35' ? getNum('ew35') : p.name === 'WPC 80' ? getNum('ew80') : getNum('ewwpi');
+      rows.push(['Whey (Lactelle)', p.name, p.vol + ' kg',
+        'EUR ' + ewEurMt + '/MT', Math.round(p.ewKsh), Math.round(p.ewKsh + p.logAlloc)]);
+    });
+    rows.push(['Whey TOTAL','','','', Math.round(whey.ewTotalKsh), Math.round(whey.totalLandedKsh)]);
+  }
+
+  // Supplements
+  Object.entries(SUPP_ORDER_KG).forEach(function(entry) {
+    var sku = entry[0], kg = entry[1]; if (!kg) return;
+    var cfg = SUPP_CFG[sku]; if (!cfg) return;
+    var ew = kg * getSuppNum(cfg.ewField) * usdKes;
+    rows.push(['Supplements (Nutra)', cfg.label, kg + ' kg', '$' + getSuppNum(cfg.ewField) + '/kg', Math.round(ew), '— (see tab)']);
+  });
+
+  // Packaging
+  Object.entries(PKG_ITEMS).forEach(function(entry) {
+    var key = entry[0], cfg = entry[1];
+    var qty = PKG_INCOMING[key] || 0; if (!qty) return;
+    var unitKsh = cfg.kshUnit || cfg.usdUnit * pkgUsd;
+    rows.push(['Packaging (China)', cfg.label, qty, cfg.usdUnit ? '$'+cfg.usdUnit+' ea' : 'Ksh'+cfg.kshUnit,
+      Math.round(qty * unitKsh), '— (see tab)']);
+  });
+
+  var tsv = rows.map(function(r){ return r.join('	'); }).join('\n');
+  navigator.clipboard.writeText(tsv).then(function() {
+    alert('✓ Order sheet copied to clipboard as TSV — paste into Google Sheets or Excel.');
+  }).catch(function() {
+    var ta = document.createElement('textarea');
+    ta.value = tsv; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert('✓ Order sheet copied to clipboard.');
+  });
 }
 
 async function loadAll(forceRefresh=false){
@@ -3872,6 +4453,7 @@ function switchTab(id,btn){
   if(id==='packaging') safeRender('packaging',renderPackaging);
   if(id==='costs') safeRender('costs',renderCosts);
   if(id==='repacking') safeRender('repacking',renderRepacking);
+  if(id==='ordersheet') safeRender('ordersheet',renderOrderSheet);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
