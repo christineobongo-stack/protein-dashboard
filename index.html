@@ -317,6 +317,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <button class="tab-btn" onclick="switchTab('shipping',this)">Whey shipping</button>
   <button class="tab-btn" onclick="switchTab('supplements',this)">Supplements shipping</button>
   <button class="tab-btn" onclick="switchTab('packaging',this)">Packaging &amp; China</button>
+    <button class="tab-btn" onclick="switchTab('repacking',this)">Repacking</button>
 </div>
 
 <main>
@@ -998,6 +999,42 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       </div>
     </div>
   </div>
+  <!-- TAB 7: REPACKING PLANNER -->
+  <div class="tab-page" id="page-repacking">
+    <div style="margin-top:4px;margin-bottom:14px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">Bulk supplement repacking planner</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.7">
+          Shows how many retail 200g packs can be filled from current bulk stock, silicon sachets needed, and when to repack
+          based on monthly sales. Stock pulled live from Odoo. Edit the <b>Target packs</b> column to plan a specific run.
+        </div>
+      </div>
+      <div class="tcard">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>SKU</th>
+              <th style="text-align:right">Bulk stock (kg)</th>
+              <th style="text-align:right">kg / pack</th>
+              <th style="text-align:right">Can fill (packs)</th>
+              <th style="text-align:right">Target packs</th>
+              <th style="text-align:right">Bulk needed (kg)</th>
+              <th style="text-align:right">Sachets needed</th>
+              <th style="text-align:right">Monthly sales</th>
+              <th style="text-align:right">Covers (months)</th>
+              <th style="text-align:right">FG stock (packs)</th>
+              <th style="text-align:right">Total after repack</th>
+              <th style="text-align:right">Priority</th>
+            </tr></thead>
+            <tbody id="repackTbody"></tbody>
+          </table>
+        </div>
+        <div class="tfoot" id="repackFoot"></div>
+      </div>
+    </div>
+  </div>
+
+
 </main>
 
 <script>
@@ -1971,6 +2008,97 @@ async function fetchShopifyPrices() {
   }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE 5 — REPACKING PLANNER
+// For each bulk supplement: bulk stock → packs fillable → sachets needed →
+// coverage months → repack priority
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Per-SKU target overrides (editable in the repacking table)
+var repackTargets = {};  // { 'CREATUN': 150, ... }
+
+function renderRepacking() {
+  var rows = '';
+  var totalBulkKsh = 0;
+
+  Object.entries(BULK_CFG).forEach(function([sku, cfg]) {
+    var item = procItems.bulk[sku];
+    var bulkKg = item ? (item.stock || 0) : 0;
+
+    // How many packs can be filled from bulk stock
+    var canFill = cfg.kgPerPack > 0 ? Math.floor(bulkKg / cfg.kgPerPack) : 0;
+
+    // Target: user override or default to canFill (cap at usable per drum)
+    var target = repackTargets[sku] !== undefined ? repackTargets[sku] : canFill;
+
+    // Resources for target run
+    var bulkNeeded   = target * cfg.kgPerPack;
+    var sachetsNeeded = cfg.sachets ? target * 2 : 0; // 2 sachets per 200g pack
+
+    // Monthly sales and coverage
+    var monthlySalesAmt = getAvgSales(sku) || SALES[sku] || 0;
+    var fgNow = getFGTotal(sku);
+    var totalAfter = fgNow + target;
+    var coversMo = monthlySalesAmt > 0 ? totalAfter / monthlySalesAmt : null;
+
+    // Priority: based on FG stock coverage before repack
+    var fgCovNow = monthlySalesAmt > 0 ? fgNow / monthlySalesAmt : 99;
+    var priority, priCol, priTxt;
+    if (fgCovNow < 1) {
+      priority = 0; priCol = 'var(--crit-txt)'; priTxt = '🔴 Urgent';
+    } else if (fgCovNow < 2) {
+      priority = 1; priCol = 'var(--low-txt)';  priTxt = '🟡 Soon';
+    } else {
+      priority = 2; priCol = 'var(--ok-txt)';   priTxt = '🟢 OK';
+    }
+
+    var bulkCostPerKg = item ? (item.cost || 0) : 0;
+    var runCost = bulkNeeded * bulkCostPerKg;
+    totalBulkKsh += runCost;
+
+    var skuTarget = sku;
+    rows += '<tr style="' + (priority === 0 ? 'background:#fff8f7' : priority === 1 ? 'background:#fffdf5' : '') + '">'
+      + '<td><div style="font-weight:600;font-size:12px">' + cfg.label + '</div>'
+      +   '<div style="font-size:9px;color:var(--text3)">' + sku + ' · Ksh ' + (bulkCostPerKg > 0 ? bulkCostPerKg.toLocaleString() : '—') + '/kg</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">'
+      +   (bulkKg > 0 ? bulkKg.toFixed(1) : '<span style="color:var(--crit-txt)">0</span>')
+      +   '<div style="font-size:9px;color:' + (item && item.stockSource === 'odoo' ? '#0F6E56' : '#aaa') + '">'
+      +   (item && item.stockSource === 'odoo' ? '● Odoo' : '● Sheet') + '</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + cfg.kgPerPack.toFixed(4) + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600">' + canFill.toLocaleString() + '</td>'
+      + '<td style="text-align:right">'
+      +   '<input class="editable" type="number" style="width:70px;text-align:right" value="' + target + '" '
+      +   'onchange="repackTargets['' + skuTarget + '']=Math.max(0,parseFloat(this.value)||0);renderRepacking()">'
+      + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + bulkNeeded.toFixed(2) + ' kg</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">'
+      +   (sachetsNeeded > 0 ? sachetsNeeded.toLocaleString() : '—') + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">'
+      +   (monthlySalesAmt > 0 ? monthlySalesAmt.toFixed(1) + '/mo' : '<span style="color:var(--text3)">—</span>') + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);color:'
+      +   (coversMo !== null ? (coversMo < 2 ? 'var(--crit-txt)' : coversMo < 4 ? 'var(--low-txt)' : 'var(--ok-txt)') : 'var(--text3)') + '">'
+      +   (coversMo !== null ? coversMo.toFixed(1) + ' mo' : '—') + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">'
+      +   (fgNow > 0 ? fgNow.toLocaleString() : '<span style="color:var(--text3)">0</span>')
+      +   '<div style="font-size:9px;color:#0F6E56">' + (fgNow > 0 ? '● Odoo' : '') + '</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600">' + totalAfter.toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-weight:700;color:' + priCol + '">' + priTxt + '</td>'
+      + '</tr>';
+  });
+
+  if (!rows) {
+    rows = '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--text3)">No bulk supplement data — refresh for live figures.</td></tr>';
+  }
+
+  document.getElementById('repackTbody').innerHTML = rows;
+
+  document.getElementById('repackFoot').innerHTML =
+    '<span>Bulk stock from Odoo · FG stock from Odoo · Monthly sales from avg of last 3 months · '
+    + 'Sachets = 2× silicon sachets per pack (preworkout only). '
+    + 'Edit <b>Target packs</b> to plan a specific repack run.</span>';
+}
+
 async function loadAll(forceRefresh=false){
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
@@ -2365,9 +2493,9 @@ function renderExecSummary() {
   }
 
   // ── Column 2: Capital commitment ───────────────────────────────────────────
-  var cycle = parseInt(document.getElementById('cycleRange')?.value || 6);
-  var suppCycle = parseInt(document.getElementById('s-cycleRange')?.value || 6);
-  var pkgCycle = parseInt(document.getElementById('pkg-cycleRange')?.value || 6);
+  var cycle = parseInt(document.getElementById('cycleRange')?.value) || 6;
+  var suppCycle = parseInt(document.getElementById('s-cycleRange')?.value) || 6;
+  var pkgCycle = parseInt(document.getElementById('pkg-cycleRange')?.value) || 6;
   var eurKes = getNum('eurKes') || 150;
   var usdKesWhey = getNum('usdKes') || 129;
 
@@ -2496,7 +2624,7 @@ function renderExecSummary() {
           + '<span class="exec-cov-name">' + item.label.substring(0, 28) + '</span>'
           + '<span class="exec-cov-val" style="color:' + col + '">'
           + item.cov.toFixed(1) + ' mo'
-          + '<span style="color:var(--text3);font-weight:400;margin-left:4px">(' + Math.round(item.fg) + ' pks)</span>'
+          + '<span style="color:var(--text3);font-weight:400;margin-left:4px">(' + Math.round(item.sales) + '/mo)</span>'
           + '</span>'
           + '</div>';
       }).join('');
@@ -3693,6 +3821,8 @@ function switchTab(id,btn){
   if(id==='shipping'){ safeRender('shipping',renderShipping); safeRender('shipping',renderWheyStockTable); }
   if(id==='supplements') safeRender('supplements',renderSupp);
   if(id==='packaging') safeRender('packaging',renderPackaging);
+  if(id==='costs') safeRender('costs',renderCosts);
+  if(id==='repacking') safeRender('repacking',renderRepacking);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
