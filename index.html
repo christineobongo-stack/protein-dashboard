@@ -3025,10 +3025,12 @@ function makeRow(item,rq,units,onchange,cost){
     <td class="mono">${displayCost>0?displayCost.toLocaleString():'—'}</td>
     <td class="mono">${rq>0?rq.toFixed(2)+' '+units:'—'}</td>
     <td class="mono">${rq>0?(rq*2).toFixed(2)+' '+units:'—'}</td>
-    <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}${incomingQty>0?`<div style="font-size:9px;color:#0F6E56;margin-top:1px">−${incomingQty.toFixed(1)} incoming</div>`:''}</td>
+    <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}${incomingQty>0?'<div style="font-size:9px;color:#0F6E56;margin-top:1px">\u2212'+incomingQty.toFixed(1)+' incoming</div>':''}</td>
     <td class="mono strong">${ov>0?ov.toLocaleString():'—'}</td>
     <td>${dlLbl(computeDeadline(item.stock, rq, item.lead))}</td>
-}
+    <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
+    <td style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.supplier}">${item.supplier||'—'}</td>
+  </tr>`;}
 
 // ── Phase 1: Input validation ────────────────────────────────────────────────
 var INPUT_BOUNDS = {
