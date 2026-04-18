@@ -401,7 +401,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
     <div class="tcard">
       <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div><span>Loading live data…</span></div>
-      <div id="growthBanner">📈 +20% growth buffer active — all RQs and order quantities include a 20% uplift on Jan 2025 actuals</div>
+      <div id="growthBanner">📈 +20% growth buffer active — all RQs and order quantities include a 20% uplift on 3-month rolling avg sales</div>
       <div id="tableWrap" style="display:none">
         <div style="overflow-x:auto">
           <table style="table-layout:fixed;min-width:960px">
@@ -449,7 +449,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
             <th style="text-align:right">Packaging / pack</th>
             <th style="text-align:right">Total / pack</th>
             <th style="text-align:right">Total / serving</th>
-            <th style="text-align:right">FG Stock<div style="font-style:italic;font-weight:400;font-size:9px">servings · Baobab+SCNB</div></th>
+            <th style="text-align:right">FG Stock<div style="font-style:italic;font-weight:400;font-size:9px">packs · Baobab+SCNB</div></th>
             <th style="text-align:right">Coverage<div style="font-style:italic;font-weight:400;font-size:9px">vs avg sales</div></th>
             <th style="text-align:right">Margin %<div style="font-style:italic;font-weight:400;font-size:9px">30-serve price</div></th>
             <th>Ingredient detail</th>
@@ -700,14 +700,14 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       <div>
         <!-- Monthly RQs -->
         <div class="pg-section">
-          <div class="pg-title">Monthly RQs <span>(kg/month — calculated from your Jan 2025 sales × formulations · edit to override)</span></div>
+          <div class="pg-title">Monthly RQs <span>(kg/month — calculated from 3-month rolling avg sales × formulations · edit to override)</span></div>
           <div class="pg-grid c3">
             <div><div class="pg-label">WPC 35 (kg/mo)</div><input class="pg-input" id="rq35" type="number" value="142" oninput="validateInput(this);renderShipping()"></div>
             <div><div class="pg-label">WPC 80 (kg/mo)</div><input class="pg-input" id="rq80" type="number" value="303" oninput="validateInput(this);renderShipping()"></div>
             <div><div class="pg-label">WPI 90% (kg/mo)</div><input class="pg-input" id="rqwpi" type="number" value="63" oninput="validateInput(this);renderShipping()"></div>
           </div>
           <div style="margin-top:8px;font-size:10px;color:var(--text3);line-height:1.6;padding:7px 10px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
-            These figures are computed as <b>Σ(ingredient fraction × monthly pack sales × pack weight)</b> across all SKUs using your January 2025 actuals. 
+            These figures are computed as <b>Σ(ingredient fraction × monthly pack sales × pack weight)</b> across all SKUs using a rolling 3-month average from Odoo. 
             They update automatically when you refresh data. You can override them manually above to model different sales scenarios.
           </div>
         </div>
@@ -886,7 +886,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       <div>
         <!-- Monthly consumption -->
         <div class="pg-section">
-          <div class="pg-title">Monthly consumption <span>(packs/month — from Jan 2025 actuals)</span></div>
+          <div class="pg-title">Monthly consumption <span>(packs/month — 3-month rolling avg from Odoo)</span></div>
           <div class="pg-grid c2">
             <div><div class="pg-label">Creatine Unflav (pks/mo)</div><input class="pg-input" id="s-creatun" type="number" value="126" oninput="validateInput(this);renderSupp()"></div>
             <div><div class="pg-label">Creatine FP (pks/mo)</div><input class="pg-input" id="s-creatfp" type="number" value="49" oninput="validateInput(this);renderSupp()"></div>
@@ -1058,8 +1058,32 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <!-- TAB 7: REPACKING PLANNER -->
   <div class="tab-page" id="page-repacking">
     <div style="margin-top:4px;margin-bottom:14px">
+
+      <!-- Whey blend production capacity -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px">
-        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">Bulk supplement repacking planner</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">Whey blend production capacity</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+          FG stock + packs producible from current raw whey stock, by product line. Coverage = combined total ÷ monthly sales.
+          Each line calculated independently using current sales mix — figures are ceilings, not guarantees if all lines produced simultaneously.
+        </div>
+        <div class="tcard">
+          <div style="overflow-x:auto">
+            <table>
+              <thead><tr>
+                <th>Product line</th>
+                <th style="text-align:right">FG stock<div style="font-style:italic;font-weight:400;font-size:9px">packs · Odoo</div></th>
+                <th style="text-align:right">+Producible<div style="font-style:italic;font-weight:400;font-size:9px">from whey stock</div></th>
+                <th style="text-align:right">= Total</th>
+                <th style="text-align:right">Monthly sales<div style="font-style:italic;font-weight:400;font-size:9px">3-mo avg</div></th>
+                <th style="text-align:right">Combined coverage</th>
+                <th>Limiting ingredient</th>
+              </tr></thead>
+              <tbody id="wheyCapacityTbody"></tbody>
+            </table>
+          </div>
+          <div class="tfoot" id="wheyCapacityFoot"></div>
+        </div>
+      </div>
         <div style="font-size:11px;color:var(--text2);line-height:1.7">
           Shows how many retail 200g packs can be filled from current bulk stock, silicon sachets needed, and when to repack
           based on monthly sales. Stock pulled live from Odoo. Edit the <b>Target packs</b> column to plan a specific run.
@@ -1358,16 +1382,33 @@ function getAvgServingsPerMonth(sku) {
   return variants.reduce(function(s,v){ return s+(avgSales[v.ref]||0)*v.serves; },0);
 }
 
-// getFGBreakdown(sku): compact display string showing stock by pack size
-// e.g. "400×30s · 40×15s · 7×4s"  — empty string if no stock or bulk SKU
+// getFGBreakdown(sku): compact display string — main pack sizes only (serves > 4)
+// e.g. "400×30s · 40×15s"
 function getFGBreakdown(sku) {
   var variants = PROT_ODOO_REFS[sku];
   if (!variants) return '';
   var parts = variants
+    .filter(function(v){ return v.serves > 4; })
     .map(function(v){ return {units:Math.round((fgStock[v.ref]||{}).total||0), serves:v.serves}; })
     .filter(function(x){ return x.units > 0; })
     .map(function(x){ return x.units.toLocaleString()+'×'+x.serves+'s'; });
   return parts.join(' · ');
+}
+
+// getMainPackTotal(sku): total FG packs in stock, main sizes only (serves > 4, no tasters)
+function getMainPackTotal(sku) {
+  var variants = PROT_ODOO_REFS[sku];
+  if (!variants) return getFGTotal(sku);
+  return variants.filter(function(v){ return v.serves > 4; })
+    .reduce(function(s,v){ return s+((fgStock[v.ref]||{}).total||0); }, 0);
+}
+
+// getMainPackSales(sku): avg monthly packs sold, main sizes only (serves > 4)
+function getMainPackSales(sku) {
+  var variants = PROT_ODOO_REFS[sku];
+  if (!variants) return getAvgSales(sku);
+  return variants.filter(function(v){ return v.serves > 4; })
+    .reduce(function(s,v){ return s+(avgSales[v.ref]||0); }, 0);
 }
 
 // BoM component name → ingCosts key lookup
@@ -1553,9 +1594,6 @@ function setDot(d,l,st,msg){
 }
 function csvUrl(id,gid){return`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;}
 function ksh(v){return Math.round(v).toLocaleString();}
-// Next 4-month ordering cycle begins May 1 2026
-const CYCLE_START = new Date('2026-05-01');
-
 // Parse lead time string like "60 days", "7  days", "90 days", "120 days"
 // Returns number of days, or 0 if unparseable
 function parseLead(leadStr){
@@ -1564,13 +1602,22 @@ function parseLead(leadStr){
   return m ? parseInt(m[1]) : 0;
 }
 
-// Auto-compute order deadline = cycle start − lead time in days
-// e.g. 60 day lead → order by March 2 to receive by May 1
-function autoDeadline(leadStr){
+// Compute the date at which current stock runs out given monthly RQ
+function stockoutDate(stock, rqPerMonth){
+  if(!rqPerMonth || rqPerMonth <= 0 || stock === null || stock === undefined) return null;
+  const monthsLeft = stock / rqPerMonth;
+  return new Date(Date.now() + monthsLeft * 30.44 * 24 * 3600 * 1000);
+}
+
+// Order deadline = stockout date − lead time days
+// This replaces the old CYCLE_START-based autoDeadline.
+// If stock is 0 or rq is 0, returns null (shown as —).
+function computeDeadline(stock, rqPerMonth, leadStr){
+  const so = stockoutDate(stock, rqPerMonth);
+  if(!so) return null;
   const days = parseLead(leadStr);
   if(!days) return null;
-  const d = new Date(CYCLE_START);
-  d.setDate(d.getDate() - days);
+  const d = new Date(so.getTime() - days * 24 * 3600 * 1000);
   return d;
 }
 
@@ -2214,6 +2261,92 @@ var PROC_INCOMING_MAP = {
 // SKUs that physically require silicon desiccant sachets (2 per pack)
 // cfg.sachets is a drum-level field and means something different on preworkout
 var SILICON_SKUs = { PWORKWM: true, PWORKGA: true };
+
+function renderWheyCapacity() {
+  var el = document.getElementById('wheyCapacityTbody');
+  if (!el) return;
+
+  var rows = '';
+
+  Object.entries(FORM_TABS).forEach(function([lineName, lineCfg]) {
+    // Main-size SKUs only (the serves > 4 filter is inside getMainPackTotal/getMainPackSales)
+    var lineSkus = lineCfg.skus.filter(function(sku) { return !!PROT_ODOO_REFS[sku]; });
+
+    var fgPacks = lineSkus.reduce(function(s, sku) { return s + getMainPackTotal(sku); }, 0);
+    var moPacks = lineSkus.reduce(function(s, sku) { return s + getMainPackSales(sku); }, 0);
+    if (moPacks <= 0) return;
+
+    // For each whey ingredient, compute kg/pack for this line (weighted by sales mix)
+    // then producible packs = floor(stock_kg / kg_per_pack)
+    var wheyIngredients = [
+      { label: 'WPC 35', ingName: '35% Whey Concentrate' },
+      { label: 'WPC 80', ingName: '80% Whey Concentrate' },
+      { label: 'WPI 90%', ingName: 'WPI 90%' },
+    ];
+
+    var minProducible = Infinity;
+    var limitingLabel = null;
+
+    wheyIngredients.forEach(function(wi) {
+      var moKg = 0;
+      var targets = getFormNames(wi.ingName);
+      Object.entries(formulations).forEach(function([fn, skuMap]) {
+        var matches = targets.some(function(t) {
+          return fn.toLowerCase().includes(t) || t.includes(fn.toLowerCase());
+        });
+        if (!matches) return;
+        lineSkus.forEach(function(sku) {
+          moKg += (skuMap[sku] || 0) * (SALES[sku] || 0) * (RQ_W[sku] || 1);
+        });
+      });
+      if (moKg <= 0) return; // ingredient not used in this line
+
+      var kgPerPack = moKg / moPacks;
+      var stockItem = procItems.main.find(function(i) { return i.name === wi.ingName; });
+      var stockKg = stockItem ? (stockItem.stock || 0) : 0;
+      var producible = kgPerPack > 0 ? Math.floor(stockKg / kgPerPack) : Infinity;
+
+      if (producible < minProducible) {
+        minProducible = producible;
+        limitingLabel = wi.label + ' (' + stockKg.toFixed(0) + ' kg, ' + kgPerPack.toFixed(3) + ' kg/pk)';
+      }
+    });
+
+    var producible = minProducible === Infinity ? 0 : minProducible;
+    var totalPacks = fgPacks + producible;
+    var covTot = moPacks > 0 ? totalPacks / moPacks : null;
+    var covFG  = moPacks > 0 ? fgPacks  / moPacks : null;
+
+    var totCol = covTot !== null ? (covTot < 2 ? 'var(--crit-txt)' : covTot < 4 ? 'var(--low-txt)' : 'var(--ok-txt)') : 'var(--text3)';
+    var fgCol  = covFG  !== null ? (covFG  < 1.5 ? 'var(--crit-txt)' : covFG  < 3 ? 'var(--low-txt)' : '#0F6E56') : 'var(--text3)';
+    var bg     = covTot !== null ? (covTot < 2 ? 'background:#fff8f7' : covTot < 4 ? 'background:#fffdf5' : '') : '';
+
+    rows += '<tr style="' + bg + '">'
+      + '<td style="font-weight:600;font-size:12px">' + lineName + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">'
+      +   fgPacks.toLocaleString()
+      +   '<div style="font-size:9px;color:' + fgCol + '">'
+      +   (covFG !== null ? covFG.toFixed(1) + ' mo' : '—') + '</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);color:#185FA5">'
+      +   producible.toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:' + totCol + '">'
+      +   totalPacks.toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">'
+      +   moPacks.toFixed(0) + ' pks/mo</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:' + totCol + '">'
+      +   (covTot !== null ? covTot.toFixed(1) + ' mo' : '—') + '</td>'
+      + '<td style="font-size:10px;color:var(--text3)">'
+      +   (limitingLabel || '—') + '</td>'
+      + '</tr>';
+  });
+
+  el.innerHTML = rows || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Loading data — refresh for live figures.</td></tr>';
+
+  var foot = document.getElementById('wheyCapacityFoot');
+  if (foot) foot.innerHTML = '<span>FG stock and whey stock from Odoo · Monthly sales = 3-month rolling avg · '
+    + 'Producible packs = available whey ÷ weighted kg/pack for this line\'s sales mix · '
+    + 'Limiting ingredient shown with stock and kg consumed per pack.</span>';
+}
 
 function renderRepacking() {
   var rows = '';
@@ -2894,10 +3027,7 @@ function makeRow(item,rq,units,onchange,cost){
     <td class="mono">${rq>0?(rq*2).toFixed(2)+' '+units:'—'}</td>
     <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}${incomingQty>0?`<div style="font-size:9px;color:#0F6E56;margin-top:1px">−${incomingQty.toFixed(1)} incoming</div>`:''}</td>
     <td class="mono strong">${ov>0?ov.toLocaleString():'—'}</td>
-    <td>${dlLbl(autoDeadline(item.lead))}</td>
-    <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
-    <td style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.supplier}">${item.supplier||'—'}</td>
-  </tr>`;
+    <td>${dlLbl(computeDeadline(item.stock, rq, item.lead))}</td>
 }
 
 // ── Phase 1: Input validation ────────────────────────────────────────────────
@@ -3224,14 +3354,14 @@ function renderExecSummary() {
   }
 
   // ── Column 3: FG stock coverage ─────────────────────────────────────────────
-  // Top sellers + any with low coverage
+  // Top sellers + any with low coverage — pack counts, main sizes only
   var coverageItems = [];
   // Protein SKUs
   PROT_SKUS.forEach(function(sku) {
-    var fg    = getFGServings(sku);            // servings in stock
-    var sales = getAvgServingsPerMonth(sku);    // servings/month demand
+    var fg    = getMainPackTotal(sku);       // packs in stock (no tasters)
+    var sales = getMainPackSales(sku);       // packs/month (no tasters)
     if (sales <= 0) return;
-    var cov = fg / sales;                       // months of coverage — now correct
+    var cov = fg / sales;                    // months of coverage in packs
     coverageItems.push({ label: (PROT_INFO[sku] || sku), cov: cov, sales: sales, fg: fg, type: 'prot' });
   });
   // Bulk SKUs
@@ -3265,7 +3395,7 @@ function renderExecSummary() {
           + '<span class="exec-cov-name">' + item.label.substring(0, 28) + '</span>'
           + '<span class="exec-cov-val" style="color:' + col + '">'
           + item.cov.toFixed(1) + ' mo'
-          + '<span style="color:var(--text3);font-weight:400;margin-left:4px">(' + Math.round(item.sales).toLocaleString() + ' srv/mo)</span>'
+          + '<span style="color:var(--text3);font-weight:400;margin-left:4px">(' + Math.round(item.sales).toLocaleString() + ' pks/mo)</span>'
           + '</span>'
           + '</div>';
       }).join('');
@@ -3364,7 +3494,7 @@ function renderProcurement(){
         <td class="mono">${rq>0?(rq*2).toFixed(2)+' kg':'—'}</td>
         <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' kg':'—'}</td>
         <td class="mono strong">${fourMo>0?ksh(fourMo*item.cost):'—'}</td>
-        <td>${dlLbl(autoDeadline(item.lead))}</td>
+        <td>${dlLbl(computeDeadline(item.stock, rq, item.lead))}</td>
         <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
         <td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis">${item.supplier||'—'}</td>
       </tr>`;
@@ -3425,9 +3555,9 @@ function renderCosts(){
     // Category breakdown
     const byCat={protein:0,flavour:0,active:0,excipient:0};
     detail.forEach(d=>{ if(d.hasCost) byCat[getCat(d.name)]+=d.contribPerServing; });
-    const fgTotalProt    = getFGServings(sku);           // total servings in stock
-    const fgBreakdownProt = getFGBreakdown(sku);          // '300×30s · 20×15s · 12×4s'
-    const avgSalesProt   = getAvgServingsPerMonth(sku);   // servings/month demand
+    const fgTotalProt    = getMainPackTotal(sku);        // main-size packs in stock
+    const fgBreakdownProt = getFGBreakdown(sku);          // '300×30s · 20×15s'
+    const avgSalesProt   = getMainPackSales(sku);         // packs/month demand
     const coverageProt   = avgSalesProt > 0 ? fgTotalProt / avgSalesProt : null;
     const trendHtmlProt  = trendBadge(protRefs(sku));
     protRows.push({sku,label:PROT_INFO[sku],packG:tabCfg.packG,servings,
@@ -3524,13 +3654,13 @@ function renderCosts(){
       <td style="text-align:right"><span class="cost-big">Ksh ${ksh(r.total)}</span></td>
       <td style="text-align:right"><span class="cost-sm">Ksh ${r.perServ.toFixed(0)}</span></td>
       <td style="text-align:right;font-family:var(--font-mono)">
-        ${r.fgTotal > 0 ? r.fgTotal.toLocaleString() + '<span style="font-size:9px;margin-left:2px">srv</span>' : '<span style="color:var(--text3)">—</span>'}
+        ${r.fgTotal > 0 ? r.fgTotal.toLocaleString() + '<span style="font-size:9px;margin-left:2px">pks</span>' : '<span style="color:var(--text3)">—</span>'}
         <div style="font-size:9px;color:#0F6E56">${r.fgTotal > 0 ? '● Odoo' : ''}</div>
         <div style="font-size:9px;color:var(--text3);white-space:nowrap">${r.fgBreakdown||''}</div>
       </td>
       <td style="text-align:right">
         ${r.coverage !== null ? '<span style="font-family:var(--font-mono);color:' + (r.coverage < 2 ? 'var(--crit-txt)' : r.coverage < 4 ? 'var(--low-txt)' : 'var(--ok-txt)') + '">' + r.coverage.toFixed(1) + ' mo</span>' : '<span style="color:var(--text3)">—</span>'}
-        <div style="font-size:9px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:4px">${r.avgSalesVal > 0 ? Math.round(r.avgSalesVal).toLocaleString() + ' srv/mo' : ''}${r.trendHtml||''}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:4px">${r.avgSalesVal > 0 ? Math.round(r.avgSalesVal).toLocaleString() + ' pks/mo' : ''}${r.trendHtml||''}</div>
       </td>
       <td style="text-align:right">${marginCell(getMarginPct(r.sku, r.total))}</td>
       <td style="min-width:160px">
@@ -4391,7 +4521,16 @@ function renderShipping(){
 
   // ── Ordering calendar ─────────────────────────────────────────────────────
   const best = sea; // use sea for calendar
-  const cycleStart = new Date('2026-05-01');
+  // Derive cycle start from earliest whey stockout date (using current Odoo stock)
+  const wheyIngNames = ['35% Whey Concentrate', '80% Whey Concentrate', 'WPI 90%'];
+  const wheySOs = wheyIngNames.map(function(n){
+    const itm = procItems.main.find(function(i){ return i.name === n; });
+    const rqN = computeRQ(n);
+    return (itm && rqN > 0) ? stockoutDate(itm.stock, rqN) : null;
+  }).filter(Boolean);
+  const cycleStart = wheySOs.length > 0
+    ? new Date(Math.min.apply(null, wheySOs.map(function(d){ return d.getTime(); })))
+    : new Date(Date.now() + 90 * 864e5);
   const events = [];
   let d = new Date(cycleStart);
   for(let i=0; i<Math.ceil(12/cycle)+1; i++){
@@ -4409,7 +4548,7 @@ function renderShipping(){
   const fmtDate = d2 => d2.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
   const isPast  = d2 => d2 < today;
   document.getElementById('calendarSub').textContent =
-    `— sea freight · ${cycle}-month cycle · ${best.leadDays}-day lead time from May 1 2026`;
+    `— sea freight · ${cycle}-month cycle · ${best.leadDays}-day lead · order by date from current stock`;
   document.getElementById('orderCalendar').innerHTML = events.slice(0,4).map((ev,i) => `
     <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
       <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:5px">Cycle ${i+1}</div>
@@ -4466,7 +4605,7 @@ function switchTab(id,btn){
   if(id==='supplements') safeRender('supplements',renderSupp);
   if(id==='packaging') safeRender('packaging',renderPackaging);
   if(id==='costs') safeRender('costs',renderCosts);
-  if(id==='repacking') safeRender('repacking',renderRepacking);
+  if(id==='repacking'){ safeRender('repacking',renderRepacking); safeRender('repacking',renderWheyCapacity); }
   if(id==='ordersheet') safeRender('ordersheet',renderOrderSheet);
 }
 
