@@ -419,6 +419,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
               <th style="text-align:right">2-mo RQ</th>
               <th style="text-align:right">4-mo order</th>
               <th style="text-align:right">Order value (Ksh)</th>
+              <th style="text-align:right">To end Aug<div style="font-style:italic;font-weight:400;font-size:9px">need · gap</div></th>
               <th>Deadline</th><th>Lead time</th><th>Supplier</th>
             </tr></thead>
             <tbody id="tbody"></tbody>
@@ -684,7 +685,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       </div>
       <div style="margin-top:10px;font-size:11px;color:var(--text2);line-height:1.7;padding:9px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
         Edit the <b>Incoming (kg)</b> column to model different order quantities. Coverage, cost of goods, and all shipping optimiser figures update instantly.
-        Current stock pulls live from <b>Odoo</b> (falls back to March 2026 ORDER sheet if Odoo is unavailable) — refresh to get latest figures.
+        Current stock pulls live from <b>Odoo</b> (falls back to ORDER sheet data if Odoo is unavailable) — refresh to get latest figures.
       </div>
     </div>
 
@@ -732,9 +733,9 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
           <div class="pg-title">Ordering cycle</div>
           <div style="margin-bottom:14px">
             <div class="pg-label">Cycle length (months) — drag to explore</div>
-            <input class="pg-range" id="cycleRange" type="range" min="1" max="12" value="6" oninput="document.getElementById('cycleVal').textContent=this.value+' months';renderShipping()">
+            <input class="pg-range" id="cycleRange" type="range" min="1" max="12" value="4" oninput="document.getElementById('cycleVal').textContent=this.value+' months';renderShipping()">
             <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
-              <span class="pg-range-val" id="cycleVal">6 months</span>
+              <span class="pg-range-val" id="cycleVal">4 months</span>
               <span style="font-size:10px;color:var(--text3)">per order · covers all 3 products in one shipment</span>
             </div>
           </div>
@@ -827,7 +828,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
         <!-- Air vs sea comparison for selected cycle -->
         <div class="pg-section">
-          <div class="pg-title">Air vs sea — selected cycle (<span id="selectedCycleLabel">6 months</span>)</div>
+          <div class="pg-title">Air vs sea — selected cycle (<span id="selectedCycleLabel">4 months</span>)</div>
           <div style="overflow-x:auto">
             <table class="comparison-table" id="modeTable"></table>
           </div>
@@ -871,8 +872,8 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       <div style="margin-top:10px;font-size:11px;color:var(--text2);line-height:1.8;padding:10px 14px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
         <b>Current stock pulls live from Odoo</b> — always up to date when you refresh.
         Enter planned order quantities in the <b>Planned order</b> column to model different scenarios.
-        The landed cost estimate uses your confirmed logistics ratios from the Nutra Healthcare March 2026 SAD.
-        <b>Key findings:</b> PreWorkout Watermelon overstocked until ~2028 — skip next order. Collagen critical — order now.
+        The landed cost estimate uses your confirmed logistics ratios from the Nutra Healthcare SAD.
+        <span id="suppKeyFindings" style="display:block;margin-top:4px"></span>
       </div>
     </div>
 
@@ -937,8 +938,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
             <div><div class="pg-label">Lead time (days)</div><input class="pg-input" id="s-lead" type="number" value="65" oninput="validateInput(this);renderSupp()"></div>
           </div>
           <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.6;padding:7px 10px;background:var(--surface2);border-radius:6px">
-            Lead time confirmed at 65 days (Nutra invoice Jan 19 → Mombasa customs Mar 25, 2026).
-            Dashboard default was 90 days — now corrected.
+            Lead time default: 65 days (confirmed from Nutra SAD). Update this field if your latest shipment shows a different transit time.
           </div>
         </div>
 
@@ -946,9 +946,9 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="pg-section">
           <div class="pg-title">Ordering cycle</div>
           <div class="pg-label">Cycle length (months)</div>
-          <input class="pg-range" id="s-cycleRange" type="range" min="1" max="12" value="6" oninput="document.getElementById('s-cycleVal').textContent=this.value+' months';renderSupp()">
+          <input class="pg-range" id="s-cycleRange" type="range" min="1" max="12" value="4" oninput="document.getElementById('s-cycleVal').textContent=this.value+' months';renderSupp()">
           <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
-            <span class="pg-range-val" id="s-cycleVal">6 months</span>
+            <span class="pg-range-val" id="s-cycleVal">4 months</span>
             <span style="font-size:10px;color:var(--text3)">all SKUs in one shipment</span>
           </div>
         </div>
@@ -1014,8 +1014,8 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         </div>
         <div class="pg-section">
           <div class="pg-title">Ordering cycle</div>
-          <input class="pg-range" id="pkg-cycleRange" type="range" min="1" max="12" value="6" oninput="document.getElementById('pkg-cycleVal').textContent=this.value+' months';renderPackaging()">
-          <div style="margin-top:6px"><span class="pg-range-val" id="pkg-cycleVal">6 months</span></div>
+          <input class="pg-range" id="pkg-cycleRange" type="range" min="1" max="12" value="4" oninput="document.getElementById('pkg-cycleVal').textContent=this.value+' months';renderPackaging()">
+          <div style="margin-top:6px"><span class="pg-range-val" id="pkg-cycleVal">4 months</span></div>
         </div>
         <div class="pg-section">
           <div class="pg-title">Cycle comparison</div>
@@ -1099,7 +1099,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
               <th style="text-align:right">Can fill (packs)</th>
               <th style="text-align:right">Target packs</th>
               <th style="text-align:right">Bulk needed (kg)</th>
-              <th style="text-align:right">Sachets needed</th>
+              <th style="text-align:right">Sachets needed<div style="font-weight:400;font-style:italic;font-size:9px">in stock · gap</div></th>
               <th style="text-align:right">Monthly sales</th>
               <th style="text-align:right">Covers (months)</th>
               <th style="text-align:right">FG stock (packs)</th>
@@ -1210,7 +1210,7 @@ const PROC_ID  = '1xlco3V5fqYdWuuOYKqKVZm-_mwUipxM8LZS5ofa01uk';
 const PROC_GID = 1839945296;
 const FORM_ID  = '1RMgl19REv-_w_4bJGgWlNgCkA3VlmJlKcxMPgUZDi9c';
 
-// Monthly sales — hardcoded from January 2025 actuals
+// Monthly sales — fallback values only (overwritten at runtime by live 3-month rolling avg from Odoo)
 const SALES = {
   CEVAN:182, CECHOC:86, CEBAN:26, CECREAM:51, CESC:24, CEVBC:15, CEVCHAI:25, PureForm:23,
   ECOVAN:27, ECOCHOC:15, ECOBAN:6, ISPVAN:20, ISPUN:13, BIOVAN:28, BIOUN:11,
@@ -2402,7 +2402,22 @@ function renderRepacking() {
       + '</td>'
       + '<td style="text-align:right;font-family:var(--font-mono)">' + bulkNeeded.toFixed(2) + ' kg</td>'
       + '<td style="text-align:right;font-family:var(--font-mono)">'
-      +   (sachetsNeeded > 0 ? sachetsNeeded.toLocaleString() : '—') + '</td>'
+      +   (sachetsNeeded > 0
+          ? (function(){
+              var sachetStock = (pkgCosts['sachet']||{}).stock || 0;
+              var sachetSrc   = (pkgCosts['sachet']||{}).stockSource || '';
+              var gap = Math.max(0, sachetsNeeded - sachetStock);
+              var html = sachetsNeeded.toLocaleString() + ' needed';
+              html += '<div style="font-size:9px;color:' + (sachetSrc==='odoo'?'#0F6E56':'#aaa') + '">'
+                + sachetStock.toLocaleString() + ' in stock'
+                + (sachetSrc==='odoo'?' ● Odoo':'') + '</div>';
+              html += gap > 0
+                ? '<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">&#9650; ' + gap.toLocaleString() + ' short</div>'
+                : '<div style="font-size:9px;color:var(--ok-txt)">&#10003; covered</div>';
+              return html;
+            })()
+          : '—')
+      + '</td>'
       + '<td style="text-align:right;font-family:var(--font-mono)">'
       +   (monthlySalesAmt > 0 ? monthlySalesAmt.toFixed(1) + '/mo' : '<span style="color:var(--text3)">—</span>') + '</td>'
       + '<td style="text-align:right;font-family:var(--font-mono);color:'
@@ -2417,7 +2432,7 @@ function renderRepacking() {
   });
 
   if (!rows) {
-    rows = '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--text3)">No bulk supplement data — refresh for live figures.</td></tr>';
+    rows = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--text3)">No bulk supplement data — refresh for live figures.</td></tr>';
   }
 
   document.getElementById('repackTbody').innerHTML = rows;
@@ -2443,8 +2458,8 @@ function renderOrderSheet() {
   var fmtNum     = function(n){ return Math.round(n).toLocaleString(); };
 
   // Cycle & meta
-  var cycle       = parseInt(document.getElementById('cycleRange')?.value) || 6;
-  var suppCycle   = parseInt(document.getElementById('s-cycleRange')?.value) || 6;
+  var cycle       = parseInt(document.getElementById('cycleRange')?.value) || 4;
+  var suppCycle   = parseInt(document.getElementById('s-cycleRange')?.value) || 4;
   var eurKes      = getNum('eurKes') || 150;
   var usdKesWhey  = getNum('usdKes') || 129;
   var usdKesSupp  = getSuppNum('s-usdkes') || 129;
@@ -2822,7 +2837,7 @@ function renderOrderSheet() {
 // ── TSV clipboard export ──────────────────────────────────────────────────────
 function copyOrderSheet() {
   var rows = [['Section','Item','Qty','Unit','ExWorks (Ksh)','Landed (Ksh)']];
-  var cycle   = parseInt(document.getElementById('cycleRange')?.value) || 6;
+  var cycle   = parseInt(document.getElementById('cycleRange')?.value) || 4;
   var eurKes  = getNum('eurKes') || 150;
   var usdKes  = getSuppNum('s-usdkes') || 129;
   var pkgUsd  = getNum('pkg-usdkes') || 129.52;
@@ -3017,6 +3032,16 @@ function makeRow(item,rq,units,onchange,cost){
   const ov=Math.round(fourMo*(cost||item.cost));
   const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
   const displayCost=cost||item.cost;
+  // End-of-August validation: months from today to Aug 31
+  const augEnd=new Date(new Date().getFullYear(),7,31);
+  const moToAug=Math.max(0,(augEnd-new Date())/(30.44*24*3600*1000));
+  const augNeed=rq>0?rq*moToAug:0;
+  const augGap=Math.max(0,augNeed-item.stock-incomingQty);
+  const augCell=rq<=0?'<span style="color:var(--text3)">—</span>'
+    :'<div style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">'+augNeed.toFixed(1)+' '+units+'</div>'
+    +(augGap>0
+      ?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">▲'+augGap.toFixed(1)+' short</div>'
+      :'<div style="font-size:9px;color:var(--ok-txt)">✓ covered</div>');
   return`<tr style="${bg}">
     <td><div class="iname" title="${item.name}">${item.name}</div><div class="imeta">${item.func}</div></td>
     <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cl}</span></div></td>
@@ -3027,6 +3052,7 @@ function makeRow(item,rq,units,onchange,cost){
     <td class="mono">${rq>0?(rq*2).toFixed(2)+' '+units:'—'}</td>
     <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}${incomingQty>0?'<div style="font-size:9px;color:#0F6E56;margin-top:1px">\u2212'+incomingQty.toFixed(1)+' incoming</div>':''}</td>
     <td class="mono strong">${ov>0?ov.toLocaleString():'—'}</td>
+    <td style="text-align:right">${augCell}</td>
     <td>${dlLbl(computeDeadline(item.stock, rq, item.lead))}</td>
     <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
     <td style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.supplier}">${item.supplier||'—'}</td>
@@ -3266,9 +3292,9 @@ function renderExecSummary() {
   }
 
   // ── Column 2: Capital commitment ───────────────────────────────────────────
-  var cycle = parseInt(document.getElementById('cycleRange')?.value) || 6;
-  var suppCycle = parseInt(document.getElementById('s-cycleRange')?.value) || 6;
-  var pkgCycle = parseInt(document.getElementById('pkg-cycleRange')?.value) || 6;
+  var cycle = parseInt(document.getElementById('cycleRange')?.value) || 4;
+  var suppCycle = parseInt(document.getElementById('s-cycleRange')?.value) || 4;
+  var pkgCycle = parseInt(document.getElementById('pkg-cycleRange')?.value) || 4;
   var eurKes = getNum('eurKes') || 150;
   var usdKesWhey = getNum('usdKes') || 129;
 
@@ -3443,7 +3469,7 @@ function renderProcurement(){
     return passes(item,rq);
   });
   if(mainRows.length){
-    html+=`<tr class="sec-divider"><td colspan="12">Formulated protein raw materials — RQ from Protein Product Development VERSION 8</td></tr>`;
+    html+=`<tr class="sec-divider"><td colspan="13">Formulated protein raw materials — RQ from Protein Product Development VERSION 8</td></tr>`;
     html+=mainRows.map(item=>{
       const gi=procItems.main.indexOf(item);
       const rq=computeRQ(item.name);
@@ -3472,7 +3498,7 @@ function renderProcurement(){
     return item&&passes(item,bulkRQ(sku));
   });
   if(bulkEntries.length){
-    html+=`<tr class="sec-divider"><td colspan="12">Bulk supplements — repackaged 200g retail packs</td></tr>`;
+    html+=`<tr class="sec-divider"><td colspan="13">Bulk supplements — repackaged 200g retail packs</td></tr>`;
     html+=bulkEntries.map(([sku,cfg])=>{
       const item=procItems.bulk[sku];
       const rq=bulkRQ(sku);
@@ -3486,6 +3512,10 @@ function renderProcurement(){
       const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
       const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
       const wf=cfg.sachets?`<div class="waste-flag">⚠ ${cfg.usable}/${cfg.sachets} sachets usable</div>`:'';
+      const augEndB=new Date(new Date().getFullYear(),7,31);
+      const moToAugB=Math.max(0,(augEndB-new Date())/(30.44*24*3600*1000));
+      const augNeedB=rq>0?rq*moToAugB:0;
+      const augGapB=Math.max(0,augNeedB-item.stock);
       return`<tr style="${bg}">
         <td><div class="iname">${item.name}</div><div class="imeta">${cfg.label} · ${cfg.usable} packs/drum</div>${wf}</td>
         <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cov>=99?'∞':cov.toFixed(1)+'mo'}</span></div></td>
@@ -3496,6 +3526,7 @@ function renderProcurement(){
         <td class="mono">${rq>0?(rq*2).toFixed(2)+' kg':'—'}</td>
         <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' kg':'—'}</td>
         <td class="mono strong">${fourMo>0?ksh(fourMo*item.cost):'—'}</td>
+        <td style="text-align:right">${rq>0?'<div style="font-family:var(--font-mono);font-size:11px">'+augNeedB.toFixed(1)+' kg</div>'+(augGapB>0?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">&#9650;'+augGapB.toFixed(1)+' short</div>':'<div style="font-size:9px;color:var(--ok-txt)">&#10003; covered</div>'):'<span style="color:var(--text3)">—</span>'}</td>
         <td>${dlLbl(computeDeadline(item.stock, rq, item.lead))}</td>
         <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
         <td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis">${item.supplier||'—'}</td>
@@ -3506,7 +3537,7 @@ function renderProcurement(){
   // Section 3: Packaging
   const pkgRows=packaging.filter(item=>passes(item,item.pkgKey?(needs[item.pkgKey]||0):0));
   if(pkgRows.length){
-    html+=`<tr class="sec-divider"><td colspan="12">Packaging materials</td></tr>`;
+    html+=`<tr class="sec-divider"><td colspan="13">Packaging materials</td></tr>`;
     html+=pkgRows.map(item=>{
       const gi=packaging.indexOf(item);
       const rq=item.pkgKey?(needs[item.pkgKey]||0):0;
@@ -3518,7 +3549,7 @@ function renderProcurement(){
     }).join('');
   }
 
-  if(!html) html=`<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text3)">No items match.</td></tr>`;
+  if(!html) html=`<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text3)">No items match.</td></tr>`;
   document.getElementById('tbody').innerHTML=html;
 
   const pPacks=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0);
@@ -4344,7 +4375,7 @@ function renderWheyStockTable(){
 }
 
 function renderShipping(){
-  const cycle = parseInt(document.getElementById('cycleRange')?.value||6);
+  const cycle = parseInt(document.getElementById('cycleRange')?.value||4);
   document.getElementById('cycleVal').textContent = cycle + ' months';
   document.getElementById('selectedCycleLabel').textContent = cycle + ' months';
 
@@ -4955,10 +4986,34 @@ function renderSuppStockTable(sales){
       <th>Order urgency</th>
     </tr></thead>
     <tbody>${rows}</tbody>`;
+
+  // Dynamic key findings — generated from live coverage data
+  var kfEl = document.getElementById('suppKeyFindings');
+  if (kfEl) {
+    var critical=[], low=[], overstock=[];
+    Object.entries(SUPP_CFG).forEach(function([sku,cfg]){
+      var sales = getSuppSales();
+      var sal = sales[sku]||0;
+      var suppStock = getSuppStockKg(sku);
+      var curPacks = Math.floor(suppStock.kg/cfg.kgPerPack);
+      var incPacks = Math.floor((SUPP_ORDER_KG[sku]||0)/cfg.kgPerPack);
+      var mo = sal>0 ? (curPacks+incPacks)/sal : 99;
+      if (mo < 2)  critical.push(cfg.label+' ('+mo.toFixed(1)+'mo)');
+      else if (mo < 4) low.push(cfg.label+' ('+mo.toFixed(1)+'mo)');
+      else if (mo > 12) overstock.push(cfg.label+' ('+mo.toFixed(0)+'mo)');
+    });
+    var parts=[];
+    if (critical.length) parts.push('<span style="color:var(--crit-txt);font-weight:700">⚠ Critical: '+critical.join(', ')+'</span>');
+    if (low.length)      parts.push('<span style="color:var(--low-txt);font-weight:600">↓ Low stock: '+low.join(', ')+'</span>');
+    if (overstock.length)parts.push('<span style="color:#8a5c0a">⚑ Overstocked: '+overstock.join(', ')+'</span>');
+    kfEl.innerHTML = parts.length
+      ? '<b>Key findings:</b> ' + parts.join(' · ')
+      : '<span style="color:var(--ok-txt)">✓ All supplement stocks at healthy levels</span>';
+  }
 }
 
 function renderSupp(){
-  const cycle  = parseInt(document.getElementById('s-cycleRange')?.value||6);
+  const cycle  = parseInt(document.getElementById('s-cycleRange')?.value||4);
   document.getElementById('s-cycleVal').textContent = cycle+' months';
   document.getElementById('suppOrderSub').textContent = '— '+cycle+'-month cycle';
 
@@ -5011,7 +5066,7 @@ function renderSupp(){
       Because <b>25% import duty scales with every kg ordered</b>, larger shipments don't reduce the duty burden — they just defer it.
       The only saving from longer cycles is spreading the flat agent fee (Ksh ${Math.round(getSuppNum('s-agent')).toLocaleString()} per shipment).
       The main driver of your ordering decision should be <b>cash flow and shelf life</b>, not logistics optimisation.
-      Recommended cycle: <b>6 months</b> — balances cash flow with reasonable stock levels.
+      Recommended cycle: <b>4 months</b> — balances cash flow with reasonable stock levels.
     </div></div>`;
 
   // Top result cards
@@ -5252,7 +5307,7 @@ function renderPackaging() {
   const seaMin  = parseFloat(document.getElementById('pkg-seamin')?.value)||12000;
   const airRate = parseFloat(document.getElementById('pkg-airrate')?.value)||12;
   const usdKes  = parseFloat(document.getElementById('pkg-usdkes')?.value)||129.52;
-  const cycle   = parseInt(document.getElementById('pkg-cycleRange')?.value||6);
+  const cycle   = parseInt(document.getElementById('pkg-cycleRange')?.value||4);
   document.getElementById('pkg-cycleVal').textContent = cycle + ' months';
   const el = id => document.getElementById(id);
   const today = new Date();
