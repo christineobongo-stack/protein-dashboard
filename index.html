@@ -330,7 +330,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 <header>
   <div>
     <div class="htitle">Procurement Dashboard — protein.ke</div>
-    <div class="hsub" id="headerSub">Live · MARCH 2026 ORDER + Protein Product Development VERSION 8</div>
+    <div class="hsub" id="headerSub">Loading data…</div>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
     <button onclick="toggleDebug()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);font-size:10px;padding:4px 10px;border-radius:5px;cursor:pointer">debug</button>
@@ -340,7 +340,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
 <div id="dataFreshnessBanner"></div>
 <div class="sources">
-  <div class="src"><span class="dot idle" id="dot-proc"></span><span id="lbl-proc">MARCH 2026 ORDER</span></div>
+  <div class="src"><span class="dot idle" id="dot-proc"></span><span id="lbl-proc">Loading…</span></div>
   <div class="src" id="cacheStatus" style="margin-left:auto;font-size:10px;color:var(--text3)"></div>
   <div class="src"><span class="dot idle" id="dot-ce"></span><span id="lbl-ce">CORE ESSENTIAL</span></div>
   <div class="src"><span class="dot idle" id="dot-eco"></span><span id="lbl-eco">ECONOMY+</span></div>
@@ -2204,6 +2204,17 @@ async function fetchShopifyPrices() {
 // Per-SKU target overrides (editable in the repacking table)
 var repackTargets = {};  // { 'CREATUN': 150, ... }
 
+// Maps procurement ingredient names → totalIncomingQty() keys (whey shipping tab)
+var PROC_INCOMING_MAP = {
+  '35% Whey Concentrate': 'WPC35',
+  '80% Whey Concentrate': 'WPC80',
+  'WPI 90%':              'WPI',
+};
+
+// SKUs that physically require silicon desiccant sachets (2 per pack)
+// cfg.sachets is a drum-level field and means something different on preworkout
+var SILICON_SKUs = { PWORKWM: true, PWORKGA: true };
+
 function renderRepacking() {
   var rows = '';
   var totalBulkKsh = 0;
@@ -2220,7 +2231,7 @@ function renderRepacking() {
 
     // Resources for target run
     var bulkNeeded   = target * cfg.kgPerPack;
-    var sachetsNeeded = cfg.sachets ? target * 2 : 0; // 2 sachets per 200g pack
+    var sachetsNeeded = SILICON_SKUs[sku] ? target * 2 : 0; // 2 sachets per 200g pack (preworkout only)
 
     // Monthly sales and coverage
     var monthlySalesAmt = getAvgSales(sku) || SALES[sku] || 0;
@@ -2802,7 +2813,8 @@ async function loadAll(forceRefresh=false){
     lsCacheSet(payload);
     applyPayload(payload);
 
-    setDot('dot-proc','lbl-proc','ok','MARCH 2026 ORDER ✓');
+    const orderLabel=(()=>{const n=new Date();return n.toLocaleString('en-GB',{month:'long',year:'numeric'}).toUpperCase()+' ORDER';})();
+    setDot('dot-proc','lbl-proc','ok',orderLabel+' ✓');
     Object.entries(FORM_TABS).forEach(([tabName,cfg])=>{
       const count=Object.values(formulations).filter(sm=>cfg.skus.some(s=>sm[s]>0)).length;
       setDot(cfg.dot,cfg.lbl,'ok',tabName+' · '+count+' ingredients');
@@ -2866,7 +2878,9 @@ function makeRow(item,rq,units,onchange,cost){
   const bp=Math.min(cov/3,1)*100;
   const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
   const cl=cov>=99?'∞':cov.toFixed(1)+'mo';
-  const fourMo=Math.max(0,rq*4-item.stock);
+  const incomingKey=PROC_INCOMING_MAP[item.name];
+  const incomingQty=incomingKey?totalIncomingQty(incomingKey):0;
+  const fourMo=Math.max(0,rq*4-item.stock-incomingQty);
   const ov=Math.round(fourMo*(cost||item.cost));
   const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
   const displayCost=cost||item.cost;
@@ -2878,7 +2892,7 @@ function makeRow(item,rq,units,onchange,cost){
     <td class="mono">${displayCost>0?displayCost.toLocaleString():'—'}</td>
     <td class="mono">${rq>0?rq.toFixed(2)+' '+units:'—'}</td>
     <td class="mono">${rq>0?(rq*2).toFixed(2)+' '+units:'—'}</td>
-    <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}</td>
+    <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}${incomingQty>0?`<div style="font-size:9px;color:#0F6E56;margin-top:1px">−${incomingQty.toFixed(1)} incoming</div>`:''}</td>
     <td class="mono strong">${ov>0?ov.toLocaleString():'—'}</td>
     <td>${dlLbl(autoDeadline(item.lead))}</td>
     <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
