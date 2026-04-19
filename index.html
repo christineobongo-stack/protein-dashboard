@@ -374,6 +374,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <button class="tab-btn" onclick="switchTab('packaging',this)">Packaging &amp; China</button>
     <button class="tab-btn" onclick="switchTab('repacking',this)">Repacking</button>
     <button class="tab-btn" onclick="switchTab('ordersheet',this)">📋 Order Sheet</button>
+    <button class="tab-btn" onclick="switchTab('playground',this)">🧮 Playground</button>
 </div>
 
 <main>
@@ -1199,6 +1200,132 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   </div>
 
 
+  <!-- TAB 9: PLAYGROUND -->
+  <div class="tab-page" id="page-playground">
+    <div style="margin-top:4px;margin-bottom:40px">
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">🧮 Supplier & Cost Playground</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.7">
+          Test the impact of a new supplier or changed ingredient cost on every affected SKU. Edit trial costs in the table, or use the ExWorks calculator. The impact table updates instantly. All calculations use live BoMs and rolling 3-month sales from Odoo.
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start;margin-bottom:14px">
+
+        <!-- LEFT: ingredient editor + calculator + presets -->
+        <div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+              <span>Ingredient costs</span>
+              <button class="fbtn" onclick="resetTrialCosts();renderPlayground()" style="font-size:10px;padding:2px 8px">Reset all</button>
+            </div>
+            <div id="pg-ing-list" style="max-height:420px;overflow-y:auto"></div>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px">ExWorks calculator</div>
+            <div style="margin-bottom:8px">
+              <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Apply to ingredient</div>
+              <select id="pg-calc-ing" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-sans);font-size:11px;background:var(--surface);color:var(--text)">
+                <option value="">— select ingredient —</option>
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:3px">ExWorks (USD/kg)</div>
+                <input id="pg-ew-usd" class="editable" type="number" step="0.01" placeholder="e.g. 18" style="width:100%;text-align:right" oninput="updatePlaygroundCalc()">
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Freight + clearance (Ksh/kg)</div>
+                <input id="pg-freight" class="editable" type="number" step="1" placeholder="e.g. 100" style="width:100%;text-align:right" oninput="updatePlaygroundCalc()">
+              </div>
+            </div>
+            <div style="background:var(--surface2);border-radius:6px;padding:8px 10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:10px;color:var(--text3)">Landed Ksh/kg:</span>
+              <span id="pg-landed" style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text)">—</span>
+            </div>
+            <button class="fbtn active" style="width:100%;justify-content:center;display:flex" onclick="applyPlaygroundCalc()">Apply to selected ingredient →</button>
+          </div>
+
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">Quick presets</div>
+            <button class="fbtn" style="width:100%;display:flex;justify-content:center;margin-bottom:4px" onclick="loadPlaygroundPreset(0)">
+              🇺🇬 Benni Foods WPC 80 (Uganda)
+            </button>
+            <div style="font-size:9px;color:var(--text3);margin-top:6px">$18/kg ExWorks + Ksh 100/kg freight = Ksh 2,431/kg landed</div>
+          </div>
+        </div>
+
+        <!-- RIGHT: impact -->
+        <div>
+          <div id="pg-saving-banner" style="display:none;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px" id="pg-banner-label">Monthly saving</div>
+            <div id="pg-total-saving" style="font-size:24px;font-weight:600;font-family:var(--font-mono)">—</div>
+            <div id="pg-saving-detail" style="font-size:10px;margin-top:3px;opacity:.8"></div>
+          </div>
+
+          <div class="tcard" style="margin-bottom:14px">
+            <div style="overflow-x:auto">
+              <table>
+                <thead><tr>
+                  <th>SKU</th>
+                  <th style="text-align:right">Pack</th>
+                  <th style="text-align:right">Ingredient cost/pack<div style="font-style:italic;font-weight:400;font-size:9px">current</div></th>
+                  <th style="text-align:right">Ingredient cost/pack<div style="font-style:italic;font-weight:400;font-size:9px">trial</div></th>
+                  <th style="text-align:right">Saving/pack</th>
+                  <th style="text-align:right">Sales/mo</th>
+                  <th style="text-align:right">Monthly saving</th>
+                </tr></thead>
+                <tbody id="pg-impact-tbody"></tbody>
+              </table>
+            </div>
+            <div class="tfoot" id="pg-impact-foot"></div>
+          </div>
+
+          <!-- PO history -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px">Historical purchase prices — last 3 confirmed POs</div>
+            <div style="overflow-x:auto">
+              <table style="font-size:11px;width:100%;border-collapse:collapse">
+                <thead><tr>
+                  <th style="text-align:left;padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">Ingredient</th>
+                  <th style="text-align:right;padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">Most recent PO</th>
+                  <th style="text-align:right;padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">2nd most recent</th>
+                  <th style="text-align:right;padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">3rd most recent</th>
+                  <th style="text-align:right;padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">Sheet Ksh/kg</th>
+                </tr></thead>
+                <tbody id="pg-history-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cycle cash commitment -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">Ordering cycle cash commitment — all streams combined</div>
+        <div style="overflow-x:auto">
+          <table style="font-size:11px;width:100%;border-collapse:collapse" id="pg-cycle-table">
+            <thead><tr>
+              <th style="text-align:left;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">Stream</th>
+              <th style="text-align:right;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">Monthly RQ</th>
+              <th style="text-align:right;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">3-month order</th>
+              <th style="text-align:right;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">4-month order</th>
+              <th style="text-align:right;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">5-month order</th>
+              <th style="text-align:right;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)">6-month order</th>
+            </tr></thead>
+            <tbody id="pg-cycle-tbody"></tbody>
+          </table>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          Uses sheet/Odoo costs × monthly RQ from Odoo sales data. Packaging not included (variable by SKU mix). Add freight, duties, and clearance for total landed cost.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -1308,6 +1435,10 @@ const CC={protein:'#185FA5',flavour:'#BA7517',active:'#0F6E56',excipient:'#88878
 // ingCosts[ingNameExact]          = Ksh per kg  (from VERSION 8)
 let formulations = {};
 let ingCosts     = {};
+// ── Playground globals ────────────────────────────────────────────────────────
+let trialIngCosts  = {};   // clone of ingCosts with user-edited trial values
+let trialChanges   = {};   // { ingName: true } — which were changed
+let purchaseHistory = {};  // last 3 POs per ingredient from Odoo
 // New Odoo-driven data (populated by applyPayload)
 let boms           = {};   // { 'CEVAN30': [{comp,compLower,qty,uom,isKg,isPcs},...] }
 let monthlySales   = {};   // { '2026-03': { 'CEVAN30': 41, ... }, ... }
@@ -2073,6 +2204,11 @@ function applyPayload(payload){
   // Formulations and costs
   formulations = form || {};
   ingCosts     = costs || {};
+
+  // Playground — reset trial costs whenever fresh data loads
+  trialIngCosts  = Object.assign({}, ingCosts);
+  trialChanges   = {};
+  purchaseHistory = payload.purchaseHistory || {};
 
   // Load new Odoo-driven payload fields
   boms           = payload.boms           || {};
@@ -4697,6 +4833,7 @@ function switchTab(id,btn){
   if(id==='costs') safeRender('costs',renderCosts);
   if(id==='repacking'){ safeRender('repacking',renderRepacking); safeRender('repacking',renderWheyCapacity); }
   if(id==='ordersheet') safeRender('ordersheet',renderOrderSheet);
+  if(id==='playground') safeRender('playground',renderPlayground);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5584,6 +5721,299 @@ function renderPackaging() {
   // ── Shaker summary ────────────────────────────────────────────────────────
   if(el('shakerSummary')) el('shakerSummary').innerHTML=shkTot>0?
     'Total: <b>'+shkTot+'</b> = $'+shkTot+' (Ksh '+Math.round(shkTot*usdKes).toLocaleString()+' ExWorks)':'Enter quantities above.';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLAYGROUND — supplier comparison, PO history, cycle cash commitment
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var PG_PRESETS = [
+  {
+    label: 'Benni Foods WPC 80 (Uganda)',
+    ingredient: '80% Whey Concentrate',
+    ewUsd: 18,          // USD per kg ExWorks
+    freightKshPerKg: 100, // Ksh 2,500 per 25kg bag
+    note: '$18/kg ExWorks · Ksh 2,500/25kg bag freight'
+  }
+];
+
+function resetTrialCosts() {
+  trialIngCosts = Object.assign({}, ingCosts);
+  trialChanges  = {};
+}
+
+// Returns ingredients used in at least one protein formulation, sorted cost desc
+function pgActiveIngredients() {
+  var result = [];
+  Object.entries(ingCosts).forEach(function([name, cost]) {
+    if (cost > 0 && formulations[name]) result.push({ name: name, cost: cost });
+  });
+  result.sort(function(a,b){ return b.cost - a.cost; });
+  return result;
+}
+
+// Total ingredient cost per pack for a given SKU using the supplied cost object
+function pgCostPerPack(sku, costObj) {
+  var tabCfg = SKU_TAB[sku];
+  if (!tabCfg) return 0;
+  var packKg = tabCfg.packG / 1000;
+  var total = 0;
+  Object.entries(formulations).forEach(function([formName, skuMap]) {
+    var f = frac(skuMap[sku]);
+    if (!f) return;
+    // Fall back to ingCosts if trial cost is 0/missing to avoid zeroing out accidentally cleared fields
+    var c = (costObj[formName] > 0 ? costObj[formName] : ingCosts[formName]) || 0;
+    if (!c) return;
+    total += f * packKg * c;
+  });
+  return total;
+}
+
+function updatePlaygroundCalc() {
+  var ewUsd   = parseFloat(document.getElementById('pg-ew-usd').value)  || 0;
+  var freight = parseFloat(document.getElementById('pg-freight').value) || 0;
+  var usdRate = getNum('usdKes') || getNum('s-usdkes') || 129.52;
+  var landed  = (ewUsd * usdRate) + freight;
+  var el = document.getElementById('pg-landed');
+  if (el) el.textContent = landed > 0 ? 'Ksh ' + Math.round(landed).toLocaleString() + '/kg' : '—';
+}
+
+function applyPlaygroundCalc() {
+  var ingEl = document.getElementById('pg-calc-ing');
+  var ing   = ingEl ? ingEl.value : '';
+  if (!ing) { alert('Please select an ingredient first'); return; }
+  var ewUsd   = parseFloat(document.getElementById('pg-ew-usd').value)  || 0;
+  var freight = parseFloat(document.getElementById('pg-freight').value) || 0;
+  var usdRate = getNum('usdKes') || getNum('s-usdkes') || 129.52;
+  var landed  = (ewUsd * usdRate) + freight;
+  if (landed <= 0) { alert('Enter ExWorks and freight values'); return; }
+  trialIngCosts[ing] = landed;
+  trialChanges[ing]  = true;
+  safeRender('playground', renderPlayground);
+}
+
+function loadPlaygroundPreset(idx) {
+  var p = PG_PRESETS[idx];
+  if (!p) return;
+  var usdRate = getNum('usdKes') || getNum('s-usdkes') || 129.52;
+  var landed  = (p.ewUsd * usdRate) + p.freightKshPerKg;
+  var ingEl = document.getElementById('pg-calc-ing');
+  if (ingEl) ingEl.value = p.ingredient;
+  var ewEl = document.getElementById('pg-ew-usd');
+  if (ewEl) ewEl.value = p.ewUsd;
+  var frEl = document.getElementById('pg-freight');
+  if (frEl) frEl.value = p.freightKshPerKg;
+  updatePlaygroundCalc();
+  trialIngCosts[p.ingredient] = landed;
+  trialChanges[p.ingredient]  = true;
+  safeRender('playground', renderPlayground);
+}
+
+function renderPlayground() {
+  pgRenderIngList();
+  pgRenderImpact();
+  pgRenderHistory();
+  pgRenderCycles();
+}
+
+function pgRenderIngList() {
+  var el = document.getElementById('pg-ing-list');
+  if (!el) return;
+  var ings = pgActiveIngredients();
+  if (!ings.length) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:8px">Refresh to load ingredient data</div>';
+    return;
+  }
+  // Populate calculator dropdown once
+  var sel = document.getElementById('pg-calc-ing');
+  if (sel && sel.options.length <= 1) {
+    ings.forEach(function(ing) {
+      var opt = document.createElement('option');
+      opt.value = ing.name; opt.textContent = ing.name;
+      sel.appendChild(opt);
+    });
+  }
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:11px">';
+  html += '<thead><tr><th style="text-align:left;padding:3px 6px;font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)">Ingredient</th>'
+        + '<th style="text-align:right;padding:3px 6px;font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)">Current</th>'
+        + '<th style="text-align:right;padding:3px 6px;font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)">Trial</th>'
+        + '</tr></thead><tbody>';
+  ings.forEach(function(ing) {
+    var changed = !!trialChanges[ing.name];
+    var trial   = trialIngCosts[ing.name] || ing.cost;
+    var diff    = trial - ing.cost;
+    var diffHtml = diff !== 0
+      ? '<span style="font-size:9px;margin-left:3px;color:' + (diff < 0 ? 'var(--ok-txt)' : 'var(--crit-txt)') + '">'
+        + (diff < 0 ? '▼' : '▲') + Math.abs(Math.round(diff)).toLocaleString() + '</span>'
+      : '';
+    html += '<tr style="border-bottom:1px solid var(--border)' + (changed ? ';background:var(--low-bg)' : '') + '">'
+      + '<td style="padding:4px 6px;font-size:10.5px">' + ing.name + '</td>'
+      + '<td style="padding:4px 6px;text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--text3)">' + ing.cost.toLocaleString() + '</td>'
+      + '<td style="padding:2px 4px;text-align:right">'
+      + '<input class="editable" type="number" step="1" value="' + Math.round(trial) + '" '
+      + 'style="width:75px;text-align:right" '
+      + 'data-ing="' + ing.name.replace(/"/g,'&quot;') + '" '
+      + 'onchange="trialIngCosts[this.dataset.ing]=parseFloat(this.value)||0;trialChanges[this.dataset.ing]=true;safeRender(\'playground\',renderPlayground)">'
+      + diffHtml + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function pgRenderImpact() {
+  var tbody = document.getElementById('pg-impact-tbody');
+  if (!tbody) return;
+  var changed = Object.keys(trialChanges).length > 0;
+
+  var rows = PROT_SKUS.map(function(sku) {
+    var cur  = pgCostPerPack(sku, ingCosts);
+    var tri  = pgCostPerPack(sku, trialIngCosts);
+    var save = cur - tri;
+    var sales = getMainPackSales(sku) || (SALES[sku] || 0);
+    return { sku, label: PROT_INFO[sku]||sku, packG: (SKU_TAB[sku]||{}).packG||0,
+             cur, tri, save, sales, monthlySave: save * sales };
+  }).sort(function(a,b){ return b.monthlySave - a.monthlySave; });
+
+  var totalSave = rows.reduce(function(s,r){ return s + r.monthlySave; }, 0);
+
+  // Banner
+  var banner = document.getElementById('pg-saving-banner');
+  if (banner) {
+    if (changed && Math.abs(totalSave) > 1) {
+      var isSaving = totalSave >= 0;
+      banner.style.display = 'block';
+      banner.style.cssText = 'display:block;border-radius:8px;padding:12px 16px;margin-bottom:12px;background:'
+        + (isSaving ? 'var(--ok-bg);border:1px solid var(--ok-bdr)' : 'var(--crit-bg);border:1px solid var(--crit-bdr)');
+      var lbl = document.getElementById('pg-banner-label');
+      var tot = document.getElementById('pg-total-saving');
+      var det = document.getElementById('pg-saving-detail');
+      if (lbl) { lbl.style.color = isSaving ? 'var(--ok-txt)' : 'var(--crit-txt)'; lbl.textContent = isSaving ? 'Monthly saving' : 'Monthly cost increase'; }
+      if (tot) { tot.style.color = isSaving ? 'var(--ok-txt)' : 'var(--crit-txt)'; tot.textContent = 'Ksh ' + Math.abs(Math.round(totalSave)).toLocaleString() + '/mo'; }
+      if (det) { det.style.color = isSaving ? 'var(--ok-txt)' : 'var(--crit-txt)'; det.textContent = 'Changed: ' + Object.keys(trialChanges).join(', '); }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  var html = rows.map(function(r) {
+    var savCell = changed && Math.abs(r.save) > 0.5
+      ? '<span style="font-family:var(--font-mono);font-weight:600;color:' + (r.save>0?'var(--ok-txt)':'var(--crit-txt)') + '">'
+        + (r.save>0?'+':'') + 'Ksh ' + Math.round(r.save).toLocaleString() + '</span>'
+      : '<span style="color:var(--text3)">—</span>';
+    var moCell = changed && Math.abs(r.monthlySave) > 1
+      ? '<span style="font-family:var(--font-mono);font-weight:600;color:' + (r.monthlySave>0?'var(--ok-txt)':'var(--crit-txt)') + '">'
+        + (r.monthlySave>0?'+':'') + 'Ksh ' + Math.abs(Math.round(r.monthlySave)).toLocaleString() + '</span>'
+      : '<span style="color:var(--text3)">—</span>';
+    var triCell = changed
+      ? '<span style="font-family:var(--font-mono)">' + (r.tri>0 ? 'Ksh '+Math.round(r.tri).toLocaleString() : '—') + '</span>'
+      : '<span style="color:var(--text3)">—</span>';
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:6px 10px;font-weight:600;font-size:12px">' + r.label + '</td>'
+      + '<td style="text-align:right;padding:6px 10px;font-size:10px;color:var(--text3)">' + r.packG + 'g</td>'
+      + '<td style="text-align:right;padding:6px 10px;font-family:var(--font-mono)">' + (r.cur>0?'Ksh '+Math.round(r.cur).toLocaleString():'—') + '</td>'
+      + '<td style="text-align:right;padding:6px 10px">' + triCell + '</td>'
+      + '<td style="text-align:right;padding:6px 10px">' + savCell + '</td>'
+      + '<td style="text-align:right;padding:6px 10px;font-family:var(--font-mono);font-size:11px;color:var(--text3)">' + (r.sales>0?r.sales.toFixed(0)+'/mo':'—') + '</td>'
+      + '<td style="text-align:right;padding:6px 10px">' + moCell + '</td>'
+      + '</tr>';
+  }).join('');
+  tbody.innerHTML = html || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Refresh to load product data</td></tr>';
+
+  var foot = document.getElementById('pg-impact-foot');
+  if (foot) foot.innerHTML = changed
+    ? '<span>Ingredient cost changes only — packaging excluded. Sorted by monthly saving, highest first.</span>'
+    : '<span>Edit trial costs in the table on the left, or use the ExWorks calculator to apply a new supplier price.</span>';
+}
+
+function pgRenderHistory() {
+  var tbody = document.getElementById('pg-history-tbody');
+  if (!tbody) return;
+  var ings = pgActiveIngredients();
+  var hasPO = Object.keys(purchaseHistory).length > 0;
+
+  if (!ings.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text3)">Refresh to load data</td></tr>'; return; }
+  if (!hasPO) { tbody.innerHTML = '<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text3)">Purchase history requires Code.gs update — deploy and refresh</td></tr>'; return; }
+
+  function poCell(r) {
+    if (!r) return '<span style="color:var(--text3)">—</span>';
+    return '<div style="font-family:var(--font-mono);font-size:11px">'
+      + r.currency + ' ' + r.unitPrice.toLocaleString(undefined,{maximumFractionDigits:2})
+      + '/' + (r.uom||'kg') + '</div>'
+      + '<div style="font-size:9px;color:var(--text3)">' + (r.date||'').substring(0,7) + ' · ' + (r.poRef||'') + '</div>';
+  }
+
+  tbody.innerHTML = ings.map(function(ing) {
+    var key  = ing.name.toLowerCase().trim();
+    var recs = purchaseHistory[key] || [];
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:6px 8px;font-size:11px;font-weight:600">' + ing.name + '</td>'
+      + '<td style="padding:6px 8px;text-align:right">' + poCell(recs[0]) + '</td>'
+      + '<td style="padding:6px 8px;text-align:right">' + poCell(recs[1]) + '</td>'
+      + '<td style="padding:6px 8px;text-align:right">' + poCell(recs[2]) + '</td>'
+      + '<td style="padding:6px 8px;text-align:right;font-family:var(--font-mono)">'
+        + (ing.cost > 0 ? 'Ksh ' + ing.cost.toLocaleString() : '—') + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function pgRenderCycles() {
+  var tbody = document.getElementById('pg-cycle-tbody');
+  if (!tbody) return;
+  var gf = getGrowthFactor();
+  var cycles = [3,4,5,6];
+
+  function kshCell(v) {
+    return '<td style="text-align:right;padding:5px 10px;font-family:var(--font-mono);font-size:11px">'
+      + (v > 0 ? 'Ksh ' + Math.round(v).toLocaleString() : '—') + '</td>';
+  }
+  function sectionHeader(label, subtotals) {
+    return '<tr style="background:var(--surface2)">'
+      + '<td style="padding:6px 10px;font-size:11px;font-weight:700" colspan="2">' + label + '</td>'
+      + subtotals.map(function(v){ return '<td style="text-align:right;padding:6px 10px;font-family:var(--font-mono);font-size:11px;font-weight:700">Ksh ' + Math.round(v).toLocaleString() + '</td>'; }).join('')
+      + '</tr>';
+  }
+
+  // Whey ingredients
+  var wheyNames = ['35% Whey Concentrate','80% Whey Concentrate','WPI 90%'];
+  var wheyItems = procItems.main.filter(function(it){ return wheyNames.indexOf(it.name) !== -1; });
+  var wheySubtotals = cycles.map(function(){ return 0; });
+  var wheyRows = wheyItems.map(function(item) {
+    var rq = computeRQ(item.name) * gf;
+    var cycleCosts = cycles.map(function(c,i) { var v = Math.round(rq*c*item.cost); wheySubtotals[i]+=v; return v; });
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:4px 10px;font-size:11px;padding-left:22px;color:var(--text2)">' + item.name + '</td>'
+      + '<td style="text-align:right;padding:4px 10px;font-family:var(--font-mono);font-size:10px;color:var(--text3)">' + (rq>0?rq.toFixed(1)+' kg/mo':'—') + '</td>'
+      + cycleCosts.map(function(v){ return kshCell(v); }).join('')
+      + '</tr>';
+  }).join('');
+
+  // Bulk supplements
+  var suppSubtotals = cycles.map(function(){ return 0; });
+  var suppRows = Object.entries(BULK_CFG).map(function([sku,cfg]) {
+    var rq   = bulkRQ(sku);
+    var item = procItems.bulk[sku];
+    var cost = item ? item.cost : 0;
+    var cycleCosts = cycles.map(function(c,i) { var v = cost>0?Math.round(rq*c*cost):0; suppSubtotals[i]+=v; return v; });
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:4px 10px;font-size:11px;padding-left:22px;color:var(--text2)">' + cfg.label + '</td>'
+      + '<td style="text-align:right;padding:4px 10px;font-family:var(--font-mono);font-size:10px;color:var(--text3)">' + (rq>0?rq.toFixed(1)+' kg/mo':'—') + '</td>'
+      + cycleCosts.map(function(v){ return kshCell(v); }).join('')
+      + '</tr>';
+  }).join('');
+
+  // Grand totals
+  var grandTotals = cycles.map(function(c,i){ return wheySubtotals[i] + suppSubtotals[i]; });
+
+  tbody.innerHTML =
+    sectionHeader('🥛 Whey protein (Ksh at sheet cost)', wheySubtotals)
+    + wheyRows
+    + sectionHeader('💊 Bulk supplements (Ksh at sheet cost)', suppSubtotals)
+    + suppRows
+    + '<tr style="background:var(--accent);color:#fff">'
+    + '<td style="padding:8px 10px;font-size:11px;font-weight:700" colspan="2">Combined total</td>'
+    + grandTotals.map(function(v){ return '<td style="text-align:right;padding:8px 10px;font-family:var(--font-mono);font-size:12px;font-weight:700">Ksh ' + Math.round(v).toLocaleString() + '</td>'; }).join('')
+    + '</tr>';
 }
 
 loadAll();
