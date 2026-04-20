@@ -366,7 +366,8 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="switchTab('procurement',this)">Procurement</button>
+  <button class="tab-btn active" onclick="switchTab('today',this)">🏠 Today</button>
+  <button class="tab-btn" onclick="switchTab('procurement',this)">Procurement</button>
   <button class="tab-btn" onclick="switchTab('costs',this)">SKU costs</button>
   <button class="tab-btn" onclick="switchTab('market',this)">Market intelligence</button>
   <button class="tab-btn" onclick="switchTab('shipping',this)">Whey shipping</button>
@@ -381,8 +382,66 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <div class="debug-box" id="debugBox"></div>
   <div class="err-box" id="errBox"></div>
 
+  <!-- TAB 0: TODAY — landing screen -->
+  <div class="tab-page active" id="page-today">
+    <div style="margin-top:4px">
+
+      <!-- Header row: last updated + refresh hint -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <div style="font-size:18px;font-weight:700;color:var(--text)" id="today-greeting">Good morning</div>
+          <div style="font-size:11px;color:var(--text3)" id="today-subtitle">Loading your operations status…</div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);text-align:right">
+          <div id="today-last-updated">—</div>
+          <div style="margin-top:2px">Hit <b>Refresh</b> for live data</div>
+        </div>
+      </div>
+
+      <!-- Critical alerts: ingredients needing action -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <span>⚠️ Raw material alerts</span>
+          <span id="today-alert-count" style="background:var(--crit-bg);color:var(--crit-txt);border:1px solid var(--crit-bdr);border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;display:none"></span>
+        </div>
+        <div id="today-alerts">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Two-column below alerts: FG coverage + order deadlines -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+
+        <!-- FG coverage for top SKUs -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">📦 Finished goods coverage</div>
+          <div id="today-fg" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Order deadlines coming up -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">📅 Order deadlines</div>
+          <div id="today-deadlines" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supplement stock snapshot -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">💊 Supplement coverage</div>
+        <div id="today-supps" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- TAB 1: PROCUREMENT -->
-  <div class="tab-page active" id="page-procurement">
+  <div class="tab-page" id="page-procurement">
     <div class="metrics" id="metrics">
       <div class="metric"><div class="mlabel">Critical items</div><div class="mval">—</div></div>
       <div class="metric"><div class="mlabel">Low stock items</div><div class="mval">—</div></div>
@@ -421,6 +480,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
               <th style="text-align:right">4-mo order</th>
               <th style="text-align:right">Order value (Ksh)</th>
               <th style="text-align:right">To end Aug<div style="font-style:italic;font-weight:400;font-size:9px">need · gap</div></th>
+              <th>Gap analysis<div style="font-style:italic;font-weight:400;font-size:9px">stockout vs incoming</div></th>
               <th>Deadline</th><th>Lead time</th><th>Supplier</th>
             </tr></thead>
             <tbody id="tbody"></tbody>
@@ -2327,6 +2387,8 @@ function applyPayload(payload){
   updateWheyRQFields();
   // Phase 2: render executive summary after data loads
   try { renderExecSummary(); } catch(e) { console.error('execSummary error:', e); }
+  // Today tab — refresh whenever fresh data loads
+  try { renderToday(); } catch(e) { console.error('renderToday error:', e); }
   // Phase 1: validate all inputs after live data loads
   setTimeout(validateAllInputs, 600);
 }
@@ -2358,22 +2420,21 @@ function updateWheyRQFields(){
 // ═══════════════════════════════════════════════════════════════════════════════
 async function fetchShopifyPrices() {
   const SHOPIFY_URL = 'https://protein.ke/products.json?limit=250';
-  const TIMEOUT_MS  = 8000; // 8 seconds — generous but bounded
+  const TIMEOUT_MS  = 8000;
 
   function normSku(s) {
-    // Strip parentheses that Shopify sometimes adds e.g. "CEVCHAI(30)" → "CEVCHAI30"
     return (s || '').replace(/[()]/g, '').trim();
   }
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(function() { controller.abort(); }, TIMEOUT_MS);
-
-    const res = await fetch(SHOPIFY_URL, {
-      signal: controller.signal,
-      headers: { 'Accept': 'application/json' },
+    // Use Promise.race instead of AbortController — AbortSignal cannot be cloned
+    // via postMessage, which causes errors in iframe/preview environments.
+    const fetchPromise = fetch(SHOPIFY_URL, { headers: { 'Accept': 'application/json' } });
+    const timeoutPromise = new Promise(function(_, reject) {
+      setTimeout(function() { reject(new Error('timeout')); }, TIMEOUT_MS);
     });
-    clearTimeout(timer);
+
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (!res.ok) {
       dbg('fetchShopifyPrices: HTTP ' + res.status + ' — margin column will show —');
@@ -2399,7 +2460,6 @@ async function fetchShopifyPrices() {
       });
     });
 
-    // Alias: Odoo tracks collagen as COLPG18, website sells it as COLUN18
     if (sellingPrices['COLUN18'] && !sellingPrices['COLPG18']) {
       sellingPrices['COLPG18'] = sellingPrices['COLUN18'];
     }
@@ -2410,14 +2470,13 @@ async function fetchShopifyPrices() {
     dbg('  CREATUN200: Ksh ' + (sellingPrices['CREATUN200'] || 'NOT FOUND'));
     dbg('  COLPG18: Ksh ' + (sellingPrices['COLPG18'] || 'NOT FOUND') + ' (alias from COLUN18)');
 
-    // If SKU costs tab is already visible, re-render so margin column fills in
     var costsPage = document.getElementById('page-costs');
     if (costsPage && costsPage.classList.contains('active')) {
       safeRender('costs', renderCosts);
     }
 
   } catch(e) {
-    if (e.name === 'AbortError') {
+    if (e.message === 'timeout') {
       dbg('fetchShopifyPrices: timed out after ' + (TIMEOUT_MS/1000) + 's — margin column will show —');
     } else {
       dbg('fetchShopifyPrices: ' + e.message + ' — margin column will show —');
@@ -2435,11 +2494,21 @@ async function fetchShopifyPrices() {
 // Per-SKU target overrides (editable in the repacking table)
 var repackTargets = {};  // { 'CREATUN': 150, ... }
 
-// Maps procurement ingredient names → totalIncomingQty() keys (whey shipping tab)
+// Maps procurement ingredient names → totalIncomingQty() keys
+// Covers all whey ingredients AND bulk supplements — keys match INCOMING_PRODUCT_MAP in Code.gs
 var PROC_INCOMING_MAP = {
+  // Whey
   '35% Whey Concentrate': 'WPC35',
   '80% Whey Concentrate': 'WPC80',
   'WPI 90%':              'WPI',
+  // Bulk supplements
+  'Bulk Pure Creatine':         'CREATUN',
+  'Bulk Fruit Punch Creatine':  'CREATFP',
+  'Bulk Pink Guava Creatine':   'CREATPG',
+  'Bulk PreWorkout Watermelon': 'PWORKWM',
+  'Bulk PreWorkout Green Apple':'PWORKGA',
+  'Bulk BCAAs':                 'BCAA',
+  'Bulk Collagen':              'COLUN',
 };
 
 // SKUs that physically require silicon desiccant sachets (2 per pack)
@@ -3216,7 +3285,7 @@ function makeRow(item,rq,units,onchange,cost){
   const ov=Math.round(fourMo*(cost||item.cost));
   const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
   const displayCost=cost||item.cost;
-  // End-of-August validation: months from today to Aug 31
+  // End-of-August validation
   const augEnd=new Date(new Date().getFullYear(),7,31);
   const moToAug=Math.max(0,(augEnd-new Date())/(30.44*24*3600*1000));
   const augNeed=rq>0?rq*moToAug:0;
@@ -3226,6 +3295,34 @@ function makeRow(item,rq,units,onchange,cost){
     +(augGap>0
       ?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">▲'+augGap.toFixed(1)+' short</div>'
       :'<div style="font-size:9px;color:var(--ok-txt)">✓ covered</div>');
+
+  // Gap analysis: stockout date vs first incoming date
+  const soDate = rq > 0 ? stockoutDate(item.stock, rq) : null;
+  const inDate  = incomingKey ? earliestIncomingDate(incomingKey) : null;
+  let gapCell = '<span style="color:var(--text3);font-size:10px">—</span>';
+  if (soDate) {
+    const soStr = soDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'});
+    if (!inDate) {
+      // No incoming — show stockout date only, colour by urgency
+      const daysToSo = Math.round((soDate - Date.now()) / 864e5);
+      const soCol = daysToSo < 30 ? 'var(--crit-txt)' : daysToSo < 60 ? 'var(--low-txt)' : 'var(--text2)';
+      gapCell = '<div style="font-size:10px;font-weight:600;color:' + soCol + '">' + soStr + '</div>'
+              + '<div style="font-size:9px;color:var(--text3)">no incoming</div>';
+    } else {
+      const gapDays = Math.round((inDate - soDate) / 864e5); // +ve = delivery after stockout
+      const inStr = inDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'});
+      if (gapDays > 0) {
+        // Gap: delivery arrives after stockout
+        gapCell = '<div style="font-size:10px;font-weight:700;color:var(--crit-txt)">⚠ ' + gapDays + 'd gap</div>'
+                + '<div style="font-size:9px;color:var(--text3)">SO: ' + soStr + ' · In: ' + inStr + '</div>';
+      } else {
+        // Covered: delivery arrives before stockout
+        gapCell = '<div style="font-size:10px;color:var(--ok-txt);font-weight:600">✓ covered</div>'
+                + '<div style="font-size:9px;color:var(--text3)">SO: ' + soStr + ' · In: ' + inStr + '</div>';
+      }
+    }
+  }
+
   return`<tr style="${bg}">
     <td><div class="iname" title="${item.name}">${item.name}</div><div class="imeta">${item.func}</div></td>
     <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cl}</span></div></td>
@@ -3237,6 +3334,7 @@ function makeRow(item,rq,units,onchange,cost){
     <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' '+units:'—'}${incomingQty>0?'<div style="font-size:9px;color:#0F6E56;margin-top:1px">\u2212'+incomingQty.toFixed(1)+' incoming</div>':''}</td>
     <td class="mono strong">${ov>0?ov.toLocaleString():'—'}</td>
     <td style="text-align:right">${augCell}</td>
+    <td style="padding:6px 8px">${gapCell}</td>
     <td>${dlLbl(computeDeadline(item.stock, rq, item.lead))}</td>
     <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
     <td style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.supplier}">${item.supplier||'—'}</td>
@@ -4826,6 +4924,7 @@ function switchTab(id,btn){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   btn.classList.add('active');
+  if(id==='today') safeRender('today', renderToday);
   if(id==='market' && !marketLoaded) loadMarketIntelligence();
   if(id==='shipping'){ safeRender('shipping',renderShipping); safeRender('shipping',renderWheyStockTable); }
   if(id==='supplements') safeRender('supplements',renderSupp);
@@ -5721,6 +5820,340 @@ function renderPackaging() {
   // ── Shaker summary ────────────────────────────────────────────────────────
   if(el('shakerSummary')) el('shakerSummary').innerHTML=shkTot>0?
     'Total: <b>'+shkTot+'</b> = $'+shkTot+' (Ksh '+Math.round(shkTot*usdKes).toLocaleString()+' ExWorks)':'Enter quantities above.';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TODAY TAB — landing screen: alerts, FG coverage, order deadlines, supp snapshot
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function renderToday() {
+  todayGreeting();
+  todayAlerts();
+  todayFG();
+  todayDeadlines();
+  todaySupps();
+}
+
+function todayGreeting() {
+  var h = new Date().getHours();
+  var greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  var el = document.getElementById('today-greeting');
+  if (el) el.textContent = greet + ', Christine';
+
+  var sub = document.getElementById('today-subtitle');
+  var meta = (_memCache || {}).meta || {};
+  if (sub) {
+    if (meta.generatedAt) {
+      var d = new Date(meta.generatedAt);
+      var isLive = (meta.stockSource || '').toLowerCase() === 'live';
+      sub.textContent = 'Data ' + (isLive ? 'live from Odoo' : 'cached') + ' · '
+        + d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})
+        + ' at ' + d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    } else {
+      sub.textContent = 'Awaiting data…';
+    }
+  }
+}
+
+function todayAlerts() {
+  var el = document.getElementById('today-alerts');
+  var countEl = document.getElementById('today-alert-count');
+  if (!el) return;
+
+  var gf = getGrowthFactor();
+  var LEAD_CRIT = 14; // days — if order-by date is within this many days, CRITICAL
+  var LEAD_WARN = 45; // days — if order-by date is within this many days, WARNING
+
+  var alerts = [];
+
+  // Whey ingredients
+  procItems.main.forEach(function(item) {
+    var rq = computeRQ(item.name) * gf;
+    if (!rq || rq <= 0) return;
+    var incomingKey = PROC_INCOMING_MAP[item.name];
+    var incomingQty = incomingKey ? totalIncomingQty(incomingKey) : 0;
+    var freeStock   = Math.max(0, item.stock - incomingQty);
+    var coverageMo  = freeStock / rq;
+    var so          = stockoutDate(freeStock, rq);
+    var deadline    = computeDeadline(freeStock, rq, item.lead);
+    var incomingDate = incomingKey ? earliestIncomingDate(incomingKey) : null;
+    var daysToDeadline = deadline ? Math.round((deadline - Date.now()) / 864e5) : null;
+
+    // Gap: will stock run out before incoming arrives?
+    var gap = false;
+    if (so && incomingDate && incomingDate > so) gap = true;
+    if (so && !incomingDate && coverageMo < 2) gap = true;
+
+    var severity = 'ok';
+    if (daysToDeadline !== null && daysToDeadline < 0) severity = 'critical';
+    else if (daysToDeadline !== null && daysToDeadline <= LEAD_CRIT) severity = 'critical';
+    else if (daysToDeadline !== null && daysToDeadline <= LEAD_WARN) severity = 'warning';
+    else if (gap) severity = 'warning';
+    else if (coverageMo < 2) severity = 'warning';
+
+    if (severity !== 'ok') {
+      alerts.push({
+        name: item.name,
+        severity: severity,
+        coverageMo: coverageMo,
+        stockoutDate: so,
+        deadline: deadline,
+        daysToDeadline: daysToDeadline,
+        incomingQty: incomingQty,
+        incomingDate: incomingDate,
+        gap: gap,
+        stock: freeStock,
+        rq: rq,
+        lead: item.lead
+      });
+    }
+  });
+
+  // Supplement bulk items
+  Object.entries(BULK_CFG).forEach(function([sku, cfg]) {
+    var item = procItems.bulk[sku];
+    if (!item) return;
+    var rq = bulkRQ(sku);
+    if (!rq || rq <= 0) return;
+    var coverageMo = item.stock / rq;
+    var so = stockoutDate(item.stock, rq);
+    var deadline = computeDeadline(item.stock, rq, item.lead);
+    var daysToDeadline = deadline ? Math.round((deadline - Date.now()) / 864e5) : null;
+
+    var severity = 'ok';
+    if (daysToDeadline !== null && daysToDeadline <= LEAD_CRIT) severity = 'critical';
+    else if (daysToDeadline !== null && daysToDeadline <= LEAD_WARN) severity = 'warning';
+    else if (coverageMo < 1.5) severity = 'warning';
+
+    if (severity !== 'ok') {
+      alerts.push({
+        name: cfg.label,
+        severity: severity,
+        coverageMo: coverageMo,
+        stockoutDate: so,
+        deadline: deadline,
+        daysToDeadline: daysToDeadline,
+        incomingQty: 0,
+        incomingDate: null,
+        gap: false,
+        stock: item.stock,
+        rq: rq,
+        lead: item.lead
+      });
+    }
+  });
+
+  // Sort: critical first, then by days-to-deadline ascending
+  alerts.sort(function(a, b) {
+    var sev = { critical: 0, warning: 1, ok: 2 };
+    if (sev[a.severity] !== sev[b.severity]) return sev[a.severity] - sev[b.severity];
+    var da = a.daysToDeadline !== null ? a.daysToDeadline : 999;
+    var db = b.daysToDeadline !== null ? b.daysToDeadline : 999;
+    return da - db;
+  });
+
+  if (countEl) {
+    var critCount = alerts.filter(function(a){ return a.severity === 'critical'; }).length;
+    if (critCount > 0) {
+      countEl.textContent = critCount + ' critical';
+      countEl.style.display = 'inline-block';
+    } else {
+      countEl.style.display = 'none';
+    }
+  }
+
+  if (!alerts.length) {
+    el.innerHTML = '<div style="background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:8px;padding:16px 20px;display:flex;align-items:center;gap:10px">'
+      + '<span style="font-size:20px">✅</span>'
+      + '<div><div style="font-size:12px;font-weight:600;color:var(--ok-txt)">All ingredients healthy</div>'
+      + '<div style="font-size:10px;color:var(--ok-txt);opacity:.8;margin-top:2px">All raw materials have sufficient coverage. No orders overdue.</div></div></div>';
+    return;
+  }
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  }
+
+  var html = alerts.map(function(a) {
+    var isCrit = a.severity === 'critical';
+    var bg   = isCrit ? 'var(--crit-bg)'  : 'var(--low-bg)';
+    var bdr  = isCrit ? 'var(--crit-bdr)' : 'var(--low-bdr)';
+    var txt  = isCrit ? 'var(--crit-txt)' : 'var(--low-txt)';
+    var icon = isCrit ? '🔴' : '🟡';
+
+    var dlStr = a.daysToDeadline !== null
+      ? (a.daysToDeadline < 0 ? '<b>OVERDUE by ' + Math.abs(a.daysToDeadline) + ' days</b>'
+         : 'Order by: <b>' + fmtDate(a.deadline) + '</b> (' + a.daysToDeadline + ' days)')
+      : 'No deadline computed — check lead time';
+
+    var gapStr = a.gap
+      ? '<span style="color:var(--crit-txt);font-weight:600"> · Gap: stockout before delivery</span>'
+      : '';
+
+    var inStr = a.incomingQty > 0
+      ? a.incomingQty.toFixed(0) + ' kg incoming ' + (a.incomingDate ? '(' + fmtDate(a.incomingDate) + ')' : '')
+      : 'No incoming orders';
+
+    return '<div style="background:' + bg + ';border:1px solid ' + bdr + ';border-radius:8px;padding:12px 16px;margin-bottom:8px;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center">'
+      + '<span style="font-size:18px">' + icon + '</span>'
+      + '<div>'
+        + '<div style="font-size:12px;font-weight:700;color:' + txt + '">' + a.name + '</div>'
+        + '<div style="font-size:10px;color:' + txt + ';opacity:.85;margin-top:3px;line-height:1.6">'
+          + a.coverageMo.toFixed(1) + ' mo coverage · Stockout: ' + fmtDate(a.stockoutDate) + gapStr
+          + '<br>' + inStr
+        + '</div>'
+      + '</div>'
+      + '<div style="text-align:right;font-size:10px;color:' + txt + ';white-space:nowrap">' + dlStr + '</div>'
+      + '</div>';
+  }).join('');
+
+  el.innerHTML = html;
+}
+
+function todayFG() {
+  var el = document.getElementById('today-fg');
+  if (!el) return;
+
+  // Top 8 SKUs by monthly sales volume
+  var rows = PROT_SKUS.map(function(sku) {
+    var sales = getMainPackSales(sku);
+    var cov   = getMinVariantCoverage(sku);
+    return { sku: sku, label: PROT_INFO[sku]||sku, sales: sales, cov: cov };
+  }).filter(function(r){ return r.sales > 0; })
+    .sort(function(a,b){ return b.sales - a.sales; })
+    .slice(0, 8);
+
+  if (!rows.length) {
+    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">No FG sales data yet</div>';
+    return;
+  }
+
+  var html = '<table style="width:100%;border-collapse:collapse">'
+    + '<thead><tr>'
+    + '<th style="text-align:left;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">SKU</th>'
+    + '<th style="text-align:right;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Coverage</th>'
+    + '<th style="text-align:right;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Sales/mo</th>'
+    + '</tr></thead><tbody>';
+
+  rows.forEach(function(r) {
+    var covMo  = r.cov !== null ? r.cov : null;
+    var isCrit = covMo !== null && covMo < 1;
+    var isWarn = covMo !== null && covMo < 2;
+    var dot    = isCrit ? '🔴' : isWarn ? '🟡' : '🟢';
+    var covTxt = covMo === null ? '—' : covMo >= 99 ? '> 3 mo' : covMo.toFixed(1) + ' mo';
+    var covCol = isCrit ? 'var(--crit-txt)' : isWarn ? 'var(--low-txt)' : 'var(--ok-txt)';
+    html += '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:8px 12px;font-size:11px;font-weight:600">' + dot + ' ' + r.label + '</td>'
+      + '<td style="text-align:right;padding:8px 12px;font-family:var(--font-mono);font-size:11px;font-weight:700;color:' + covCol + '">' + covTxt + '</td>'
+      + '<td style="text-align:right;padding:8px 12px;font-family:var(--font-mono);font-size:10px;color:var(--text3)">' + r.sales.toFixed(0) + '/mo</td>'
+      + '</tr>';
+  });
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function todayDeadlines() {
+  var el = document.getElementById('today-deadlines');
+  if (!el) return;
+
+  var gf = getGrowthFactor();
+  var HORIZON_DAYS = 60;
+  var deadlines = [];
+
+  procItems.main.forEach(function(item) {
+    var rq = computeRQ(item.name) * gf;
+    if (!rq) return;
+    var incomingKey = PROC_INCOMING_MAP[item.name];
+    var incomingQty = incomingKey ? totalIncomingQty(incomingKey) : 0;
+    var freeStock   = Math.max(0, item.stock - incomingQty);
+    var deadline    = computeDeadline(freeStock, rq, item.lead);
+    if (!deadline) return;
+    var days = Math.round((deadline - Date.now()) / 864e5);
+    if (days <= HORIZON_DAYS) deadlines.push({ name: item.name, deadline: deadline, days: days });
+  });
+
+  Object.entries(BULK_CFG).forEach(function([sku, cfg]) {
+    var item = procItems.bulk[sku];
+    if (!item) return;
+    var rq = bulkRQ(sku);
+    if (!rq) return;
+    var deadline = computeDeadline(item.stock, rq, item.lead);
+    if (!deadline) return;
+    var days = Math.round((deadline - Date.now()) / 864e5);
+    if (days <= HORIZON_DAYS) deadlines.push({ name: cfg.label, deadline: deadline, days: days });
+  });
+
+  deadlines.sort(function(a,b){ return a.days - b.days; });
+
+  if (!deadlines.length) {
+    el.innerHTML = '<div style="padding:16px 12px;text-align:center;color:var(--text3);font-size:11px">No order deadlines in the next 60 days</div>';
+    return;
+  }
+
+  var html = '<table style="width:100%;border-collapse:collapse">'
+    + '<thead><tr>'
+    + '<th style="text-align:left;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Ingredient</th>'
+    + '<th style="text-align:right;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Order by</th>'
+    + '<th style="text-align:right;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Days left</th>'
+    + '</tr></thead><tbody>';
+
+  deadlines.forEach(function(d) {
+    var isCrit = d.days <= 14;
+    var isWarn = d.days <= 30;
+    var col    = isCrit ? 'var(--crit-txt)' : isWarn ? 'var(--low-txt)' : 'var(--text2)';
+    var icon   = isCrit ? '🔴' : isWarn ? '🟡' : '🟢';
+    var daysStr = d.days < 0 ? 'OVERDUE' : d.days + 'd';
+    html += '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:8px 12px;font-size:11px">' + icon + ' ' + d.name + '</td>'
+      + '<td style="text-align:right;padding:8px 12px;font-size:11px;color:' + col + ';font-weight:600">'
+        + d.deadline.toLocaleDateString('en-GB',{day:'numeric',month:'short'}) + '</td>'
+      + '<td style="text-align:right;padding:8px 12px;font-family:var(--font-mono);font-size:11px;font-weight:700;color:' + col + '">' + daysStr + '</td>'
+      + '</tr>';
+  });
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function todaySupps() {
+  var el = document.getElementById('today-supps');
+  if (!el) return;
+
+  var rows = Object.entries(BULK_CFG).map(function([sku, cfg]) {
+    var item = procItems.bulk[sku];
+    var rq   = bulkRQ(sku);
+    var stock = item ? (item.stock || 0) : 0;
+    var covMo = rq > 0 ? stock / rq : null;
+    return { label: cfg.label, stock: stock, rq: rq, covMo: covMo };
+  });
+
+  var html = '<table style="width:100%;border-collapse:collapse">'
+    + '<thead><tr>'
+    + '<th style="text-align:left;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Supplement</th>'
+    + '<th style="text-align:right;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Stock (kg)</th>'
+    + '<th style="text-align:right;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">RQ/mo</th>'
+    + '<th style="text-align:right;padding:6px 12px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1px solid var(--border)">Coverage</th>'
+    + '</tr></thead><tbody>';
+
+  rows.forEach(function(r) {
+    var cov    = r.covMo;
+    var isCrit = cov !== null && cov < 1;
+    var isWarn = cov !== null && cov < 2;
+    var dot    = isCrit ? '🔴' : isWarn ? '🟡' : '🟢';
+    var covCol = isCrit ? 'var(--crit-txt)' : isWarn ? 'var(--low-txt)' : 'var(--ok-txt)';
+    var covTxt = cov === null ? '—' : cov >= 99 ? '> 99 mo' : cov.toFixed(1) + ' mo';
+    html += '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:7px 12px;font-size:11px">' + dot + ' ' + r.label + '</td>'
+      + '<td style="text-align:right;padding:7px 12px;font-family:var(--font-mono);font-size:11px">' + r.stock.toFixed(1) + '</td>'
+      + '<td style="text-align:right;padding:7px 12px;font-family:var(--font-mono);font-size:10px;color:var(--text3)">' + (r.rq > 0 ? r.rq.toFixed(1) : '—') + '</td>'
+      + '<td style="text-align:right;padding:7px 12px;font-family:var(--font-mono);font-size:11px;font-weight:700;color:' + covCol + '">' + covTxt + '</td>'
+      + '</tr>';
+  });
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
