@@ -34,6 +34,14 @@ header{background:var(--accent);color:#fff;padding:14px 20px;display:flex;align-
 .dot.ok{background:#3a7d22}.dot.loading{background:#d4860e;animation:pulse 1s infinite}.dot.error{background:#c0341d}.dot.idle{background:#ccc}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 20px;gap:2px}
+
+/* ── Combined tab sub-navigation ─────────────────────────────────────────── */
+.sub-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;margin-top:-4px;overflow-x:auto}
+.sub-tab-btn{padding:8px 16px;font-family:var(--font-sans);font-size:11px;font-weight:500;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap}
+.sub-tab-btn:hover{color:var(--text2)}
+.sub-tab-btn.active{color:var(--text);border-bottom-color:var(--accent)}
+.sub-section{display:none}
+.sub-section.active{display:block}
 .tab-btn{padding:10px 16px;font-family:var(--font-sans);font-size:12px;font-weight:500;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap}
 .tab-btn:hover{color:var(--text2)}
 .tab-btn.active{color:var(--text);border-bottom-color:var(--accent)}
@@ -152,47 +160,16 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 .trend-flat{display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:500;
   padding:1px 5px;border-radius:8px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);white-space:nowrap}
 
-/* ── Phase 2: Executive summary panel ───────────────────── */
-#execSummary{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:none}
-#execSummary.loaded{display:block}
-.exec-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-.exec-col{padding:12px 16px;border-right:1px solid var(--border)}
-.exec-col:last-child{border-right:none}
-.exec-col-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.exec-col-title .dot-sm{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}
-.exec-action-item{display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.4}
-.exec-action-item:last-child{border-bottom:none}
-.exec-action-sku{font-weight:700;font-family:var(--font-mono);font-size:10px;white-space:nowrap}
-.exec-action-detail{color:var(--text2);font-size:10px;flex:1}
-.exec-action-badge{font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;white-space:nowrap;flex-shrink:0}
-.exec-action-badge.critical{background:var(--crit-bg);color:var(--crit-txt);border:1px solid var(--crit-bdr)}
-.exec-action-badge.low{background:var(--low-bg);color:var(--low-txt);border:1px solid var(--low-bdr)}
-.exec-action-badge.overdue{background:#fef0ee;color:#c0341d;border:1px solid #f5c4b3}
-.exec-commit-row{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-size:11px;border-bottom:1px solid var(--border)}
-.exec-commit-row:last-child{border-bottom:none}
-.exec-commit-label{color:var(--text2);font-size:10px}
-.exec-commit-ksh{font-family:var(--font-mono);font-weight:600;font-size:11px;color:var(--text)}
-.exec-commit-fx{font-family:var(--font-mono);font-size:10px;color:var(--text3)}
-.exec-total-row{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0 0;margin-top:4px;border-top:2px solid var(--border)}
-.exec-total-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text)}
-.exec-total-ksh{font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--text)}
-.exec-fx-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
-.exec-fx-chip{font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-family:var(--font-mono)}
-.exec-fx-chip span{color:var(--text3);margin-right:3px}
-.exec-no-action{font-size:11px;color:#2d6b1a;padding:6px 0}
-.exec-coverage-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;border-bottom:1px solid var(--border)}
-.exec-coverage-row:last-child{border-bottom:none}
-.exec-cov-name{color:var(--text2);font-size:10px}
-.exec-cov-val{font-family:var(--font-mono);font-size:10px;font-weight:600}
-
 
 /* ── Phase 6: Order sheet print styles ────────────────────── */
 @media print {
-  header, .sources, #execSummary, .tabs, #dataFreshnessBanner,
+  header, .sources, .tabs, #dataFreshnessBanner,
   #growthBanner, .debug-box, .err-box, .toolbar, #loadingOverlay { display:none!important; }
   body { background:#fff; font-size:11px; }
   main { padding:0; }
   .tab-page { display:none!important; }
+  .sub-section { display:none!important; }
+  #page-planner { display:block!important; }
   #page-ordersheet { display:block!important; }
   .os-no-print { display:none!important; }
   .os-section { page-break-inside:avoid; }
@@ -348,34 +325,12 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <div class="src"><span class="dot idle" id="dot-bio"></span><span id="lbl-bio">BIOBALANCE</span></div>
 </div>
 
-<div id="execSummary">
-  <div class="exec-grid">
-    <div class="exec-col" id="exec-actions">
-      <div class="exec-col-title"><span class="dot-sm" style="background:#c0341d"></span>Action required</div>
-      <div style="font-size:11px;color:var(--text3)">Loading…</div>
-    </div>
-    <div class="exec-col" id="exec-commit">
-      <div class="exec-col-title"><span class="dot-sm" style="background:#185FA5"></span>This cycle's commitment</div>
-      <div style="font-size:11px;color:var(--text3)">Loading…</div>
-    </div>
-    <div class="exec-col" id="exec-coverage">
-      <div class="exec-col-title"><span class="dot-sm" style="background:#0F6E56"></span>FG stock coverage</div>
-      <div style="font-size:11px;color:var(--text3)">Loading…</div>
-    </div>
-  </div>
-</div>
-
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('today',this)">🏠 Today</button>
-  <button class="tab-btn" onclick="switchTab('procurement',this)">Procurement</button>
-  <button class="tab-btn" onclick="switchTab('costs',this)">SKU costs</button>
-  <button class="tab-btn" onclick="switchTab('market',this)">Market intelligence</button>
-  <button class="tab-btn" onclick="switchTab('shipping',this)">Whey shipping</button>
-  <button class="tab-btn" onclick="switchTab('supplements',this)">Supplements shipping</button>
-  <button class="tab-btn" onclick="switchTab('packaging',this)">Packaging &amp; China</button>
-    <button class="tab-btn" onclick="switchTab('repacking',this)">Repacking</button>
-    <button class="tab-btn" onclick="switchTab('ordersheet',this)">📋 Order Sheet</button>
-    <button class="tab-btn" onclick="switchTab('playground',this)">🧮 Playground</button>
+  <button class="tab-btn" onclick="switchTab('stock',this)">📊 Stock &amp; Coverage</button>
+  <button class="tab-btn" onclick="switchTab('planner',this)">🚢 Order Planner</button>
+  <button class="tab-btn" onclick="switchTab('insights',this)">💰 Costs &amp; Intelligence</button>
+  <button class="tab-btn" onclick="switchTab('playground',this)">🧮 Playground</button>
 </div>
 
 <main>
@@ -437,11 +392,25 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         </div>
       </div>
 
+      <!-- Cycle commitment -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">💰 This cycle's cash commitment</div>
+        <div id="today-commitment" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
+        </div>
+      </div>
+
     </div>
   </div>
 
+  <!-- COMBINED: STOCK & COVERAGE -->
+  <div class="tab-page" id="page-stock">
+  <div class="sub-tabs">
+    <button class="sub-tab-btn active" onclick="switchSubTab('stock','procurement',this)">Raw materials</button>
+    <button class="sub-tab-btn" onclick="switchSubTab('stock','repacking',this)">Repacking & capacity</button>
+  </div>
   <!-- TAB 1: PROCUREMENT -->
-  <div class="tab-page" id="page-procurement">
+  <div class="sub-section active" id="page-procurement">
     <div class="metrics" id="metrics">
       <div class="metric"><div class="mlabel">Critical items</div><div class="mval">—</div></div>
       <div class="metric"><div class="mlabel">Low stock items</div><div class="mval">—</div></div>
@@ -494,8 +463,14 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
   </div>
 
+  <!-- COMBINED: COSTS & INTELLIGENCE -->
+  <div class="tab-page" id="page-insights">
+  <div class="sub-tabs">
+    <button class="sub-tab-btn active" onclick="switchSubTab('insights','costs',this)">SKU costs</button>
+    <button class="sub-tab-btn" onclick="switchSubTab('insights','market',this)">Market intelligence</button>
+  </div>
   <!-- TAB 2: SKU COSTS -->
-  <div class="tab-page" id="page-costs">
+  <div class="sub-section active" id="page-costs">
     <div class="cost-note" id="costNote">Loading…</div>
     <div class="cost-summary" id="costSummary"></div>
     <div class="cost-section-hdr">Formulated protein powders</div>
@@ -546,7 +521,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   </div>
 
   <!-- TAB 3: MARKET INTELLIGENCE -->
-  <div class="tab-page" id="page-market">
+  <div class="sub-section" id="page-market">
 
     <!-- Overall signal -->
     <div id="overallSignal" class="overall-signal grey" style="margin-top:4px">
@@ -729,10 +704,19 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       Market intelligence is for orientation and decision support — not a price guarantee. Always confirm pricing and freight rates directly with your suppliers and forwarders before committing to an order.
     </div>
   </div>
+  </div><!-- /page-insights -->
 
 
+  <!-- COMBINED: ORDER PLANNER -->
+  <div class="tab-page" id="page-planner">
+  <div class="sub-tabs">
+    <button class="sub-tab-btn active" onclick="switchSubTab('planner','shipping',this)">Whey shipping</button>
+    <button class="sub-tab-btn" onclick="switchSubTab('planner','supplements',this)">Supplements</button>
+    <button class="sub-tab-btn" onclick="switchSubTab('planner','packaging',this)">Packaging & China</button>
+    <button class="sub-tab-btn" onclick="switchSubTab('planner','ordersheet',this)">Order Sheet</button>
+  </div>
   <!-- TAB 4: SHIPPING OPTIMISER -->
-  <div class="tab-page" id="page-shipping">
+  <div class="sub-section active" id="page-shipping">
 
     <!-- STOCK PLANNING SECTION -->
     <div class="pg-section" style="margin-top:4px;margin-bottom:14px">
@@ -916,7 +900,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   </div>
 
   <!-- TAB 5: SUPPLEMENTS SHIPPING OPTIMISER -->
-  <div class="tab-page" id="page-supplements">
+  <div class="sub-section" id="page-supplements">
 
     <div id="suppVerdict"></div>
 
@@ -1049,7 +1033,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   </div>
 
   <!-- TAB 6: PACKAGING & CHINA -->
-  <div class="tab-page" id="page-packaging">
+  <div class="sub-section" id="page-packaging">
     <div id="pkgVerdict" style="margin-top:4px"></div>
     <div id="pkgAlerts" style="margin-bottom:10px"></div>
     <div class="pg-section">
@@ -1117,7 +1101,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
   </div>
   <!-- TAB 7: REPACKING PLANNER -->
-  <div class="tab-page" id="page-repacking">
+  <div class="sub-section" id="page-repacking">
     <div style="margin-top:4px;margin-bottom:14px">
 
       <!-- Whey blend production capacity -->
@@ -1174,10 +1158,11 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       </div>
     </div>
   </div>
+  </div><!-- /page-stock -->
 
 
   <!-- TAB 8: UNIFIED ORDER SHEET -->
-  <div class="tab-page" id="page-ordersheet">
+  <div class="sub-section" id="page-ordersheet">
     <div class="os-doc">
 
       <!-- Action buttons -->
@@ -1258,6 +1243,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       </div>
     </div>
   </div>
+  </div><!-- /page-planner -->
 
 
   <!-- TAB 9: PLAYGROUND -->
@@ -1776,18 +1762,18 @@ function toggleGrowth(){
   const banner = document.getElementById('growthBanner');
   if(banner) banner.classList.toggle('visible', growthBuffer);
   updateWheyRQFields();
-  safeRender('procurement',renderProcurement);
-  if(document.getElementById('page-shipping').classList.contains('active')){
-    safeRender('shipping',renderShipping); safeRender('shipping',renderWheyStockTable);
+  safeRender('procurement', renderProcurement);
+  if (document.getElementById('page-shipping').classList.contains('active')) {
+    safeRender('shipping', renderShipping); safeRender('shipping', renderWheyStockTable);
   }
-  if(document.getElementById('page-supplements').classList.contains('active')){
-    safeRender('supplements',renderSupp);
+  if (document.getElementById('page-supplements').classList.contains('active')) {
+    safeRender('supplements', renderSupp);
   }
-  if(document.getElementById('page-packaging').classList.contains('active')){
-    safeRender('packaging',renderPackaging);
+  if (document.getElementById('page-packaging').classList.contains('active')) {
+    safeRender('packaging', renderPackaging);
   }
-  // Phase 2: update exec summary when growth buffer changes
-  try { renderExecSummary(); } catch(e) {}
+  // Today tab — re-render when growth toggle changes (affects RQs and deadlines)
+  try { renderToday(); } catch(e) {}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2385,8 +2371,6 @@ function applyPayload(payload){
     .forEach(([k,sm])=>dbg(` ${k}: ${(sm['CEVAN']*100).toFixed(2)}%`));
 
   updateWheyRQFields();
-  // Phase 2: render executive summary after data loads
-  try { renderExecSummary(); } catch(e) { console.error('execSummary error:', e); }
   // Today tab — refresh whenever fresh data loads
   try { renderToday(); } catch(e) { console.error('renderToday error:', e); }
   // Phase 1: validate all inputs after live data loads
@@ -3476,247 +3460,6 @@ function marginCell(margin) {
   return '<span style="font-family:var(--font-mono);font-weight:600;color:' + col + '">'
     + margin.pct.toFixed(1) + '%</span>'
     + '<div style="font-size:9px;color:var(--text3);margin-top:1px">Ksh ' + Math.round(margin.price) + ' / pack</div>';
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PHASE 2 — EXECUTIVE SUMMARY
-// Reads already-computed data; called from applyPayload and toggleGrowth
-// ══════════════════════════════════════════════════════════════════════════════
-function renderExecSummary() {
-  var panel = document.getElementById('execSummary');
-  if (!panel) return;
-
-  var gf = getGrowthFactor();
-
-  // ── Column 1: Action items ──────────────────────────────────────────────────
-  // Collect critical/low raw materials from procurement tab data
-  var actions = [];
-  var today = new Date();
-
-  // Raw material items (procItems.main)
-  procItems.main.forEach(function(item) {
-    var rq = computeRQ(item.name);
-    if (rq <= 0) return;
-    var st = getSt(item.stock, rq);
-    if (st === 'ok') return;
-    var deadline = item.deadline instanceof Date ? item.deadline : null;
-    var isOverdue = deadline && deadline < today;
-    var daysLeft = deadline ? Math.round((deadline - today) / 864e5) : null;
-    actions.push({
-      name: item.name,
-      st: st,
-      overdue: isOverdue,
-      daysLeft: daysLeft,
-      stock: item.stock,
-      rq: rq,
-      supplier: item.supplier || '',
-      coverageMo: rq > 0 ? (item.stock / rq).toFixed(1) : '0',
-    });
-  });
-
-  // Bulk supplement items (procItems.bulk)
-  Object.entries(procItems.bulk).forEach(function([sku, item]) {
-    var rq = computeRQ(item.name);
-    if (rq <= 0) return;
-    var st = getSt(item.stock, rq);
-    if (st === 'ok') return;
-    var deadline = item.deadline instanceof Date ? item.deadline : null;
-    var isOverdue = deadline && deadline < today;
-    actions.push({
-      name: item.name,
-      st: st,
-      overdue: isOverdue,
-      daysLeft: deadline ? Math.round((deadline - today) / 864e5) : null,
-      stock: item.stock,
-      rq: rq,
-      supplier: item.supplier || '',
-      coverageMo: rq > 0 ? (item.stock / rq).toFixed(1) : '0',
-    });
-  });
-
-  // Sort: overdue first, then critical, then low; within each by coverage asc
-  actions.sort(function(a, b) {
-    var aScore = (a.overdue ? 0 : a.st === 'critical' ? 1 : 2);
-    var bScore = (b.overdue ? 0 : b.st === 'critical' ? 1 : 2);
-    if (aScore !== bScore) return aScore - bScore;
-    return parseFloat(a.coverageMo) - parseFloat(b.coverageMo);
-  });
-
-  var actionsEl = document.getElementById('exec-actions');
-  if (actionsEl) {
-    var title = '<div class="exec-col-title"><span class="dot-sm" style="background:#c0341d"></span>'
-      + (actions.length > 0
-          ? actions.length + ' item' + (actions.length > 1 ? 's' : '') + ' need' + (actions.length === 1 ? 's' : '') + ' attention'
-          : 'All items OK')
-      + '</div>';
-
-    if (actions.length === 0) {
-      actionsEl.innerHTML = title + '<div class="exec-no-action">✓ No critical or low-stock raw materials</div>';
-    } else {
-      var rows = actions.slice(0, 8).map(function(a) {
-        var badgeClass = a.overdue ? 'overdue' : a.st;
-        var badgeText = a.overdue ? 'OVERDUE' : a.st === 'critical' ? 'Critical' : 'Low';
-        var detail = a.coverageMo + 'mo stock';
-        if (a.daysLeft !== null && !a.overdue) detail += ' · order in ' + a.daysLeft + 'd';
-        if (a.overdue) detail += ' · order NOW';
-        return '<div class="exec-action-item">'
-          + '<span class="exec-action-sku">' + a.name.substring(0, 22) + '</span>'
-          + '<span class="exec-action-detail">' + detail + '</span>'
-          + '<span class="exec-action-badge ' + badgeClass + '">' + badgeText + '</span>'
-          + '</div>';
-      }).join('');
-      if (actions.length > 8) {
-        rows += '<div style="font-size:10px;color:var(--text3);padding-top:4px">+'
-          + (actions.length - 8) + ' more items…</div>';
-      }
-      actionsEl.innerHTML = title + rows;
-    }
-  }
-
-  // ── Column 2: Capital commitment ───────────────────────────────────────────
-  var cycle = parseInt(document.getElementById('cycleRange')?.value) || 4;
-  var suppCycle = parseInt(document.getElementById('s-cycleRange')?.value) || 4;
-  var pkgCycle = parseInt(document.getElementById('pkg-cycleRange')?.value) || 4;
-  var eurKes = getNum('eurKes') || 150;
-  var usdKesWhey = getNum('usdKes') || 129;
-
-  // Whey: use computeShipment with selected mode (prefer sea if available)
-  var wheyShip = null;
-  try { wheyShip = computeShipment(cycle, 'sea'); } catch(e) {}
-  if (!wheyShip || wheyShip.totalLandedKsh <= 0) {
-    try { wheyShip = computeShipment(cycle, 'air'); } catch(e) {}
-  }
-  var wheyKsh = wheyShip ? wheyShip.totalLandedKsh : 0;
-  var wheyEur  = wheyShip ? (wheyShip.ewTotalKsh / eurKes) : 0;
-
-  // Supplements
-  var suppSales = getSuppSales();
-  var suppShip  = null;
-  try { suppShip = computeSuppShipment(suppCycle, suppSales); } catch(e) {}
-  var suppKsh = suppShip ? suppShip.total : 0;
-  var suppUsd = suppShip ? (suppShip.ewKsh / (getNum('s-usdkes') || 129)) : 0;
-
-  // Packaging
-  var monthly = pkgNeeds();
-  var pkgUsdKes = getNum('pkg-usdkes') || 129.52;
-  function seaCostPkg(cbm) {
-    var rate = getNum('pkg-searate') || 60000;
-    var minC = getNum('pkg-seamin') || 12000;
-    return Math.max(minC, cbm * rate);
-  }
-  function uKshPkg(cfg) {
-    if (cfg.kshUnit) return cfg.kshUnit;
-    return (cfg.usdUnit || 0) * pkgUsdKes;
-  }
-  var pkgEw = 0, pkgCbm = 0;
-  Object.entries(PKG_ITEMS).forEach(function([k, cfg]) {
-    var qty = (monthly[k] || 0) * pkgCycle;
-    pkgEw  += qty * uKshPkg(cfg);
-    pkgCbm += qty / 1000 * (cfg.cbmPer1000 || 0);
-  });
-  var pkgSea = seaCostPkg(pkgCbm);
-  var pkgCif = pkgEw + pkgSea;
-  var pkgKra = pkgCif * 0.055;
-  var pkgKsh = pkgCif + pkgKra;
-  var pkgUsd = pkgEw / pkgUsdKes;
-
-  var totalKsh = wheyKsh + suppKsh + pkgKsh;
-  var totalEur = wheyEur;
-  var totalUsd = suppUsd + pkgUsd;
-
-  function fmtKsh(n) {
-    if (n >= 1000000) return 'Ksh ' + (n/1000000).toFixed(1) + 'M';
-    if (n >= 1000)    return 'Ksh ' + Math.round(n/1000) + 'k';
-    return 'Ksh ' + Math.round(n);
-  }
-  function fmtFx(eur, usd) {
-    var parts = [];
-    if (eur > 0) parts.push('<span>EUR</span>' + Math.round(eur).toLocaleString());
-    if (usd > 0) parts.push('<span>USD</span>' + Math.round(usd).toLocaleString());
-    return parts.map(function(p){ return '<span class="exec-fx-chip">' + p + '</span>'; }).join('');
-  }
-
-  var commitEl = document.getElementById('exec-commit');
-  if (commitEl) {
-    var rows2 = '';
-    if (wheyKsh > 0) rows2 += '<div class="exec-commit-row">'
-      + '<span class="exec-commit-label">🥛 Whey (Lactelle · ' + cycle + 'mo)</span>'
-      + '<div style="text-align:right"><div class="exec-commit-ksh">' + fmtKsh(wheyKsh) + '</div>'
-      + '<div class="exec-commit-fx">EUR ' + Math.round(wheyEur).toLocaleString() + '</div></div>'
-      + '</div>';
-    if (suppKsh > 0) rows2 += '<div class="exec-commit-row">'
-      + '<span class="exec-commit-label">💊 Supplements (Nutra · ' + suppCycle + 'mo)</span>'
-      + '<div style="text-align:right"><div class="exec-commit-ksh">' + fmtKsh(suppKsh) + '</div>'
-      + '<div class="exec-commit-fx">USD ' + Math.round(suppUsd).toLocaleString() + '</div></div>'
-      + '</div>';
-    if (pkgKsh > 0) rows2 += '<div class="exec-commit-row">'
-      + '<span class="exec-commit-label">📦 Packaging (China · ' + pkgCycle + 'mo)</span>'
-      + '<div style="text-align:right"><div class="exec-commit-ksh">' + fmtKsh(pkgKsh) + '</div>'
-      + '<div class="exec-commit-fx">USD ' + Math.round(pkgUsd).toLocaleString() + '</div></div>'
-      + '</div>';
-    rows2 += '<div class="exec-total-row">'
-      + '<span class="exec-total-label">Total</span>'
-      + '<span class="exec-total-ksh">' + fmtKsh(totalKsh) + '</span>'
-      + '</div>';
-    rows2 += '<div class="exec-fx-row">' + fmtFx(totalEur, totalUsd) + '</div>';
-    var title2 = '<div class="exec-col-title"><span class="dot-sm" style="background:#185FA5"></span>This cycle\'s commitment</div>';
-    commitEl.innerHTML = title2 + rows2;
-  }
-
-  // ── Column 3: FG stock coverage ─────────────────────────────────────────────
-  // Top sellers + any with low coverage — pack counts, main sizes only
-  var coverageItems = [];
-  // Protein SKUs
-  PROT_SKUS.forEach(function(sku) {
-    var cov   = getMinVariantCoverage(sku);  // min across variants — true constraint
-    var sales = getMainPackSales(sku);       // total packs/month for display
-    if (sales <= 0) return;
-    var breakdown = getFGCoverageBreakdown(sku);
-    coverageItems.push({ label: (PROT_INFO[sku] || sku), cov: cov, sales: sales, breakdown: breakdown, type: 'prot' });
-  });
-  // Bulk SKUs
-  Object.entries(BULK_ODOO_REFS).forEach(function([key, ref]) {
-    var fg = getFGTotal(key);
-    var sales = getAvgSales(key);
-    if (sales <= 0) return;
-    var cov = fg / sales;
-    var label = (BULK_CFG[key] || {}).label || key;
-    coverageItems.push({ label: label, cov: cov, sales: sales, fg: fg, type: 'bulk' });
-  });
-
-  // Hybrid sort: critical/low items float first (safety net), then top sellers within each tier
-  // Tier 0 = critical (<1.5mo), Tier 1 = low (1.5–3mo), Tier 2 = healthy (>3mo)
-  coverageItems.sort(function(a, b) {
-    var aTier = a.cov < 1.5 ? 0 : a.cov < 3 ? 1 : 2;
-    var bTier = b.cov < 1.5 ? 0 : b.cov < 3 ? 1 : 2;
-    if (aTier !== bTier) return aTier - bTier;
-    return b.sales - a.sales; // within same tier: highest sales volume first
-  });
-
-  var covEl = document.getElementById('exec-coverage');
-  if (covEl) {
-    var title3 = '<div class="exec-col-title"><span class="dot-sm" style="background:#0F6E56"></span>FG stock coverage</div>';
-    if (coverageItems.length === 0) {
-      covEl.innerHTML = title3 + '<div style="font-size:11px;color:var(--text3)">No FG stock data — refresh for live figures</div>';
-    } else {
-      var rows3 = coverageItems.slice(0, 8).map(function(item) {
-        var col = item.cov < 1.5 ? 'var(--crit-txt)' : item.cov < 3 ? 'var(--low-txt)' : '#2d6b1a';
-        return '<div class="exec-coverage-row">'
-          + '<div>'
-          + '<span class="exec-cov-name">' + item.label.substring(0, 28) + '</span>'
-          + (item.breakdown ? '<div style="font-size:9px;color:var(--text3);margin-top:1px">' + item.breakdown + '</div>' : '')
-          + '</div>'
-          + '<span class="exec-cov-val" style="color:' + col + '">'
-          + item.cov.toFixed(1) + ' mo'
-          + '<div style="color:var(--text3);font-weight:400;font-size:9px">' + Math.round(item.sales).toLocaleString() + ' pks/mo</div>'
-          + '</span>'
-          + '</div>';
-      }).join('');
-      covEl.innerHTML = title3 + rows3;
-    }
-  }
-
-  panel.classList.add('loaded');
 }
 
 // ── Phase 1: Safe render wrapper — catches crashes in any tab ────────────────
@@ -4919,20 +4662,57 @@ function renderShipping(){
     </div>`;
 }
 
-function switchTab(id,btn){
-  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
   btn.classList.add('active');
-  if(id==='today') safeRender('today', renderToday);
-  if(id==='market' && !marketLoaded) loadMarketIntelligence();
-  if(id==='shipping'){ safeRender('shipping',renderShipping); safeRender('shipping',renderWheyStockTable); }
-  if(id==='supplements') safeRender('supplements',renderSupp);
-  if(id==='packaging') safeRender('packaging',renderPackaging);
-  if(id==='costs') safeRender('costs',renderCosts);
-  if(id==='repacking'){ safeRender('repacking',renderRepacking); safeRender('repacking',renderWheyCapacity); }
-  if(id==='ordersheet') safeRender('ordersheet',renderOrderSheet);
-  if(id==='playground') safeRender('playground',renderPlayground);
+
+  if (id === 'today')    { safeRender('today', renderToday); return; }
+  if (id === 'playground'){ safeRender('playground', renderPlayground); return; }
+  if (id === 'stock') {
+    // Default to procurement sub-tab
+    switchSubTab('stock', 'procurement',
+      document.querySelector('#page-stock .sub-tab-btn'));
+    return;
+  }
+  if (id === 'planner') {
+    // Default to whey shipping sub-tab
+    switchSubTab('planner', 'shipping',
+      document.querySelector('#page-planner .sub-tab-btn'));
+    return;
+  }
+  if (id === 'insights') {
+    // Default to costs sub-tab
+    switchSubTab('insights', 'costs',
+      document.querySelector('#page-insights .sub-tab-btn'));
+    return;
+  }
+}
+
+function switchSubTab(parentId, sectionId, btn) {
+  // Hide all sub-sections within the parent tab
+  var parent = document.getElementById('page-' + parentId);
+  if (!parent) return;
+  parent.querySelectorAll('.sub-section').forEach(function(s) { s.classList.remove('active'); });
+  parent.querySelectorAll('.sub-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+
+  // Show the requested section
+  var section = document.getElementById('page-' + sectionId);
+  if (section) section.classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  // Trigger the right render function
+  if (sectionId === 'procurement') safeRender('procurement', renderProcurement);
+  if (sectionId === 'costs')       safeRender('costs', renderCosts);
+  if (sectionId === 'market') {
+    if (!marketLoaded) loadMarketIntelligence();
+  }
+  if (sectionId === 'shipping')    { safeRender('shipping', renderShipping); safeRender('shipping', renderWheyStockTable); }
+  if (sectionId === 'supplements') safeRender('supplements', renderSupp);
+  if (sectionId === 'packaging')   safeRender('packaging', renderPackaging);
+  if (sectionId === 'repacking')   { safeRender('repacking', renderRepacking); safeRender('repacking', renderWheyCapacity); }
+  if (sectionId === 'ordersheet')  safeRender('ordersheet', renderOrderSheet);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5832,6 +5612,7 @@ function renderToday() {
   todayFG();
   todayDeadlines();
   todaySupps();
+  todayCommitment();
 }
 
 function todayGreeting() {
@@ -6154,6 +5935,98 @@ function todaySupps() {
 
   html += '</tbody></table>';
   el.innerHTML = html;
+}
+
+function todayCommitment() {
+  var el = document.getElementById('today-commitment');
+  if (!el) return;
+
+  var cycle    = parseInt((document.getElementById('cycleRange')    || {}).value) || 4;
+  var suppCycle= parseInt((document.getElementById('s-cycleRange') || {}).value) || 4;
+  var pkgCycle = parseInt((document.getElementById('pkg-cycleRange')|| {}).value) || 4;
+  var eurKes   = getNum('eurKes')    || 150;
+  var usdKes   = getNum('usdKes')    || 129;
+  var sUsdKes  = getNum('s-usdkes')  || 129;
+  var pkgUsdKes= getNum('pkg-usdkes')|| 129.52;
+
+  // Whey — use computeShipment (real landed cost with freight, duties)
+  var wheyShip = null;
+  try { wheyShip = computeShipment(cycle, 'sea'); } catch(e) {}
+  if (!wheyShip || wheyShip.totalLandedKsh <= 0) {
+    try { wheyShip = computeShipment(cycle, 'air'); } catch(e) {}
+  }
+  var wheyKsh = wheyShip ? wheyShip.totalLandedKsh : 0;
+  var wheyEur = wheyShip ? Math.round(wheyShip.ewTotalKsh / eurKes) : 0;
+
+  // Supplements — use computeSuppShipment
+  var suppSales = getSuppSales ? getSuppSales() : {};
+  var suppShip  = null;
+  try { suppShip = computeSuppShipment(suppCycle, suppSales); } catch(e) {}
+  var suppKsh = suppShip ? suppShip.total : 0;
+  var suppUsd = suppShip ? Math.round(suppShip.ewKsh / sUsdKes) : 0;
+
+  // Packaging
+  var pkgKsh = 0, pkgUsd = 0;
+  try {
+    var monthly = pkgNeeds();
+    function seaCostPkg(cbm) {
+      var rate = getNum('pkg-searate') || 60000;
+      var minC = getNum('pkg-seamin')  || 12000;
+      return Math.max(minC, cbm * rate);
+    }
+    function uKshPkg(cfg) {
+      return cfg.kshUnit || ((cfg.usdUnit || 0) * pkgUsdKes);
+    }
+    var pkgEw = 0, pkgCbm = 0;
+    Object.entries(PKG_ITEMS).forEach(function([k, cfg]) {
+      var qty = (monthly[k] || 0) * pkgCycle;
+      pkgEw  += qty * uKshPkg(cfg);
+      pkgCbm += qty / 1000 * (cfg.cbmPer1000 || 0);
+    });
+    var pkgSea = seaCostPkg(pkgCbm);
+    var pkgCif = pkgEw + pkgSea;
+    pkgKsh = pkgCif + pkgCif * 0.055;
+    pkgUsd = Math.round(pkgEw / pkgUsdKes);
+  } catch(e) {}
+
+  var totalKsh = wheyKsh + suppKsh + pkgKsh;
+
+  function fmtKsh(n) {
+    if (n >= 1000000) return 'Ksh ' + (n/1000000).toFixed(2) + 'M';
+    if (n >= 1000)    return 'Ksh ' + Math.round(n/1000) + 'k';
+    return 'Ksh ' + Math.round(n);
+  }
+
+  var noData = wheyKsh === 0 && suppKsh === 0 && pkgKsh === 0;
+  if (noData) {
+    el.innerHTML = '<div style="padding:14px 16px;font-size:11px;color:var(--text3)">Cycle commitment available after data loads. Set cycle lengths in the Whey, Supplements, and Packaging tabs.</div>';
+    return;
+  }
+
+  var rows = '';
+  function row(icon, label, cycle, ksh, fxAmt, fxCcy) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-bottom:1px solid var(--border)">'
+      + '<div><span style="font-size:11px;color:var(--text2)">' + icon + ' ' + label + '</span>'
+      + '<span style="font-size:10px;color:var(--text3);margin-left:6px">(' + cycle + 'mo cycle)</span></div>'
+      + '<div style="text-align:right">'
+      + '<div style="font-family:var(--font-mono);font-weight:600;font-size:12px">' + fmtKsh(ksh) + '</div>'
+      + (fxAmt > 0 ? '<div style="font-size:10px;color:var(--text3);font-family:var(--font-mono)">' + fxCcy + ' ' + fxAmt.toLocaleString() + '</div>' : '')
+      + '</div>'
+      + '</div>';
+  }
+
+  if (wheyKsh > 0) rows += row('🥛', 'Whey (Lactelle)',    cycle,    wheyKsh, wheyEur, 'EUR');
+  if (suppKsh > 0) rows += row('💊', 'Supplements (Nutra)',suppCycle, suppKsh, suppUsd, 'USD');
+  if (pkgKsh  > 0) rows += row('📦', 'Packaging (China)',  pkgCycle, pkgKsh,  pkgUsd,  'USD');
+
+  rows += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:var(--surface2)">'
+    + '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px">Total</span>'
+    + '<span style="font-family:var(--font-mono);font-weight:700;font-size:16px">' + fmtKsh(totalKsh) + '</span>'
+    + '</div>';
+
+  rows += '<div style="padding:8px 16px;font-size:10px;color:var(--text3)">Landed cost incl. freight, duties &amp; clearance. Cycle lengths set in individual shipping tabs.</div>';
+
+  el.innerHTML = rows;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
