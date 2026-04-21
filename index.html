@@ -462,6 +462,66 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       </div>
     </div>
   </div>
+  <!-- TAB 7: REPACKING PLANNER -->
+  <div class="sub-section" id="page-repacking">
+    <div style="margin-top:4px;margin-bottom:14px">
+
+      <!-- Whey blend production capacity -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">Whey blend production capacity</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:10px">
+          FG stock + packs producible from current raw whey stock, by product line. Coverage = combined total ÷ monthly sales.
+          Each line calculated independently using current sales mix — figures are ceilings, not guarantees if all lines produced simultaneously.
+        </div>
+        <div class="tcard">
+          <div style="overflow-x:auto">
+            <table>
+              <thead><tr>
+                <th>Product line</th>
+                <th style="text-align:right">FG stock<div style="font-style:italic;font-weight:400;font-size:9px">packs · Odoo</div></th>
+                <th style="text-align:right">+Producible<div style="font-style:italic;font-weight:400;font-size:9px">from whey stock</div></th>
+                <th style="text-align:right">= Total</th>
+                <th style="text-align:right">Monthly sales<div style="font-style:italic;font-weight:400;font-size:9px">3-mo avg</div></th>
+                <th style="text-align:right">Combined coverage</th>
+                <th>Limiting ingredient</th>
+              </tr></thead>
+              <tbody id="wheyCapacityTbody"></tbody>
+            </table>
+          </div>
+          <div class="tfoot" id="wheyCapacityFoot"></div>
+        </div>
+      </div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.7">
+          Shows how many retail 200g packs can be filled from current bulk stock, silicon sachets needed, and when to repack
+          based on monthly sales. Stock pulled live from Odoo. Edit the <b>Target packs</b> column to plan a specific run.
+        </div>
+      </div>
+      <div class="tcard">
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>SKU</th>
+              <th style="text-align:right">Bulk stock (kg)</th>
+              <th style="text-align:right">kg / pack</th>
+              <th style="text-align:right">Can fill (packs)</th>
+              <th style="text-align:right">Target packs</th>
+              <th style="text-align:right">Bulk needed (kg)</th>
+              <th style="text-align:right">Sachets needed<div style="font-weight:400;font-style:italic;font-size:9px">in stock · gap</div></th>
+              <th style="text-align:right">Monthly sales</th>
+              <th style="text-align:right">Covers (months)</th>
+              <th style="text-align:right">FG stock (packs)</th>
+              <th style="text-align:right">Total after repack</th>
+              <th style="text-align:right">Priority</th>
+            </tr></thead>
+            <tbody id="repackTbody"></tbody>
+          </table>
+        </div>
+        <div class="tfoot" id="repackFoot"></div>
+      </div>
+    </div>
+  </div><!-- /page-stock -->
+
+
 
   <!-- COMBINED: COSTS & INTELLIGENCE -->
   <div class="tab-page" id="page-insights">
@@ -1100,67 +1160,6 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       </div>
     </div>
   </div>
-  <!-- TAB 7: REPACKING PLANNER -->
-  <div class="sub-section" id="page-repacking">
-    <div style="margin-top:4px;margin-bottom:14px">
-
-      <!-- Whey blend production capacity -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px">
-        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">Whey blend production capacity</div>
-        <div style="font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:10px">
-          FG stock + packs producible from current raw whey stock, by product line. Coverage = combined total ÷ monthly sales.
-          Each line calculated independently using current sales mix — figures are ceilings, not guarantees if all lines produced simultaneously.
-        </div>
-        <div class="tcard">
-          <div style="overflow-x:auto">
-            <table>
-              <thead><tr>
-                <th>Product line</th>
-                <th style="text-align:right">FG stock<div style="font-style:italic;font-weight:400;font-size:9px">packs · Odoo</div></th>
-                <th style="text-align:right">+Producible<div style="font-style:italic;font-weight:400;font-size:9px">from whey stock</div></th>
-                <th style="text-align:right">= Total</th>
-                <th style="text-align:right">Monthly sales<div style="font-style:italic;font-weight:400;font-size:9px">3-mo avg</div></th>
-                <th style="text-align:right">Combined coverage</th>
-                <th>Limiting ingredient</th>
-              </tr></thead>
-              <tbody id="wheyCapacityTbody"></tbody>
-            </table>
-          </div>
-          <div class="tfoot" id="wheyCapacityFoot"></div>
-        </div>
-      </div>
-        <div style="font-size:11px;color:var(--text2);line-height:1.7">
-          Shows how many retail 200g packs can be filled from current bulk stock, silicon sachets needed, and when to repack
-          based on monthly sales. Stock pulled live from Odoo. Edit the <b>Target packs</b> column to plan a specific run.
-        </div>
-      </div>
-      <div class="tcard">
-        <div style="overflow-x:auto">
-          <table>
-            <thead><tr>
-              <th>SKU</th>
-              <th style="text-align:right">Bulk stock (kg)</th>
-              <th style="text-align:right">kg / pack</th>
-              <th style="text-align:right">Can fill (packs)</th>
-              <th style="text-align:right">Target packs</th>
-              <th style="text-align:right">Bulk needed (kg)</th>
-              <th style="text-align:right">Sachets needed<div style="font-weight:400;font-style:italic;font-size:9px">in stock · gap</div></th>
-              <th style="text-align:right">Monthly sales</th>
-              <th style="text-align:right">Covers (months)</th>
-              <th style="text-align:right">FG stock (packs)</th>
-              <th style="text-align:right">Total after repack</th>
-              <th style="text-align:right">Priority</th>
-            </tr></thead>
-            <tbody id="repackTbody"></tbody>
-          </table>
-        </div>
-        <div class="tfoot" id="repackFoot"></div>
-      </div>
-    </div>
-  </div>
-  </div><!-- /page-stock -->
-
-
   <!-- TAB 8: UNIFIED ORDER SHEET -->
   <div class="sub-section" id="page-ordersheet">
     <div class="os-doc">
