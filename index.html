@@ -300,6 +300,12 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 .spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .err-box{background:var(--crit-bg);border:1px solid var(--crit-bdr);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--crit-txt);display:none;line-height:1.7}
+/* ── ORDER SCHEDULE ─────────────────────────────────────────────────── */
+.os-cat-section{margin-bottom:22px}
+.os-cat-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:8px 0;margin-bottom:10px;border-bottom:2px solid var(--border)}
+.os-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.os-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.os-countdown{font-family:var(--font-mono);font-size:22px;font-weight:700;line-height:1.1}
 </style>
 </head>
 <body>
@@ -331,6 +337,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <button class="tab-btn" onclick="switchTab('planner',this)">🚢 Order Planner</button>
   <button class="tab-btn" onclick="switchTab('insights',this)">💰 Costs &amp; Intelligence</button>
   <button class="tab-btn" onclick="switchTab('playground',this)">🧮 Playground</button>
+  <button class="tab-btn" onclick="switchTab('schedule',this)">📅 Schedule</button>
 </div>
 
 <main>
@@ -1371,6 +1378,25 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
   </div>
 
+
+  <!-- ═══ ORDER SCHEDULE TAB ═══════════════════════════════════════════════ -->
+  <div class="tab-page" id="page-schedule" style="padding:4px 0">
+    <div id="os-summary" style="margin-bottom:14px"></div>
+    <div id="os-container">
+      <div style="padding:48px;text-align:center;color:var(--text3);font-size:12px">
+        Loading schedule… &nbsp;·&nbsp; <span style="font-size:10px">Switch to this tab after a Refresh to see supplier countdowns</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plan Order Modal Overlay (fixed, outside tab flow) -->
+  <div id="os-modal-overlay" onclick="osCloseModal(event)"
+       style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px">
+    <div id="os-modal" onclick="event.stopPropagation()"
+         style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:600px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.25)">
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -1490,7 +1516,9 @@ let monthlySales   = {};   // { '2026-03': { 'CEVAN30': 41, ... }, ... }
 let fgStock        = {};   // { 'CEVAN30': {baobab,scnb,nbo,total} }
 let rawConsumption = {};   // keyed by BoM component name (lowercase) → kg/mo
 let avgSales       = {};   // { 'CEVAN30': 41.3, ... } avg monthly
-let sellingPrices  = {};   // { 'CEVAN30': 4495, ... } Shopify website prices (protein.ke/products.json)
+let sellingPrices  = {};   // { 'CEVAN30': 4495, ... } selling prices — Odoo (WooCommerce) or Shopify fallback
+let pendingReceiptsBySupplier = {};  // Odoo pending receipts grouped by supplier (Order Schedule)
+let vendorPricelists          = {};  // Odoo product.supplierinfo unit costs
 
 // Map abstract SKU codes → Odoo product refs (for FG stock + sales lookup)
 const PROT_ODOO_REFS = {
@@ -2192,7 +2220,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v5';
+const CACHE_KEY_LS = 'pk_payload_v6';
 
 function lsCacheGet(){
   try{
@@ -2261,7 +2289,14 @@ function applyPayload(payload){
   fgStock        = payload.fgStock        || {};
   rawConsumption = payload.rawConsumption || {};
   avgSales       = payload.avgSales       || {};
-  // sellingPrices populated by fetchShopifyPrices() — runs in parallel with this payload fetch
+  // Selling prices: prefer Odoo (WooCommerce migration); Shopify fetch is async fallback only
+  if (payload.sellingPrices && Object.keys(payload.sellingPrices).length > 0) {
+    sellingPrices = payload.sellingPrices;
+    dbg('Odoo selling prices: ' + Object.keys(sellingPrices).length + ' SKUs');
+  }
+  // Order Schedule — new payload fields
+  pendingReceiptsBySupplier = payload.pendingReceiptsBySupplier || {};
+  vendorPricelists          = payload.vendorPricelists          || {};
 
   // Backfill SALES object from live avgSales so all existing tabs stay in sync
   Object.entries(PROT_ODOO_REFS).forEach(function([key, variants]) {
@@ -3140,7 +3175,12 @@ async function loadAll(forceRefresh=false){
 
   // Launch Shopify price fetch in parallel — doesn't block data load
   // Prices arrive asynchronously; margin column re-renders once they're ready
-  fetchShopifyPrices().catch(function(e){ dbg('fetchShopifyPrices uncaught: ' + e.message); });
+  // WooCommerce migration: Odoo payload now carries sellingPrices directly.
+  // Only fall back to the Shopify /products.json endpoint if Odoo prices are absent (old cache).
+  var _payloadHasOdooPrices = _memCache && Object.keys((_memCache.sellingPrices||{})).length > 0;
+  if (!_payloadHasOdooPrices) {
+    fetchShopifyPrices().catch(function(e){ dbg('fetchShopifyPrices: ' + e.message + ' (Shopify endpoint may be unavailable post-WooCommerce migration)'); });
+  }
 
   // Use memory cache within same session (instant)
   if(!forceRefresh && _memCache){
@@ -4687,6 +4727,7 @@ function switchTab(id, btn) {
       document.querySelector('#page-insights .sub-tab-btn'));
     return;
   }
+  if (id === 'schedule') { safeRender('schedule', renderOrderSchedule); return; }
 }
 
 function switchSubTab(parentId, sectionId, btn) {
@@ -6319,6 +6360,539 @@ function pgRenderCycles() {
     + '<td style="padding:8px 10px;font-size:11px;font-weight:700" colspan="2">Combined total</td>'
     + grandTotals.map(function(v){ return '<td style="text-align:right;padding:8px 10px;font-family:var(--font-mono);font-size:12px;font-weight:700">Ksh ' + Math.round(v).toLocaleString() + '</td>'; }).join('')
     + '</tr>';
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ORDER SCHEDULE
+// Supplier countdown cards, coverage calculation, plan order modal, order log.
+// Coverage model:
+//   'consumption' — stock / monthly_rq (whey & supplements). Bottleneck = min item.
+//   'cycle'       — last receipt + cycle_days = coverage end; anchored by Odoo
+//                   pending receipt scheduled_date or localStorage fallback.
+//   'backup'      — no active cycle (IMCD)
+//   'ondemand'    — 7-day lead, no cycle (Print Knight)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SUPPLIER_OS_DEFAULTS = {
+  Lactelle: {
+    displayName: 'Lactelle SP Z O O', category: 'whey', emoji: '\ud83e\udd5b',
+    items: 'WPI \xb7 WPC 35', model: 'consumption',
+    ingredientNames: ['35% Whey Concentrate', '90% Whey Isolate'],
+    incomingKeys: ['WPI90', 'WPC35'], suppKeys: [],
+    leadDays: 60, cycleDays: 180, active: true
+  },
+  'Benni Foods': {
+    displayName: 'Benni Foods', category: 'whey', emoji: '\ud83e\udd5b',
+    items: 'WPC 80', model: 'consumption',
+    ingredientNames: ['80% Whey Concentrate'],
+    incomingKeys: ['WPC80'], suppKeys: [],
+    leadDays: 14, cycleDays: 30, active: true
+  },
+  'IMCD Kenya': {
+    displayName: 'IMCD Kenya', category: 'whey', emoji: '\ud83e\udd5b',
+    items: 'WPC 80 (backup)', model: 'backup',
+    ingredientNames: [], incomingKeys: [], suppKeys: [],
+    leadDays: 7, cycleDays: null, active: true
+  },
+  Nutra: {
+    displayName: 'Nutra Healthcare Pvt. Ltd', category: 'supplements', emoji: '\ud83d\udc8a',
+    items: 'All 7 supplements', model: 'consumption',
+    ingredientNames: [], incomingKeys: [],
+    suppKeys: ['CREATUN','CREATFP','CREATPG','PWORKWM','PWORKGA','BCAA','COLUN'],
+    leadDays: 75, cycleDays: 120, active: true
+  },
+  CAIYUNTIAN: {
+    displayName: 'CAIYUNTIAN PRINTING (HK)', category: 'china', emoji: '\ud83d\udce6',
+    items: 'Packaging bags', model: 'cycle', odooPartner: 'CAIYUNTIAN',
+    ingredientNames: [], incomingKeys: ['large_bag','small_bag'], suppKeys: [],
+    leadDays: 90, cycleDays: 180, active: true
+  },
+  Ningbo: {
+    displayName: 'Ningbo (P&M) Plastic Metal', category: 'china', emoji: '\ud83e\udd44',
+    items: 'Scoops (30g, 5g)', model: 'cycle', odooPartner: 'Ningbo',
+    ingredientNames: [], incomingKeys: ['scoop_30g','scoop_5g'], suppKeys: [],
+    leadDays: 90, cycleDays: 180, active: true
+  },
+  'Sichuan doyoung': {
+    displayName: 'Sichuan doyoung Technology', category: 'china', emoji: '\ud83e\udd64',
+    items: 'Shakers', model: 'cycle', odooPartner: 'Sichuan doyoung',
+    ingredientNames: [], incomingKeys: ['shaker_blk','shaker_clr','shaker_wht'], suppKeys: [],
+    leadDays: 90, cycleDays: 180, active: true
+  },
+  'Zibo Smythson': {
+    displayName: 'Zibo Smythson Craft Products', category: 'china', emoji: '\u2615',
+    items: 'Cups \xb7 Lids \xb7 Straws', model: 'cycle', odooPartner: 'Zibo Smythson',
+    ingredientNames: [], incomingKeys: [], suppKeys: [],
+    leadDays: 90, cycleDays: 180, active: true
+  },
+  'Guangzhou Senteng': {
+    displayName: 'Guangzhou Senteng Printing', category: 'china', emoji: '\ud83c\udff7',
+    items: 'Stickers (China)', model: 'cycle', odooPartner: 'Guangzhou Senteng',
+    ingredientNames: [], incomingKeys: [], suppKeys: [],
+    leadDays: 90, cycleDays: 180, active: true
+  },
+  Absorbking: {
+    displayName: 'SHENZHEN ABSORBKING DESICCANT', category: 'china', emoji: '\ud83e\uddea',
+    items: 'Silicon packs', model: 'cycle', odooPartner: 'Absorbking',
+    ingredientNames: [], incomingKeys: ['silicon'], suppKeys: [],
+    leadDays: 90, cycleDays: 180, active: true
+  },
+  'Print Knight': {
+    displayName: 'Print Knight Kenya', category: 'local', emoji: '\ud83d\udda8',
+    items: 'Stickers (local) \xb7 On-demand', model: 'ondemand',
+    ingredientNames: [], incomingKeys: [], suppKeys: [],
+    leadDays: 7, cycleDays: null, active: true
+  }
+};
+
+var OS_CFG_KEY = 'pk_os_cfg_v1';
+var OS_LOG_KEY = 'pk_os_log_v1';
+var osConfig   = {};
+var osOrderLog = [];
+
+// ── Config & Log ─────────────────────────────────────────────────────────────
+function osLoadConfig() {
+  osConfig = JSON.parse(JSON.stringify(SUPPLIER_OS_DEFAULTS));
+  try {
+    var stored = JSON.parse(localStorage.getItem(OS_CFG_KEY) || '{}');
+    Object.keys(stored).forEach(function(k) { if (osConfig[k]) Object.assign(osConfig[k], stored[k]); });
+  } catch(e) {}
+}
+function osSaveConfigOverride(key, field, value) {
+  try {
+    var stored = JSON.parse(localStorage.getItem(OS_CFG_KEY) || '{}');
+    if (!stored[key]) stored[key] = {};
+    stored[key][field] = value;
+    localStorage.setItem(OS_CFG_KEY, JSON.stringify(stored));
+    if (osConfig[key]) osConfig[key][field] = value;
+  } catch(e) {}
+}
+function osLoadLog() {
+  try { osOrderLog = JSON.parse(localStorage.getItem(OS_LOG_KEY) || '[]'); } catch(e) { osOrderLog = []; }
+}
+function osSaveLog() { try { localStorage.setItem(OS_LOG_KEY, JSON.stringify(osOrderLog)); } catch(e) {} }
+
+// ── Coverage ──────────────────────────────────────────────────────────────────
+function osGetConsumptionCoverage(key, cfg) {
+  var results = [];
+
+  // Protein/whey ingredients
+  (cfg.ingredientNames || []).forEach(function(ingName) {
+    var rq = computeRQ(ingName);
+    if (rq <= 0) return;
+    var item = null;
+    for (var j = 0; j < procItems.main.length; j++) {
+      var it = procItems.main[j];
+      if (it.name.toLowerCase().trim() === ingName.toLowerCase().trim()) { item = it; break; }
+    }
+    if (!item) {
+      for (var j = 0; j < procItems.main.length; j++) {
+        var it = procItems.main[j];
+        if (it.name.toLowerCase().indexOf(ingName.toLowerCase().substring(0, 10)) !== -1) { item = it; break; }
+      }
+    }
+    var stock = item ? (item.stock || 0) : 0;
+    var inc   = 0;
+    (cfg.incomingKeys || []).forEach(function(ikey) { inc += totalIncomingQty(ikey); });
+    results.push({ name: ingName, covMonths: (stock + inc) / rq, rq: rq, stock: stock, incoming: inc });
+  });
+
+  // Supplement SKUs
+  (cfg.suppKeys || []).forEach(function(sku) {
+    var item = procItems.bulk[sku]; var bCfg = BULK_CFG[sku];
+    if (!item || !bCfg) return;
+    var rq = bulkRQ(sku); if (rq <= 0) return;
+    var stock = item.stock || 0;
+    var inc   = totalIncomingQty(sku);
+    results.push({ name: bCfg.label || sku, covMonths: (stock + inc) / rq, rq: rq, stock: stock, incoming: inc });
+  });
+
+  if (!results.length) return { model: 'consumption', covMonths: null, noData: true };
+  results.sort(function(a, b) { return a.covMonths - b.covMonths; });
+  var w = results[0];
+  return { model: 'consumption', covMonths: w.covMonths, bottleneck: w.name, allItems: results, rq: w.rq, stock: w.stock, incoming: w.incoming };
+}
+
+function osGetCycleCoverage(key, cfg) {
+  var cycleDays   = cfg.cycleDays || 180;
+  var odooPartner = (cfg.odooPartner || '').toLowerCase();
+  var anchorDate  = null;
+  var hasPending  = false;
+  var pendingProds = [];
+
+  Object.keys(pendingReceiptsBySupplier).forEach(function(sName) {
+    if (!odooPartner || odooPartner.length < 4) return;
+    var sLower = sName.toLowerCase();
+    var match = (odooPartner.length >= 6 && sLower.indexOf(odooPartner.substring(0, 6)) !== -1)
+             || (sLower.length >= 6 && odooPartner.indexOf(sLower.substring(0, 6)) !== -1);
+    if (!match) return;
+    var data = pendingReceiptsBySupplier[sName];
+    if (data.scheduledDate) {
+      var d = new Date(data.scheduledDate);
+      if (!anchorDate || d < anchorDate) anchorDate = d;
+    }
+    hasPending = true;
+    pendingProds = data.products || [];
+  });
+
+  // Overdue delivery → treat as arriving now
+  if (anchorDate && anchorDate < new Date()) anchorDate = new Date();
+
+  // Fallback: localStorage last receipt date
+  if (!anchorDate) {
+    try { var s = localStorage.getItem('os_last_' + key); if (s) anchorDate = new Date(s); } catch(e) {}
+  }
+
+  if (!anchorDate) return { model: 'cycle', covMonths: null, needsInput: true, hasPending: hasPending };
+
+  var covEnd    = new Date(anchorDate.getTime() + cycleDays * 864e5);
+  var covMonths = Math.max(0, (covEnd - new Date()) / (30.44 * 864e5));
+  return { model: 'cycle', covMonths: covMonths, anchorDate: anchorDate, coverageEndDate: covEnd, hasPending: hasPending, products: pendingProds };
+}
+
+function osGetCoverage(key) {
+  var cfg = osConfig[key]; if (!cfg) return null;
+  if (cfg.model === 'backup' || cfg.model === 'ondemand') return { model: cfg.model, covMonths: null };
+  if (cfg.model === 'consumption') return osGetConsumptionCoverage(key, cfg);
+  if (cfg.model === 'cycle')       return osGetCycleCoverage(key, cfg);
+  return null;
+}
+
+function osOrderByDate(covMonths, leadDays) {
+  if (covMonths === null || covMonths === undefined) return null;
+  var covEnd = new Date(new Date().getTime() + covMonths * 30.44 * 864e5);
+  return new Date(covEnd.getTime() - leadDays * 864e5);
+}
+
+function osRag(daysToOrder) {
+  if (daysToOrder === null || daysToOrder === undefined) return 'unknown';
+  if (daysToOrder < 0)   return 'overdue';
+  if (daysToOrder <= 14) return 'critical';
+  if (daysToOrder <= 45) return 'warning';
+  return 'ok';
+}
+
+function osSuggestedItems(key, cycleDays) {
+  var cfg = osConfig[key]; if (!cfg || cfg.model !== 'consumption') return [];
+  cycleDays = cycleDays || cfg.cycleDays || 30;
+  var cycleMonths = cycleDays / 30.44;
+  var items = [];
+  (cfg.ingredientNames || []).forEach(function(ingName) {
+    var rq = computeRQ(ingName); if (rq <= 0) return;
+    var item = procItems.main.find(function(it) { return it.name.toLowerCase().trim() === ingName.toLowerCase().trim(); });
+    if (!item) item = procItems.main.find(function(it) { return it.name.toLowerCase().indexOf(ingName.toLowerCase().substring(0,10)) !== -1; });
+    var cost = item ? item.cost : 0;
+    var qty  = rq * cycleMonths;
+    items.push({ name: ingName, qty: qty, cost: cost, total: qty * cost });
+  });
+  (cfg.suppKeys || []).forEach(function(sku) {
+    var bItem = procItems.bulk[sku]; var bCfg = BULK_CFG[sku]; if (!bItem || !bCfg) return;
+    var rq = bulkRQ(sku); if (rq <= 0) return;
+    var qty = rq * cycleMonths;
+    items.push({ name: bCfg.label || sku, qty: qty, cost: bItem.cost || 0, total: qty * (bItem.cost || 0) });
+  });
+  return items;
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function renderOrderSchedule() {
+  osLoadConfig(); osLoadLog();
+  var CATS = [
+    { label: '\ud83e\udd5b Whey Proteins',                  keys: ['Lactelle','Benni Foods','IMCD Kenya'] },
+    { label: '\ud83d\udc8a Supplements',                     keys: ['Nutra'] },
+    { label: '\ud83d\udce6 China Packaging (Rolling Cargo)',  keys: ['CAIYUNTIAN','Ningbo','Sichuan doyoung','Zibo Smythson','Guangzhou Senteng','Absorbking'] },
+    { label: '\ud83d\udda8 Local Suppliers',                  keys: ['Print Knight'] }
+  ];
+
+  var nextDays = null, nextSupplier = null;
+  var catHtml  = '';
+
+  CATS.forEach(function(cat) {
+    var cards = '';
+    cat.keys.forEach(function(key) {
+      var cfg = osConfig[key]; if (!cfg || !cfg.active) return;
+      var coverage = osGetCoverage(key);
+      var leadDays  = cfg.leadDays || 90;
+      var cycleDays = cfg.cycleDays;
+      var covMonths = coverage ? coverage.covMonths : null;
+      var daysToOrder = null, orderByDate = null;
+      if (covMonths !== null && covMonths !== undefined && cycleDays !== null) {
+        orderByDate = osOrderByDate(covMonths, leadDays);
+        if (orderByDate) {
+          daysToOrder = Math.round((orderByDate - new Date()) / 864e5);
+          if (nextDays === null || daysToOrder < nextDays) { nextDays = daysToOrder; nextSupplier = cfg.displayName; }
+        }
+      }
+      cards += osRenderCard(key, cfg, coverage, daysToOrder, orderByDate, osRag(daysToOrder));
+    });
+    if (cards) {
+      catHtml += '<div class="os-cat-section"><div class="os-cat-header">' + cat.label + '</div>'
+               + '<div class="os-cards-grid">' + cards + '</div></div>';
+    }
+  });
+
+  // Banner
+  var bannerEl = document.getElementById('os-summary');
+  if (bannerEl) {
+    if (nextDays !== null) {
+      var urgText  = nextDays < 0 ? 'OVERDUE' : nextDays === 0 ? 'TODAY' : 'in ' + nextDays + ' days';
+      var urgColor = nextDays <= 0 ? 'var(--crit-txt)' : nextDays <= 14 ? 'var(--crit-txt)' : nextDays <= 45 ? 'var(--low-txt)' : 'var(--ok-txt)';
+      var urgBg    = nextDays <= 0 ? 'var(--crit-bg)'  : nextDays <= 14 ? 'var(--crit-bg)'  : nextDays <= 45 ? 'var(--low-bg)'  : 'var(--ok-bg)';
+      bannerEl.innerHTML = '<div style="background:' + urgBg + ';border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:10px">'
+        + '<div style="font-size:12px;font-weight:700;color:' + urgColor + '">'
+        + '\u23f0 Next order: <b>' + nextSupplier + '</b> \u2014 ' + urgText + '</div></div>';
+    } else { bannerEl.innerHTML = ''; }
+  }
+
+  var container = document.getElementById('os-container');
+  if (container) {
+    var html = catHtml + osRenderActiveOrders() + osRenderOrderLog();
+    container.innerHTML = html || '<div style="padding:48px;text-align:center;color:var(--text3)">No data yet \u2014 click \u21bb Refresh to load supplier data</div>';
+  }
+}
+
+// ── Supplier card ─────────────────────────────────────────────────────────────
+function osRenderCard(key, cfg, coverage, daysToOrder, orderByDate, rag) {
+  var RAG = {
+    overdue:  { bg:'var(--crit-bg)', bdr:'var(--crit-bdr)', txt:'var(--crit-txt)', dot:'\ud83d\udd34' },
+    critical: { bg:'var(--crit-bg)', bdr:'var(--crit-bdr)', txt:'var(--crit-txt)', dot:'\ud83d\udd34' },
+    warning:  { bg:'var(--low-bg)',  bdr:'var(--low-bdr)',  txt:'var(--low-txt)',  dot:'\ud83d\udfe1' },
+    ok:       { bg:'var(--ok-bg)',   bdr:'var(--ok-bdr)',   txt:'var(--ok-txt)',   dot:'\ud83d\udfe2' },
+    unknown:  { bg:'var(--surface)', bdr:'var(--border)',   txt:'var(--text3)',    dot:'\u25a1' }
+  };
+  var rc = RAG[rag] || RAG.unknown;
+  var leadDays = cfg.leadDays, cycleDays = cfg.cycleDays;
+
+  // Coverage line
+  var covHtml = '';
+  if (!coverage || coverage.model === 'backup') {
+    covHtml = '<div style="font-size:10px;color:var(--text3);margin:4px 0">Backup \u2014 no active ordering cycle</div>';
+  } else if (coverage.model === 'ondemand') {
+    covHtml = '<div style="font-size:10px;color:var(--text3);margin:4px 0">On-demand \xb7 7-day lead</div>';
+  } else if (coverage.covMonths === null || coverage.covMonths === undefined) {
+    covHtml = coverage.needsInput
+      ? '<div style="font-size:10px;color:var(--low-txt);font-weight:600;margin:4px 0">\u26a0 Set last receipt date to track cycle</div>'
+      : '<div style="font-size:10px;color:var(--text3);margin:4px 0">No coverage data yet</div>';
+  } else {
+    var covStr = coverage.covMonths >= 99 ? '\u221e' : coverage.covMonths.toFixed(1) + ' mo';
+    covHtml = '<div style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:' + rc.txt + ';margin:4px 0">' + covStr + ' coverage</div>';
+    if (coverage.bottleneck) covHtml += '<div style="font-size:9px;color:var(--text3);margin-bottom:4px">bottleneck: ' + coverage.bottleneck + '</div>';
+  }
+
+  // Countdown
+  var countHtml = '';
+  if (daysToOrder !== null) {
+    var dStr = daysToOrder < 0 ? 'ORDER NOW' : daysToOrder === 0 ? 'TODAY' : daysToOrder + 'd';
+    countHtml = '<div class="os-countdown" style="color:' + rc.txt + '">' + dStr + '</div>'
+      + (orderByDate ? '<div style="font-size:9px;color:var(--text3)">by ' + orderByDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}) + '</div>' : '');
+  } else if (cfg.model !== 'backup' && cfg.model !== 'ondemand') {
+    countHtml = '<div style="font-size:11px;color:var(--text3)">\u2014</div>';
+  }
+
+  // Editable lead/cycle
+  var editHtml = '';
+  if (cycleDays !== null) {
+    editHtml = '<div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:8px">'
+      + '<div style="font-size:9px;color:var(--text3)">Lead: <input type="number" value="' + leadDays + '" min="1" max="365" style="width:42px;font-size:10px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:3px;padding:1px 4px;text-align:center" onchange="osSaveConfigOverride(\'' + key + '\',\'leadDays\',parseInt(this.value)||' + leadDays + ');renderOrderSchedule()">d</div>'
+      + '<div style="font-size:9px;color:var(--text3)">Cycle: <input type="number" value="' + cycleDays + '" min="1" max="365" style="width:42px;font-size:10px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:3px;padding:1px 4px;text-align:center" onchange="osSaveConfigOverride(\'' + key + '\',\'cycleDays\',parseInt(this.value)||' + cycleDays + ');renderOrderSchedule()">d</div>'
+      + '</div>';
+  }
+
+  // Date input for cycle suppliers with no anchor
+  var dateHtml = '';
+  if (cfg.model === 'cycle' && coverage && (coverage.covMonths === null || coverage.covMonths === undefined)) {
+    var curDate = '';
+    try { curDate = localStorage.getItem('os_last_' + key) || ''; } catch(e) {}
+    dateHtml = '<div style="margin-top:8px;font-size:10px;color:var(--text3)">Last receipt: <input type="date" value="' + curDate + '" style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:2px 4px;margin-left:4px" onchange="try{localStorage.setItem(\'os_last_' + key + '\',this.value);}catch(e){}renderOrderSchedule()"></div>';
+  }
+
+  // Capital estimate (consumption only)
+  var capHtml = '';
+  if (cfg.model === 'consumption' && cycleDays !== null) {
+    var items = osSuggestedItems(key, cycleDays);
+    var cap = items.reduce(function(s,i){ return s+i.total; }, 0);
+    if (cap > 0) capHtml = '<div style="margin-top:6px;font-size:10px;color:var(--text2)">Est. capital: <b style="font-family:var(--font-mono);color:var(--c-protein)">Ksh ' + Math.round(cap).toLocaleString() + '</b></div>';
+  }
+
+  // Plan button
+  var planBtn = (cfg.model === 'consumption' || cfg.model === 'cycle')
+    ? '<button onclick="osOpenPlanModal(\'' + key + '\')" style="margin-top:10px;width:100%;padding:6px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:var(--font-sans);font-size:11px;font-weight:600;cursor:pointer">Plan Next Order</button>'
+    : '';
+
+  return '<div class="os-card" style="border-color:' + rc.bdr + ';background:' + rc.bg + '">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">'
+      + '<div><div style="font-size:11px;font-weight:700;color:var(--text)">' + rc.dot + ' ' + cfg.displayName + '</div>'
+      + '<div style="font-size:9px;color:var(--text3);margin-top:1px">' + cfg.items + '</div></div>'
+      + '<div style="text-align:right">' + countHtml + '</div>'
+    + '</div>' + covHtml + capHtml + editHtml + dateHtml + planBtn + '</div>';
+}
+
+// ── Active orders from Odoo ───────────────────────────────────────────────────
+function osRenderActiveOrders() {
+  var suppliers = Object.keys(pendingReceiptsBySupplier);
+  if (!suppliers.length) {
+    return '<div style="margin-top:16px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--text3)">\ud83d\udcec No pending receipts found in Odoo \u2014 refresh to check incoming shipments</div>';
+  }
+  var rows = suppliers.map(function(sName) {
+    var data = pendingReceiptsBySupplier[sName];
+    var isOverdue = data.scheduledDate && new Date(data.scheduledDate) < new Date();
+    var products = (data.products || []).slice(0, 3).map(function(p) {
+      return p.name.replace(/^\[[^\]]+\]\s*/, '').substring(0, 28) + (p.qty ? ' \xd7' + Math.round(p.qty) : '');
+    }).join(', ');
+    return '<tr style="' + (isOverdue ? 'background:var(--crit-bg)' : '') + '">'
+      + '<td style="font-size:11px;font-weight:600;padding:8px 10px">' + sName + '</td>'
+      + '<td style="font-size:10px;color:var(--text2);padding:8px 10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (products || '\u2014') + '</td>'
+      + '<td style="font-family:var(--font-mono);font-size:10px;padding:8px 10px;white-space:nowrap;color:' + (isOverdue ? 'var(--crit-txt)' : 'var(--text2)') + '">' + (data.scheduledDate || '\u2014') + (isOverdue ? ' \u26a0' : '') + '</td>'
+      + '<td style="padding:8px 10px"><span class="badge ' + (isOverdue ? 'critical' : 'low') + '">In Transit</span></td>'
+      + '</tr>';
+  }).join('');
+
+  return '<div style="margin-top:20px">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">\ud83d\udcec Active Orders (from Odoo)</div>'
+    + '<div class="tcard"><table><thead><tr><th>Supplier</th><th>Products</th><th>Expected</th><th>Status</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div></div>';
+}
+
+// ── Order log ─────────────────────────────────────────────────────────────────
+function osRenderOrderLog() {
+  if (!osOrderLog.length) return '';
+  var rows = osOrderLog.slice().reverse().slice(0, 15).map(function(entry) {
+    var badge = entry.status === 'received' ? '<span class="badge ok">Received</span>'
+              : entry.status === 'ordered'  ? '<span class="badge low">Ordered</span>'
+              : '<span class="badge">Planned</span>';
+    return '<tr>'
+      + '<td style="font-size:10px;padding:7px 10px;color:var(--text3)">' + (entry.createdAt || '').substring(0, 10) + '</td>'
+      + '<td style="font-weight:600;font-size:11px;padding:7px 10px">' + (entry.supplier || '') + '</td>'
+      + '<td style="font-size:10px;padding:7px 10px;color:var(--text2)">' + (entry.items || '') + '</td>'
+      + '<td style="font-size:10px;padding:7px 10px">' + (entry.plannedDate || '\u2014') + '</td>'
+      + '<td style="font-family:var(--font-mono);font-size:10px;padding:7px 10px">' + (entry.capital > 0 ? 'Ksh ' + Math.round(entry.capital).toLocaleString() : '\u2014') + '</td>'
+      + '<td style="padding:7px 10px">' + badge + '</td>'
+      + '<td style="padding:7px 10px"><button onclick="osDeleteLog(' + entry.id + ')" style="font-size:9px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer;color:var(--text3)">\u2715</button></td>'
+      + '</tr>';
+  }).join('');
+  return '<div style="margin-top:20px">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">\ud83d\udccb Order Log <span style="font-size:10px;font-weight:400;color:var(--text3)">(saved locally)</span></div>'
+    + '<div class="tcard"><table><thead><tr><th>Date</th><th>Supplier</th><th>Items</th><th>Order date</th><th>Est. capital</th><th>Status</th><th></th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div></div>';
+}
+
+// ── Plan Order Modal ─────────────────────────────────────────────────────────
+function osOpenPlanModal(key) {
+  osLoadConfig();
+  var cfg = osConfig[key]; if (!cfg) return;
+  var leadDays  = cfg.leadDays  || 90;
+  var cycleDays = cfg.cycleDays || 30;
+  var items     = osSuggestedItems(key, cycleDays);
+  var capital   = items.reduce(function(s, i) { return s + i.total; }, 0);
+  var fmtD      = function(d) { return d.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}); };
+  var arrival   = new Date(new Date().getTime() + leadDays * 864e5);
+
+  var itemsHtml = '';
+  if (items.length) {
+    itemsHtml = '<div class="tcard" style="margin-bottom:14px"><table><thead><tr>'
+      + '<th>Item</th><th style="text-align:right">RQ/mo</th><th style="text-align:right">Qty</th><th style="text-align:right">Cost/kg</th><th style="text-align:right">Est. value</th>'
+      + '</tr></thead><tbody>'
+      + items.map(function(it) {
+          var cycleMonths = cycleDays / 30.44;
+          return '<tr>'
+            + '<td style="font-size:11px;padding:6px 8px">' + it.name + '</td>'
+            + '<td style="text-align:right;padding:6px 8px;font-family:var(--font-mono);font-size:10px;color:var(--text3)">' + (cycleMonths > 0 ? (it.qty / cycleMonths).toFixed(1) + ' kg' : '\u2014') + '</td>'
+            + '<td style="text-align:right;padding:6px 8px;font-family:var(--font-mono);font-size:11px;font-weight:600">' + it.qty.toFixed(1) + ' kg</td>'
+            + '<td style="text-align:right;padding:6px 8px;font-family:var(--font-mono);font-size:10px">' + (it.cost > 0 ? it.cost.toLocaleString() : '\u2014') + '</td>'
+            + '<td style="text-align:right;padding:6px 8px;font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--c-protein)">' + (it.total > 0 ? 'Ksh ' + Math.round(it.total).toLocaleString() : '\u2014') + '</td>'
+          + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  } else {
+    itemsHtml = '<div style="padding:12px;background:var(--surface2);border-radius:6px;font-size:11px;color:var(--text3);margin-bottom:14px">No RQ data yet \u2014 refresh to load consumption data. You can still log a manual order note.</div>';
+  }
+
+  var modal = document.getElementById('os-modal'); if (!modal) return;
+  modal.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
+      + '<div><div style="font-size:15px;font-weight:700">' + cfg.displayName + '</div>'
+      + '<div style="font-size:11px;color:var(--text3)">' + cfg.items + ' \xb7 ' + cfg.model + ' model</div></div>'
+      + '<button onclick="osCloseModal(null,true)" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text3)">\xd7</button>'
+    + '</div>'
+
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">'
+      + '<div><div class="pg-label">Lead time (days)</div>'
+        + '<input type="range" id="os-modal-lead" min="1" max="180" value="' + leadDays + '" oninput="osModalCalc(\'' + key + '\')" style="width:100%;accent-color:var(--accent)">'
+        + '<div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--accent)" id="os-modal-lead-val">' + leadDays + 'd</div></div>'
+      + '<div><div class="pg-label">Order cycle (days)</div>'
+        + '<input type="range" id="os-modal-cycle" min="7" max="365" value="' + cycleDays + '" oninput="osModalCalc(\'' + key + '\')" style="width:100%;accent-color:var(--accent)">'
+        + '<div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--accent)" id="os-modal-cycle-val">' + cycleDays + 'd (' + round1(cycleDays / 30.44) + ' mo)</div></div>'
+    + '</div>'
+
+    + '<div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">'
+      + '<div><div class="pg-label">Order today</div><div style="font-family:var(--font-mono);font-size:12px;font-weight:600">' + fmtD(new Date()) + '</div></div>'
+      + '<div><div class="pg-label">Est. arrival</div><div style="font-family:var(--font-mono);font-size:12px;font-weight:600" id="os-modal-arrival">' + fmtD(arrival) + '</div></div>'
+      + '<div><div class="pg-label">Est. capital (Ksh)</div><div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--c-protein)" id="os-modal-capital">' + (capital > 0 ? Math.round(capital).toLocaleString() : '\u2014') + '</div></div>'
+    + '</div>'
+
+    + itemsHtml
+
+    + '<div style="margin-bottom:12px"><div class="pg-label">Notes / reference</div>'
+      + '<textarea id="os-modal-notes" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--font-sans);font-size:11px;resize:vertical;min-height:50px;background:var(--surface);color:var(--text)" placeholder="PO ref, contact, special instructions\u2026"></textarea></div>'
+
+    + '<div style="display:flex;gap:8px">'
+      + '<button onclick="osSaveOrder(\'' + key + '\')" style="flex:1;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:var(--font-sans);font-size:12px;font-weight:600;cursor:pointer">\ud83d\udcbe Save to Order Log</button>'
+      + '<button onclick="osCloseModal(null,true)" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-sans);font-size:12px;cursor:pointer;background:var(--surface)">Cancel</button>'
+    + '</div>';
+
+  document.getElementById('os-modal-overlay').style.display = 'flex';
+}
+
+function round1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
+
+function osModalCalc(key) {
+  var cfg = osConfig[key]; if (!cfg) return;
+  var lead  = parseInt(document.getElementById('os-modal-lead')?.value)  || cfg.leadDays;
+  var cycle = parseInt(document.getElementById('os-modal-cycle')?.value) || cfg.cycleDays;
+  var lEl = document.getElementById('os-modal-lead-val');
+  var cEl = document.getElementById('os-modal-cycle-val');
+  var aEl = document.getElementById('os-modal-arrival');
+  var capEl = document.getElementById('os-modal-capital');
+  if (lEl) lEl.textContent = lead + 'd';
+  if (cEl) cEl.textContent = cycle + 'd (' + round1(cycle / 30.44) + ' mo)';
+  if (aEl) aEl.textContent = new Date(new Date().getTime() + lead * 864e5).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+  var items   = osSuggestedItems(key, cycle);
+  var capital = items.reduce(function(s, i) { return s + i.total; }, 0);
+  if (capEl) capEl.textContent = capital > 0 ? Math.round(capital).toLocaleString() : '\u2014';
+}
+
+function osSaveOrder(key) {
+  osLoadConfig();
+  var cfg = osConfig[key]; if (!cfg) return;
+  var lead  = parseInt(document.getElementById('os-modal-lead')?.value)  || cfg.leadDays;
+  var cycle = parseInt(document.getElementById('os-modal-cycle')?.value) || cfg.cycleDays;
+  var notes = (document.getElementById('os-modal-notes')?.value || '').trim();
+  var items = osSuggestedItems(key, cycle);
+  var capital = items.reduce(function(s, i) { return s + i.total; }, 0);
+  osOrderLog.push({
+    id: Date.now(),
+    supplier: cfg.displayName, supplierKey: key, items: cfg.items,
+    plannedDate: new Date(new Date().getTime() + lead * 864e5).toISOString().substring(0, 10),
+    leadDays: lead, cycleDays: cycle, capital: capital,
+    status: 'planned', notes: notes,
+    createdAt: new Date().toISOString().substring(0, 10)
+  });
+  osSaveLog();
+  osCloseModal(null, true);
+  renderOrderSchedule();
+}
+
+function osDeleteLog(id) {
+  osOrderLog = osOrderLog.filter(function(e) { return e.id !== id; });
+  osSaveLog();
+  renderOrderSchedule();
+}
+
+function osCloseModal(event, force) {
+  if (!force && event && event.target !== document.getElementById('os-modal-overlay')) return;
+  var o = document.getElementById('os-modal-overlay');
+  if (o) o.style.display = 'none';
 }
 
 loadAll();
