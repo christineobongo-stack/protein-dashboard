@@ -332,13 +332,11 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="switchTab('today',this)">🏠 Today</button>
-  <button class="tab-btn" onclick="switchTab('stock',this)">📊 Stock &amp; Coverage</button>
-  <button class="tab-btn" onclick="switchTab('planner',this)">🚢 Order Planner</button>
-  <button class="tab-btn" onclick="switchTab('insights',this)">💰 Costs &amp; Intelligence</button>
-  <button class="tab-btn" onclick="switchTab('playground',this)">🧮 Playground</button>
-  <button class="tab-btn" onclick="switchTab('schedule',this)">📅 Schedule</button>
+  <button class="tab-btn active" onclick="switchMainTab('orders',this)">📦 Orders</button>
+  <button class="tab-btn" onclick="switchMainTab('costs',this)">💰 Costs</button>
+  <button class="tab-btn" onclick="switchMainTab('health',this)">📊 Health</button>
 </div>
+<div class="tabs" id="secondaryNav" style="padding:0 12px 6px;gap:0;border-bottom:1px solid var(--border)"></div>
 
 <main>
   <div class="debug-box" id="debugBox"></div>
@@ -1385,6 +1383,34 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     <div id="os-container">
       <div style="padding:48px;text-align:center;color:var(--text3);font-size:12px">
         Loading schedule… &nbsp;·&nbsp; <span style="font-size:10px">Switch to this tab after a Refresh to see supplier countdowns</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: HEALTH — placeholder -->
+  <div class="tab-page" id="page-health" style="padding:20px">
+    <div style="display:grid;gap:16px;max-width:600px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
+        <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:8px">📊 Sales Pulse</div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6">
+          Monthly sales summary will appear here.<br>
+          Compares dashboard totals vs Odoo actuals and flags discrepancies.
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
+        <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:8px">🔍 Data Quality</div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6">
+          Quick health checks will appear here:<br>
+          • Draft orders not yet confirmed<br>
+          • SKU consistency (non-standard product references)<br>
+          • Receipts missing Landed Cost records
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
+        <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:8px">📦 FG Stock &amp; Repacking</div>
+        <div id="health-fg-stock" style="font-size:11px;color:var(--text3)">
+          Switch to this tab after refresh to see FG stock and repacking capacity.
+        </div>
       </div>
     </div>
   </div>
@@ -4701,6 +4727,86 @@ function renderShipping(){
     </div>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB NAVIGATION — 3 main tabs with secondary navigation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const MAIN_TABS = {
+  orders: {
+    subs: [
+      {id:'schedule', label:'🗓 Schedule'},
+      {id:'today',    label:'📋 Overview'},
+      {id:'stock',    label:'📊 Coverage'},
+      {id:'planner',  label:'🚢 Planning'}
+    ],
+    defaultSub: 'schedule'
+  },
+  costs: {
+    subs: [
+      {id:'insights',   label:'💰 SKU Costs'},
+      {id:'playground', label:'🧮 Calculator'}
+    ],
+    defaultSub: 'insights'
+  },
+  health: {
+    subs: [],
+    defaultSub: 'health'
+  }
+};
+
+function switchMainTab(group, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const nav = document.getElementById('secondaryNav');
+  const config = MAIN_TABS[group];
+
+  if (!config.subs.length) {
+    nav.innerHTML = '';
+    nav.style.display = 'none';
+    document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+    var pg = document.getElementById('page-' + config.defaultSub);
+    if (pg) pg.classList.add('active');
+    return;
+  }
+
+  nav.style.display = 'flex';
+  nav.innerHTML = config.subs.map(function(s) {
+    return '<button class="sub-tab-btn' + (s.id === config.defaultSub ? ' active' : '')
+      + '" onclick="switchSecondary(\'' + s.id + '\',this)"'
+      + ' style="font-size:11px;padding:6px 14px">' + s.label + '</button>';
+  }).join('');
+
+  switchSecondary(config.defaultSub, nav.querySelector('.sub-tab-btn.active'));
+}
+
+function switchSecondary(id, btn) {
+  var nav = document.getElementById('secondaryNav');
+  nav.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+  var pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
+
+  if (id === 'today')      { safeRender('today', renderToday); return; }
+  if (id === 'playground') { safeRender('playground', renderPlayground); return; }
+  if (id === 'schedule')   { safeRender('schedule', renderOrderSchedule); return; }
+  if (id === 'health')     { return; }
+  if (id === 'stock') {
+    switchSubTab('stock', 'procurement', document.querySelector('#page-stock .sub-tab-btn'));
+    return;
+  }
+  if (id === 'planner') {
+    switchSubTab('planner', 'shipping', document.querySelector('#page-planner .sub-tab-btn'));
+    return;
+  }
+  if (id === 'insights') {
+    switchSubTab('insights', 'costs', document.querySelector('#page-insights .sub-tab-btn'));
+    return;
+  }
+}
+
 function switchTab(id, btn) {
   document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -6896,6 +7002,8 @@ function osCloseModal(event, force) {
 }
 
 loadAll();
+// Initialize the 3-tab layout — default to Orders > Schedule
+switchMainTab('orders', document.querySelector('.tab-btn'));
 </script>
 </body>
 </html>
