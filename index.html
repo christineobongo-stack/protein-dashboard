@@ -6551,6 +6551,59 @@ const SUPPLIER_OS_DEFAULTS = {
     items: 'Stickers (local) \xb7 On-demand', model: 'ondemand',
     ingredientNames: [], incomingKeys: [], suppKeys: [],
     leadDays: 7, cycleDays: null, active: true
+  },
+  'OSF Flavors': {
+    displayName: 'OSF Flavors', category: 'additives', emoji: '\ud83c\udf36',
+    items: 'All flavourings \xb7 Sucralose',
+    model: 'consumption',
+    ingredientNames: [
+      'Vanilla 5378B Flavoring', 'Vanilla 4320C Flavoring',
+      'Chocolate Flavouring 8703A',
+      'Banana Flavouring 9011B -PDR', 'Banana Flavouring 4493A',
+      'Cookies n Cream Flavoring 8776B',
+      'Cinnamon Flavoring 2971C',
+      'Vanilla Chai Flavoring 4537B', 'Vanilla Chai flavoring 8752A',
+      'Vanilla Birthday Cake Flavoring 93',
+      'Organic Flavor Caramel NW 6134-O',
+      'Organic Flavor Hazelnut NAT 2124B-',
+      'Sucralose'
+    ],
+    incomingKeys: [], suppKeys: [],
+    leadDays: 14, cycleDays: 90, active: true
+  },
+  'IMCD Additives': {
+    displayName: 'IMCD Kenya (Additives)', category: 'additives', emoji: '\ud83e\uddea',
+    items: 'Xanthan \xb7 Cocoa Powder \xb7 Non-Dairy Creamer',
+    model: 'consumption',
+    ingredientNames: [
+      'Xanthan Gum', 'Dark Alkalised Cocoa Powder', 'Non-Dairy Creamer'
+    ],
+    incomingKeys: [], suppKeys: [],
+    leadDays: 14, cycleDays: 60, active: true
+  },
+  'Munzing Chemie': {
+    displayName: 'M\u00fcnzing Chemie (Germany)', category: 'additives', emoji: '\u2697',
+    items: 'Antifoam (Magrabar 4965)',
+    model: 'consumption',
+    ingredientNames: ['Magrabar 4965 Antifoam'],
+    incomingKeys: [], suppKeys: [],
+    leadDays: 45, cycleDays: 180, active: true
+  },
+  'Biotech': {
+    displayName: 'Biotech Limited (India)', category: 'additives', emoji: '\ud83e\uddec',
+    items: 'Digezyme (enzyme blend)',
+    model: 'consumption',
+    ingredientNames: ['Digezyme'],
+    incomingKeys: [], suppKeys: [],
+    leadDays: 75, cycleDays: 180, active: true
+  },
+  'FA Generals': {
+    displayName: 'FA Generals Kenya', category: 'additives', emoji: '\ud83c\udf3f',
+    items: 'Soy Lecithin',
+    model: 'consumption',
+    ingredientNames: ['Soy lecithin'],
+    incomingKeys: [], suppKeys: [],
+    leadDays: 7, cycleDays: 60, active: true
   }
 };
 
@@ -6709,6 +6762,7 @@ function renderOrderSchedule() {
   var CATS = [
     { label: '\ud83e\udd5b Whey Proteins',                  keys: ['Lactelle','Benni Foods','IMCD Kenya'] },
     { label: '\ud83d\udc8a Supplements',                     keys: ['Nutra'] },
+    { label: '\ud83c\udf36 Additives & Processing',          keys: ['OSF Flavors','IMCD Additives','Munzing Chemie','Biotech','FA Generals'] },
     { label: '\ud83d\udce6 China Packaging (Rolling Cargo)',  keys: ['CAIYUNTIAN','Ningbo','Sichuan doyoung','Zibo Smythson','Guangzhou Senteng','Absorbking'] },
     { label: '\ud83d\udda8 Local Suppliers',                  keys: ['Print Knight'] }
   ];
@@ -6870,13 +6924,39 @@ function osRenderCard(key, cfg, coverage, daysToOrder, orderByDate, rag) {
     + '</div>' + covHtml + orderHtml + shippingHtml + capHtml + editHtml + dateHtml + planBtn + '</div>';
 }
 
-// ── Active orders from Odoo ───────────────────────────────────────────────────
+// ── Active orders from Odoo (supplier purchases only) ─────────────────────────
 function osRenderActiveOrders() {
+  // Build supplier name whitelist from config
+  var knownSuppliers = [];
+  Object.keys(SUPPLIER_OS_DEFAULTS).forEach(function(k) {
+    var cfg = SUPPLIER_OS_DEFAULTS[k];
+    knownSuppliers.push((cfg.displayName || k).toLowerCase());
+    if (cfg.odooPartner) knownSuppliers.push(cfg.odooPartner.toLowerCase());
+  });
+  // Also include common freight/clearing agents
+  knownSuppliers.push('evolve', 'rolling cargo', 'lactelle', 'benni', 'nutra', 'imcd',
+    'caiyuntian', 'ningbo', 'sichuan', 'zibo', 'guangzhou', 'absorbking', 'shenzhen',
+    'print knight', 'tropikal', 'ultravetis', 'kerry', 'brenntag',
+    'osf', 'munzing', 'münzing', 'biotech', 'fa generals', 'generals');
+
   var suppliers = Object.keys(pendingReceiptsBySupplier);
   if (!suppliers.length) {
-    return '<div style="margin-top:16px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--text3)">\ud83d\udcec No pending receipts found in Odoo \u2014 refresh to check incoming shipments</div>';
+    return '<div style="margin-top:16px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--text3)">\ud83d\udcec No pending supplier receipts in Odoo</div>';
   }
-  var rows = suppliers.map(function(sName) {
+
+  // Filter to known suppliers only
+  var filtered = suppliers.filter(function(sName) {
+    var lower = sName.toLowerCase();
+    return knownSuppliers.some(function(ks) {
+      return lower.indexOf(ks) !== -1 || ks.indexOf(lower.substring(0, 6)) !== -1;
+    });
+  });
+
+  if (!filtered.length) {
+    return '<div style="margin-top:16px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:11px;color:var(--text3)">\ud83d\udcec No pending supplier receipts in Odoo</div>';
+  }
+
+  var rows = filtered.map(function(sName) {
     var data = pendingReceiptsBySupplier[sName];
     var isOverdue = data.scheduledDate && new Date(data.scheduledDate) < new Date();
     var products = (data.products || []).slice(0, 3).map(function(p) {
@@ -6891,7 +6971,7 @@ function osRenderActiveOrders() {
   }).join('');
 
   return '<div style="margin-top:20px">'
-    + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">\ud83d\udcec Active Orders (from Odoo)</div>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">\ud83d\udcec Incoming Supplier Orders (from Odoo)</div>'
     + '<div class="tcard"><table><thead><tr><th>Supplier</th><th>Products</th><th>Expected</th><th>Status</th></tr></thead>'
     + '<tbody>' + rows + '</tbody></table></div></div>';
 }
