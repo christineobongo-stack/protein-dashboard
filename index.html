@@ -4735,7 +4735,6 @@ const MAIN_TABS = {
   orders: {
     subs: [
       {id:'schedule', label:'🗓 Schedule'},
-      {id:'today',    label:'📋 Overview'},
       {id:'stock',    label:'📊 Coverage'},
       {id:'planner',  label:'🚢 Planning'}
     ],
@@ -4749,8 +4748,11 @@ const MAIN_TABS = {
     defaultSub: 'insights'
   },
   health: {
-    subs: [],
-    defaultSub: 'health'
+    subs: [
+      {id:'today',  label:'📋 FG Stock & Sales'},
+      {id:'health', label:'🔍 Data Quality'}
+    ],
+    defaultSub: 'today'
   }
 };
 
@@ -6493,7 +6495,7 @@ const SUPPLIER_OS_DEFAULTS = {
     items: 'WPC 80', model: 'consumption',
     ingredientNames: ['80% Whey Concentrate'],
     incomingKeys: ['WPC80'], suppKeys: [],
-    leadDays: 14, cycleDays: 30, active: true
+    leadDays: 14, cycleDays: 60, active: true
   },
   'IMCD Kenya': {
     displayName: 'IMCD Kenya', category: 'whey', emoji: '\ud83e\udd5b',
@@ -6813,12 +6815,46 @@ function osRenderCard(key, cfg, coverage, daysToOrder, orderByDate, rag) {
     dateHtml = '<div style="margin-top:8px;font-size:10px;color:var(--text3)">Last receipt: <input type="date" value="' + curDate + '" style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:2px 4px;margin-left:4px" onchange="try{localStorage.setItem(\'os_last_' + key + '\',this.value);}catch(e){}renderOrderSchedule()"></div>';
   }
 
-  // Capital estimate (consumption only)
+  // Capital estimate + order qty breakdown
   var capHtml = '';
+  var orderHtml = '';
   if (cfg.model === 'consumption' && cycleDays !== null) {
     var items = osSuggestedItems(key, cycleDays);
     var cap = items.reduce(function(s,i){ return s+i.total; }, 0);
-    if (cap > 0) capHtml = '<div style="margin-top:6px;font-size:10px;color:var(--text2)">Est. capital: <b style="font-family:var(--font-mono);color:var(--c-protein)">Ksh ' + Math.round(cap).toLocaleString() + '</b></div>';
+    if (items.length) {
+      var cycMo = Math.round(cycleDays / 30.44);
+      orderHtml = '<div style="margin-top:8px;border-top:1px solid ' + rc.bdr + ';padding-top:6px">'
+        + '<div style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:3px">'
+        + 'Order qty (' + cycMo + '-mo cycle):</div>'
+        + items.map(function(it) {
+            return '<div style="display:flex;justify-content:space-between;font-size:10px;padding:1px 0">'
+              + '<span style="color:var(--text2)">' + it.name + '</span>'
+              + '<span style="font-family:var(--font-mono);font-weight:600;color:var(--text)">' + Math.round(it.qty) + ' kg</span></div>';
+          }).join('');
+      if (cap > 0) orderHtml += '<div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 0;margin-top:2px;border-top:1px dashed var(--border)">'
+        + '<span style="color:var(--text3)">Est. capital</span>'
+        + '<span style="font-family:var(--font-mono);font-weight:700;color:var(--c-protein)">Ksh ' + Math.round(cap).toLocaleString() + '</span></div>';
+      orderHtml += '</div>';
+    }
+  }
+
+  // Sea/air shipping advice (Lactelle WPC35)
+  var shippingHtml = '';
+  if (key === 'Lactelle' && coverage && coverage.allItems) {
+    var wpc35item = coverage.allItems.find(function(it) { return it.name.toLowerCase().indexOf('35%') !== -1; });
+    if (wpc35item) {
+      var covWeeks = wpc35item.covMonths * 4.33;
+      if (covWeeks > 10) {
+        shippingHtml = '<div style="margin-top:6px;padding:6px 8px;background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:6px;font-size:9px;color:var(--ok-txt)">'
+          + '\ud83d\udea2 WPC35 coverage ' + covWeeks.toFixed(0) + ' wk \u2014 <b>ship by sea</b> (saves ~Ksh 900/kg vs air)</div>';
+      } else if (covWeeks > 6) {
+        shippingHtml = '<div style="margin-top:6px;padding:6px 8px;background:var(--low-bg);border:1px solid var(--low-bdr);border-radius:6px;font-size:9px;color:var(--low-txt)">'
+          + '\u2708\ud83d\udea2 WPC35 ' + covWeeks.toFixed(0) + ' wk \u2014 <b>bridge by air</b>, follow up by sea</div>';
+      } else {
+        shippingHtml = '<div style="margin-top:6px;padding:6px 8px;background:var(--crit-bg);border:1px solid var(--crit-bdr);border-radius:6px;font-size:9px;color:var(--crit-txt)">'
+          + '\u2708 WPC35 only ' + covWeeks.toFixed(0) + ' wk \u2014 <b>air freight urgently</b></div>';
+      }
+    }
   }
 
   // Plan button
@@ -6831,7 +6867,7 @@ function osRenderCard(key, cfg, coverage, daysToOrder, orderByDate, rag) {
       + '<div><div style="font-size:11px;font-weight:700;color:var(--text)">' + rc.dot + ' ' + cfg.displayName + '</div>'
       + '<div style="font-size:9px;color:var(--text3);margin-top:1px">' + cfg.items + '</div></div>'
       + '<div style="text-align:right">' + countHtml + '</div>'
-    + '</div>' + covHtml + capHtml + editHtml + dateHtml + planBtn + '</div>';
+    + '</div>' + covHtml + orderHtml + shippingHtml + capHtml + editHtml + dateHtml + planBtn + '</div>';
 }
 
 // ── Active orders from Odoo ───────────────────────────────────────────────────
