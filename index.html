@@ -6581,7 +6581,7 @@ const SUPPLIER_OS_DEFAULTS = {
   'OSF CnC': {
     displayName: 'Cookies & Cream Flavouring', category: 'flavour', emoji: '\ud83c\udf6a',
     items: 'OSF Flavors \xb7 8776B + Hazelnut 2124B', model: 'consumption',
-    ingredientNames: ['Cookies & cream flavouring', 'Hazelnut Flavouring', 'Cookies n Cream Flavoring 8776B', 'Organic Flavor Hazelnut NAT 2124B-'],
+    ingredientNames: ['Cookies & cream flavouring', 'Hazelnut Flavouring', 'Cookies n Cream Flavoring 8776B'],
     incomingKeys: [], suppKeys: [], leadDays: 14, cycleDays: 90, active: true
   },
   'OSF Caramel': {
@@ -6613,7 +6613,7 @@ const SUPPLIER_OS_DEFAULTS = {
     items: 'Xanthan \xb7 Cocoa Powder \xb7 Non-Dairy Creamer',
     model: 'consumption',
     ingredientNames: [
-      'Xanthan Gum', 'Alkalized cocoa powder', 'Dark Alkalised Cocoa Powder', 'Non-Dairy Creamer'
+      'Xanthan Gum', 'Alkalized cocoa powder', 'Non-Dairy Creamer'
     ],
     incomingKeys: [], suppKeys: [],
     leadDays: 14, cycleDays: 60, active: true
@@ -6622,7 +6622,7 @@ const SUPPLIER_OS_DEFAULTS = {
     displayName: 'M\u00fcnzing Chemie (Germany)', category: 'additives', emoji: '\u2697',
     items: 'Antifoam (Magrabar 4965)',
     model: 'consumption',
-    ingredientNames: ['Magrabar 4965 Antifoam'],
+    ingredientNames: ['Antifoam'],
     incomingKeys: [], suppKeys: [],
     leadDays: 45, cycleDays: 180, active: true
   },
@@ -6630,7 +6630,7 @@ const SUPPLIER_OS_DEFAULTS = {
     displayName: 'Biotech Limited (India)', category: 'additives', emoji: '\ud83e\uddec',
     items: 'Digesist (digestive enzyme)',
     model: 'consumption',
-    ingredientNames: ['Digesist', 'Digezyme'],
+    ingredientNames: ['Digesist'],
     incomingKeys: [], suppKeys: [],
     leadDays: 75, cycleDays: 180, active: true
   },
@@ -6672,38 +6672,104 @@ function osLoadLog() {
 function osSaveLog() { try { localStorage.setItem(OS_LOG_KEY, JSON.stringify(osOrderLog)); } catch(e) {} }
 
 // ── Coverage ──────────────────────────────────────────────────────────────────
+
+// Robust ingredient → procItems.main stock lookup
+// 1. Exact match (case-insensitive)
+// 2. Substring (first 10 chars)
+// 3. Word-overlap (≥50% shared words, min 2)
+function osFindStockItem(ingName) {
+  if (!procItems.main || !procItems.main.length) return null;
+  var nl = ingName.toLowerCase().trim();
+
+  // Pass 1: exact
+  for (var j = 0; j < procItems.main.length; j++) {
+    if (procItems.main[j].name.toLowerCase().trim() === nl) return procItems.main[j];
+  }
+  // Pass 2: substring on first 10 chars
+  var sub = nl.substring(0, 10);
+  for (var j = 0; j < procItems.main.length; j++) {
+    if (procItems.main[j].name.toLowerCase().indexOf(sub) !== -1) return procItems.main[j];
+  }
+  // Pass 3: word overlap (handles reordered/slightly different names)
+  var words = nl.replace(/[^a-z0-9%]/g, ' ').split(/\s+/).filter(function(w) { return w.length > 2; });
+  if (words.length < 2) return null;
+  var bestScore = 0, bestItem = null;
+  for (var j = 0; j < procItems.main.length; j++) {
+    var kw = procItems.main[j].name.toLowerCase().replace(/[^a-z0-9%]/g, ' ').split(/\s+/).filter(function(w) { return w.length > 2; });
+    var matches = words.filter(function(w) { return kw.indexOf(w) !== -1; }).length;
+    var score = matches / Math.max(words.length, kw.length);
+    if (score > bestScore && score >= 0.5) { bestScore = score; bestItem = procItems.main[j]; }
+  }
+  return bestItem;
+}
+
 function osGetConsumptionCoverage(key, cfg) {
   var results = [];
+  var inc = 0;
+  (cfg.incomingKeys || []).forEach(function(ikey) { inc += totalIncomingQty(ikey); });
 
-  // Protein/whey ingredients
+  // Phase 1: resolve each ingredient's stock item and RQ
+  var ingData = [];
   (cfg.ingredientNames || []).forEach(function(ingName) {
     var rq = computeRQ(ingName);
     if (rq <= 0) return;
-    var item = null;
-    for (var j = 0; j < procItems.main.length; j++) {
-      var it = procItems.main[j];
-      if (it.name.toLowerCase().trim() === ingName.toLowerCase().trim()) { item = it; break; }
-    }
-    if (!item) {
-      for (var j = 0; j < procItems.main.length; j++) {
-        var it = procItems.main[j];
-        if (it.name.toLowerCase().indexOf(ingName.toLowerCase().substring(0, 10)) !== -1) { item = it; break; }
-      }
-    }
-    var stock = item ? (item.stock || 0) : 0;
-    var inc   = 0;
-    (cfg.incomingKeys || []).forEach(function(ikey) { inc += totalIncomingQty(ikey); });
-    results.push({ name: ingName, covMonths: (stock + inc) / rq, rq: rq, stock: stock, incoming: inc });
+    var item = osFindStockItem(ingName);
+    ingData.push({ name: ingName, rq: rq, item: item });
   });
 
-  // Supplement SKUs
+  // Phase 2: for items without stock, find best fallback from same supplier group
+  // Uses word overlap to match related names — e.g. "Vanilla 5378B Flavoring" falls
+  // back to "Vanilla flavouring (50% ...)" stock, not to an unrelated ingredient.
+  for (var i = 0; i < ingData.length; i++) {
+    if (ingData[i].item) continue;
+    var myWords = ingData[i].name.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(function(w) { return w.length > 3; });
+
+    // Try other ingData items that found stock
+    var bestItem = null, bestOverlap = 0;
+    for (var k = 0; k < ingData.length; k++) {
+      if (k === i || !ingData[k].item) continue;
+      var otherWords = ingData[k].name.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(function(w) { return w.length > 3; });
+      var overlap = myWords.filter(function(w) { return otherWords.indexOf(w) !== -1; }).length;
+      if (overlap > bestOverlap) { bestOverlap = overlap; bestItem = ingData[k].item; }
+    }
+    if (bestItem && bestOverlap > 0) { ingData[i].item = bestItem; continue; }
+
+    // Final fallback: try ALL cfg ingredient names (incl those with RQ=0 that weren't in ingData)
+    for (var k = 0; k < (cfg.ingredientNames || []).length; k++) {
+      var tryItem = osFindStockItem(cfg.ingredientNames[k]);
+      if (!tryItem) continue;
+      var tryWords = cfg.ingredientNames[k].toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(function(w) { return w.length > 3; });
+      var tryOverlap = myWords.filter(function(w) { return tryWords.indexOf(w) !== -1; }).length;
+      if (tryOverlap > 0) { ingData[i].item = tryItem; break; }
+    }
+  }
+
+  // Phase 3: group by matched stock item — pool RQ for items sharing same physical stock
+  // e.g. "Vanilla 5378B" + "Vanilla 4320C" both map to the same stock entry →
+  // coverage = shared_stock / (rq_5378B + rq_4320C)
+  var groups = {};
+  ingData.forEach(function(d) {
+    var gKey = d.item ? d.item.name : '__none';
+    if (!groups[gKey]) groups[gKey] = { stock: d.item ? (d.item.stock || 0) : 0, rqSum: 0, items: [] };
+    groups[gKey].rqSum += d.rq;
+    groups[gKey].items.push(d);
+  });
+
+  Object.values(groups).forEach(function(g) {
+    var covMonths = g.rqSum > 0 ? (g.stock + inc) / g.rqSum : 99;
+    g.items.forEach(function(d) {
+      results.push({ name: d.name, covMonths: covMonths, rq: d.rq, stock: g.stock, incoming: inc });
+    });
+  });
+
+  // Supplement SKUs (always individual stock per SKU)
   (cfg.suppKeys || []).forEach(function(sku) {
     var item = procItems.bulk[sku]; var bCfg = BULK_CFG[sku];
     if (!item || !bCfg) return;
     var rq = bulkRQ(sku); if (rq <= 0) return;
     var stock = item.stock || 0;
-    var inc   = totalIncomingQty(sku);
-    results.push({ name: bCfg.label || sku, covMonths: (stock + inc) / rq, rq: rq, stock: stock, incoming: inc });
+    var suppInc = totalIncomingQty(sku);
+    results.push({ name: bCfg.label || sku, covMonths: (stock + suppInc) / rq, rq: rq, stock: stock, incoming: suppInc });
   });
 
   if (!results.length) return { model: 'consumption', covMonths: null, noData: true };
@@ -6779,8 +6845,7 @@ function osSuggestedItems(key, cycleDays) {
   var items = [];
   (cfg.ingredientNames || []).forEach(function(ingName) {
     var rq = computeRQ(ingName); if (rq <= 0) return;
-    var item = procItems.main.find(function(it) { return it.name.toLowerCase().trim() === ingName.toLowerCase().trim(); });
-    if (!item) item = procItems.main.find(function(it) { return it.name.toLowerCase().indexOf(ingName.toLowerCase().substring(0,10)) !== -1; });
+    var item = osFindStockItem(ingName);
     var cost = item ? item.cost : 0;
     var qty  = rq * cycleMonths * multiplier;
     items.push({ name: ingName, qty: qty, cost: cost, total: qty * cost });
