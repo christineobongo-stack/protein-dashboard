@@ -1712,6 +1712,19 @@ const COMP_TO_COST = {
   'sucralose':                            ['sucralose'],
   'magrabar 4965 antifoam':               ['antifoam','magrabar'],
   'pepzyme pro plus':                     ['digesist','pepzyme','enzyme'],
+  // Odoo renamed the enzyme component from "Digesist" to "ECOENZYME- DIGEST" (per-line naming).
+  // Cost sheet still lists it under "Digesist" — alias every formatting variant we might see
+  // from Odoo (hyphen spacing, per-line prefixes) back to that cost entry.
+  'ecoenzyme- digest':                    ['digesist'],
+  'ecoenzyme - digest':                   ['digesist'],
+  'ecoenzyme-digest':                     ['digesist'],
+  'eco enzyme digest':                    ['digesist'],
+  'ceenzyme- digest':                     ['digesist'],
+  'ceenzyme - digest':                    ['digesist'],
+  'bioenzyme- digest':                    ['digesist'],
+  'bioenzyme - digest':                   ['digesist'],
+  'ispenzyme- digest':                    ['digesist'],
+  'ispenzyme - digest':                   ['digesist'],
   'banana flavouring 9011b -pdr ':        ['banana flavouring'],
   'banana flavouring 9011b -pdr':         ['banana flavouring'],
   'banana flavouring 4493a':              ['banana flavouring'],
@@ -1747,7 +1760,7 @@ function findIngCost(compNameLower) {
       if (k.toLowerCase().trim() === alias) return v;
     }
   }
-  // 3. Word-overlap fallback (>=50% overlap)
+  // 3. Word-overlap fallback (>=50% overlap), exact word match
   const qw = compNameLower.replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w=>w.length>2);
   if (!qw.length) return 0;
   let best=0, bestCost=0;
@@ -3740,9 +3753,20 @@ function renderCosts(){
     .filter(([fn,sm])=>Object.keys(sm).some(s=>PROT_SKUS.includes(s))&&!ingCosts[fn])
     .map(([fn])=>fn);
 
+  // BoM-driven path (active whenever Odoo BOMs exist) has its own silent-zero-cost failure
+  // mode: a component name that doesn't match findIngCost() contributes Ksh 0 with no error.
+  // Surface those here too, sku-tagged, instead of requiring a drill into each detail dropdown.
+  const bomMissingCosts=[];
+  protRows.forEach(r=>{
+    (r.detail||[]).forEach(d=>{
+      if(d.bomDriven && !d.hasCost) bomMissingCosts.push(`${d.name} (${r.sku})`);
+    });
+  });
+
   document.getElementById('costNote').innerHTML=
     `Formula: <code style="font-family:monospace;background:#fff;padding:1px 5px;border-radius:3px;font-size:10px">Cost/serving = Σ(frac × Ksh/kg) × (33÷1000)   Cost/pack = Cost/serving × (packG÷33) + packaging</code>`+
-    (missingCosts.length?`<br><span style="color:var(--crit-txt)">⚠ No cost found for: ${missingCosts.join(', ')} — click debug to investigate</span>`:'');
+    (missingCosts.length?`<br><span style="color:var(--crit-txt)">⚠ No cost found for: ${missingCosts.join(', ')} — click debug to investigate</span>`:'')+
+    (bomMissingCosts.length?`<br><span style="color:var(--crit-txt)">⚠ Odoo BoM component(s) with no matching cost — cost/pack below is UNDERSTATED: ${bomMissingCosts.join(', ')}</span>`:'');
 
   document.getElementById('costSummary').innerHTML=`
     <div class="metric"><div class="mlabel">Highest cost / pack</div><div class="mval" style="font-size:15px">Ksh ${ksh(Math.max(...allTotals))}</div></div>
