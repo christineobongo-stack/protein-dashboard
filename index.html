@@ -453,7 +453,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
               <th style="text-align:right">2-mo RQ</th>
               <th style="text-align:right">4-mo order</th>
               <th style="text-align:right">Order value (Ksh)</th>
-              <th style="text-align:right">To end Aug<div style="font-style:italic;font-weight:400;font-size:9px">need · gap</div></th>
+              <th id="cov-horizon-th" style="text-align:right">To end<div style="font-style:italic;font-weight:400;font-size:9px">need · gap</div></th>
               <th>Gap analysis<div style="font-style:italic;font-weight:400;font-size:9px">stockout vs incoming</div></th>
               <th>Deadline</th><th>Lead time</th><th>Supplier</th>
             </tr></thead>
@@ -1456,6 +1456,27 @@ const FORM_TABS = {
   'BIOBALANCE':     { gid:1097578210, skus:['BIOVAN','BIOUN'],                                                      packG:840, dot:'dot-bio', lbl:'lbl-bio' },
 };
 const SERVING_G = 33;
+
+// Coverage-window horizon for the "To end [month]" procurement column.
+// Rolls forward from today automatically — change this ONE number to change
+// the planning window everywhere it's used. (Matches the 4-month order cycle
+// used elsewhere on this tab; adjust independently here if that ever diverges.)
+const COVERAGE_HORIZON_MONTHS = 4;
+function coverageHorizonEnd(monthsAhead){
+  const d=new Date();
+  d.setMonth(d.getMonth()+monthsAhead);
+  return d;
+}
+function coverageHorizonLabel(monthsAhead){
+  return coverageHorizonEnd(monthsAhead).toLocaleString('default',{month:'short'});
+}
+function coverageHorizonNeed(rq,item,incomingQty){
+  const covEnd=coverageHorizonEnd(COVERAGE_HORIZON_MONTHS);
+  const moToHorizon=Math.max(0,(covEnd-new Date())/(30.44*24*3600*1000));
+  const need=rq>0?rq*moToHorizon:0;
+  const gap=Math.max(0,need-item.stock-(incomingQty||0));
+  return {need,gap};
+}
 
 // Pack weight in kg used in RQ formula (from MARCH ORDER formulas)
 const RQ_W = {
@@ -3355,15 +3376,13 @@ function makeRow(item,rq,units,onchange,cost){
   const ov=Math.round(fourMo*(cost||item.cost));
   const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
   const displayCost=cost||item.cost;
-  // End-of-August validation
-  const augEnd=new Date(new Date().getFullYear(),7,31);
-  const moToAug=Math.max(0,(augEnd-new Date())/(30.44*24*3600*1000));
-  const augNeed=rq>0?rq*moToAug:0;
-  const augGap=Math.max(0,augNeed-item.stock-incomingQty);
+  // Rolling coverage-horizon check (was hardcoded to end-of-August; now rolls
+  // forward from today automatically — see COVERAGE_HORIZON_MONTHS above)
+  const {need:covNeed,gap:covGap}=coverageHorizonNeed(rq,item,incomingQty);
   const augCell=rq<=0?'<span style="color:var(--text3)">—</span>'
-    :'<div style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">'+augNeed.toFixed(1)+' '+units+'</div>'
-    +(augGap>0
-      ?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">▲'+augGap.toFixed(1)+' short</div>'
+    :'<div style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">'+covNeed.toFixed(1)+' '+units+'</div>'
+    +(covGap>0
+      ?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">▲'+covGap.toFixed(1)+' short</div>'
       :'<div style="font-size:9px;color:var(--ok-txt)">✓ covered</div>');
 
   // Gap analysis: stockout date vs first incoming date
@@ -3577,6 +3596,11 @@ function renderProcurement(){
   const needs=pkgNeeds();
   let crit=0,low=0,overdue=0,totOrd=0,html='';
 
+  // Keep the coverage-horizon column header in sync with COVERAGE_HORIZON_MONTHS —
+  // rebuilds itself from today's date every render, never goes stale.
+  const covHorizonTh=document.getElementById('cov-horizon-th');
+  if(covHorizonTh) covHorizonTh.innerHTML='To end '+coverageHorizonLabel(COVERAGE_HORIZON_MONTHS)+'<div style="font-style:italic;font-weight:400;font-size:9px">need · gap</div>';
+
   // Section 1: Raw materials
   const mainRows=procItems.main.filter(item=>{
     const rq=computeRQ(item.name);
@@ -3626,10 +3650,7 @@ function renderProcurement(){
       const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
       const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
       const wf=cfg.sachets?`<div class="waste-flag">⚠ ${cfg.usable}/${cfg.sachets} sachets usable</div>`:'';
-      const augEndB=new Date(new Date().getFullYear(),7,31);
-      const moToAugB=Math.max(0,(augEndB-new Date())/(30.44*24*3600*1000));
-      const augNeedB=rq>0?rq*moToAugB:0;
-      const augGapB=Math.max(0,augNeedB-item.stock);
+      const {need:augNeedB,gap:augGapB}=coverageHorizonNeed(rq,item,0);
       return`<tr style="${bg}">
         <td><div class="iname">${item.name}</div><div class="imeta">${cfg.label} · ${cfg.usable} packs/drum</div>${wf}</td>
         <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cov>=99?'∞':cov.toFixed(1)+'mo'}</span></div></td>
