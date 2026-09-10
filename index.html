@@ -2181,12 +2181,61 @@ function getFormNames(procName){
 // COMPUTE MONTHLY RQ
 // Formula: Σ_SKU( frac[SKU] × sales[SKU] × rqW[SKU] )
 // ═══════════════════════════════════════════════════════════════════════════════
+// Finds a generic procurement-sheet ingredient name's total in rawConsumption,
+// summing across every real Odoo BOM component it represents. Needed because
+// Odoo names components with batch/lot codes (e.g. "Vanilla Chai Flavoring 4537B")
+// that don't string-match the generic sheet name ("Vanilla Chai Flavouring") —
+// and some generic names genuinely represent TWO real components blended together
+// (e.g. Vanilla = 4320C + 5378B), so this sums rather than picking just one.
+//
+// Matching is done on flavour-IDENTITY words only (chai/birthday/caramel/etc.),
+// not full word overlap — verified via test_rq3.js against the real flavour
+// catalog. Full word-overlap caused "Vanilla flavouring" to also absorb "Vanilla
+// Chai" and "Vanilla Birthday" (double-counting); this list-based approach avoids
+// that while still tolerating decorative wording differences (Odoo's "Birthday
+// CAKE" vs the sheet's plain "Birthday"; Odoo's "Caramel" vs the sheet's "SALTED
+// Caramel" — "cake" and "salted" are deliberately not in the identity list).
+const FLAVOR_MODIFIERS = ['chai','birthday','caramel','hazelnut','cinnamon','banana','chocolate','cookies','cream'];
+function flavorModifiers(nl){
+  return FLAVOR_MODIFIERS.filter(function(m){ return nl.includes(m); }).sort().join('|');
+}
+
+function findRawConsumptionSum(nl){
+  if(rawConsumption[nl]!==undefined) return rawConsumption[nl];
+  if(rawConsumption[nl+' ']!==undefined) return rawConsumption[nl+' '];
+  if(rawConsumption[nl.replace(/ +$/,'')]!==undefined) return rawConsumption[nl.replace(/ +$/,'')];
+
+  if(nl.includes('flavour')||nl.includes('flavor')||nl.includes('flavoring')){
+    const myMods=flavorModifiers(nl);
+    let sum=0, found=false;
+    Object.entries(rawConsumption).forEach(function([key,val]){
+      if(!(key.includes('flavour')||key.includes('flavor')||key.includes('flavoring'))) return;
+      if(flavorModifiers(key)!==myMods) return;
+      sum+=val; found=true;
+    });
+    if(found) return sum;
+  }
+
+  // Code-pattern match (WPC35/WPC80/WPI90/digesist/etc.) — same recognition used
+  // for cost matching, reused here so the two never drift apart from each other.
+  const myCode=extractIngCode(nl);
+  if(myCode){
+    let sum=0, found=false;
+    Object.entries(rawConsumption).forEach(function([key,val]){
+      if(extractIngCode(key)===myCode){ sum+=val; found=true; }
+    });
+    if(found) return sum;
+  }
+
+  return undefined;
+}
+
 function computeRQ(procName){
   const gf=getGrowthFactor();
-  // Primary: BoM × avg monthly sales (pre-computed server-side)
+  // Primary: BoM × avg monthly shipments (pre-computed server-side)
   if(Object.keys(rawConsumption).length>0){
     const nl=procName.toLowerCase().trim();
-    const v=rawConsumption[nl]??rawConsumption[nl+' ']??rawConsumption[nl.replace(/ +$/,'')];
+    const v=findRawConsumptionSum(nl);
     if(v!==undefined) return v*gf;
   }
   // Fallback: legacy formulation-fraction calculation
@@ -2618,7 +2667,7 @@ var PROC_INCOMING_MAP = {
   // Whey
   '35% Whey Concentrate': 'WPC35',
   '80% Whey Concentrate': 'WPC80',
-  'WPI 90%':              'WPI',
+  'WPI 90%':              'WPI90',
   // Bulk supplements
   'Bulk Pure Creatine':         'CREATUN',
   'Bulk Fruit Punch Creatine':  'CREATFP',
@@ -2659,15 +2708,26 @@ function renderWheyCapacity() {
     var limitingLabel = null;
 
     wheyIngredients.forEach(function(wi) {
-      var moKg = 0;
+      // BOM-first, per SKU: pull the exact per-pack kg straight from each SKU's
+      // real Odoo BOM. Only fall back to the formulation sheet's fraction × sales
+      // estimate for a SKU that individually has no BOM — per policy, Odoo BOMs
+      // are the source of truth and the sheet is a last resort, not a default.
+      var wiCode = extractIngCode(wi.ingName);
       var targets = getFormNames(wi.ingName);
-      Object.entries(formulations).forEach(function([fn, skuMap]) {
-        var matches = targets.some(function(t) {
-          return fn.toLowerCase().includes(t) || t.includes(fn.toLowerCase());
-        });
-        if (!matches) return;
-        lineSkus.forEach(function(sku) {
-          moKg += (skuMap[sku] || 0) * (SALES[sku] || 0) * (RQ_W[sku] || 1);
+      var moKg = 0;
+
+      lineSkus.forEach(function(sku) {
+        var salesQty = SALES[sku] || 0;
+        if (salesQty <= 0) return;
+        var refs = protRefs(sku);
+        var bomRef = refs.find(function(r) { return boms[r] && boms[r].length; });
+        var line = (bomRef && wiCode) ? boms[bomRef].find(function(l) { return l.isKg && extractIngCode(l.compLower) === wiCode; }) : null;
+        if (line) { moKg += line.qty * salesQty; return; }
+        // This specific SKU has no usable BOM line for this ingredient — sheet fallback, this SKU only
+        Object.entries(formulations).forEach(function([fn, skuMap]) {
+          var matches = targets.some(function(t) { return fn.toLowerCase().includes(t) || t.includes(fn.toLowerCase()); });
+          if (!matches) return;
+          moKg += (skuMap[sku] || 0) * salesQty * (RQ_W[sku] || 1);
         });
       });
       if (moKg <= 0) return; // ingredient not used in this line
