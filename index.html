@@ -1133,6 +1133,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         </div>
         <div class="pg-section">
           <div class="pg-title">Shaker order <span>($1 USD each · MOQ 300)</span></div>
+          <div id="shakerStockLive" style="font-size:10px;color:var(--text3);margin-bottom:6px">Loading current stock…</div>
           <div class="pg-grid c3">
             <div><div class="pg-label">Black</div><input class="pg-input" id="shk-black" type="number" value="800" oninput="renderPackaging()"></div>
             <div><div class="pg-label">White</div><input class="pg-input" id="shk-white" type="number" value="600" oninput="renderPackaging()"></div>
@@ -4426,7 +4427,9 @@ function renderWheyStockTable(){
     const daysSea = Math.round((orderBySea - today)/864e5);
 
     const cogCurKsh = curKg * ewKshPerKg;
-    const st = covTot < 2 ? 'critical' : covTot < 4 ? 'low' : 'ok';
+    // Status reflects CURRENT stock only (not blended with incoming) — an item on the
+    // shelf right now is what determines urgency; incoming is shown separately below.
+    const st = covCur < 2 ? 'critical' : covCur < 4 ? 'low' : 'ok';
     const stBadge = `<span class="badge ${st}">${st==='critical'?'Critical':st==='low'?'Low':'OK'}</span>`;
 
     totalIncKg += incKgTotal;
@@ -5801,6 +5804,17 @@ function renderPackaging() {
   // ── Shaker summary ────────────────────────────────────────────────────────
   if(el('shakerSummary')) el('shakerSummary').innerHTML=shkTot>0?
     'Total: <b>'+shkTot+'</b> = $'+shkTot+' (Ksh '+Math.round(shkTot*usdKes).toLocaleString()+' ExWorks)':'Enter quantities above.';
+
+  // ── Live shaker stock (from Odoo, via pkgCosts) ─────────────────────────────
+  if(el('shakerStockLive')){
+    const parts=[['shaker_blk','Black'],['shaker_wht','White'],['shaker_clr','Clear']].map(function(p){
+      const rec=pkgCosts[p[0]];
+      const stock=rec&&typeof rec.stock==='number'?rec.stock:null;
+      const src=rec&&rec.stockSource==='odoo'?'●':'—';
+      return p[1]+': <b>'+(stock!==null?stock:'—')+'</b>'+(stock!==null?' '+src:'');
+    });
+    el('shakerStockLive').innerHTML='Current stock (Odoo): '+parts.join(' &middot; ');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5854,7 +5868,7 @@ function todayAlerts() {
     if (!rq || rq <= 0) return;
     var incomingKey = PROC_INCOMING_MAP[item.name];
     var incomingQty = incomingKey ? totalIncomingQty(incomingKey) : 0;
-    var freeStock   = Math.max(0, item.stock - incomingQty);
+    var freeStock   = item.stock; // current stock only — incoming tracked separately via incomingQty/incomingDate/gap below
     var coverageMo  = freeStock / rq;
     var so          = stockoutDate(freeStock, rq);
     var deadline    = computeDeadline(freeStock, rq, item.lead);
@@ -6049,7 +6063,7 @@ function todayDeadlines() {
     if (!rq) return;
     var incomingKey = PROC_INCOMING_MAP[item.name];
     var incomingQty = incomingKey ? totalIncomingQty(incomingKey) : 0;
-    var freeStock   = Math.max(0, item.stock - incomingQty);
+    var freeStock   = item.stock; // current stock only — incoming tracked separately via incomingQty/incomingDate/gap below
     var deadline    = computeDeadline(freeStock, rq, item.lead);
     if (!deadline) return;
     var days = Math.round((deadline - Date.now()) / 864e5);
