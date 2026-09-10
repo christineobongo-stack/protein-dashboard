@@ -1770,19 +1770,50 @@ const COMP_TO_COST = {
   'bulk collagen pink guava':             ['bulk collagen'],
 };
 
+// Recognizes a small set of ingredient "codes" regardless of how either side
+// happens to be labelled (Odoo BOM name, or whatever supplier/source annotation
+// the formulation sheet currently uses, e.g. "WPC80 (Benni Foods)"). This is the
+// primary match for the handful of ingredients that dominate cost — the exact-
+// string alias list below only needs to cover names that don't have a stable
+// abbreviation pattern (mainly flavours).
+function extractIngCode(s) {
+  const sl = (s || '').toLowerCase();
+  if (/wpc\s*-?\s*35/.test(sl)) return 'wpc35';
+  if (/wpc\s*-?\s*80/.test(sl)) return 'wpc80';
+  if (/wpi\s*-?\s*90/.test(sl)) return 'wpi90';
+  if (/non-?\s*dairy\s*creamer|\bndc\b/.test(sl)) return 'ndc';
+  if (/xanthan/.test(sl)) return 'xanthan';
+  if (/soy\s*lecithin/.test(sl)) return 'soylecithin';
+  if (/sunflower\s*lecithin/.test(sl)) return 'sunflowerlecithin';
+  if (/sucralose/.test(sl)) return 'sucralose';
+  if (/antifoam|magrabar/.test(sl)) return 'antifoam';
+  if (/digesist|pepzyme|ecoenzyme|digezyme/.test(sl)) return 'digesist';
+  if (/alkali[sz]ed\s*cocoa|cocoa\s*powder/.test(sl)) return 'cocoapowder';
+  return null;
+}
+
 function findIngCost(compNameLower) {
   // 1. Case-insensitive exact match
   for (const [k, v] of Object.entries(ingCosts)) {
     if (k.toLowerCase().trim() === compNameLower.trim()) return v;
   }
-  // 2. Known alias map
+  // 2. Code-pattern match — robust to supplier/source annotations changing on
+  // either side (e.g. Odoo's "(WPC 80)80% Whey Protein Concentrate" vs the
+  // formulation sheet's "WPC80 (Benni Foods)")
+  const myCode = extractIngCode(compNameLower);
+  if (myCode) {
+    for (const [k, v] of Object.entries(ingCosts)) {
+      if (extractIngCode(k) === myCode && v > 0) return v;
+    }
+  }
+  // 3. Known alias map (mainly flavours, which don't have a stable code pattern)
   const aliases = COMP_TO_COST[compNameLower] || COMP_TO_COST[compNameLower.trim()] || [];
   for (const alias of aliases) {
     for (const [k, v] of Object.entries(ingCosts)) {
       if (k.toLowerCase().trim() === alias) return v;
     }
   }
-  // 3. Word-overlap fallback (>=50% overlap), exact word match
+  // 4. Word-overlap fallback (>=50% overlap), exact word match
   const qw = compNameLower.replace(/[^a-z0-9]/g,' ').split(/\s+/).filter(w=>w.length>2);
   if (!qw.length) return 0;
   let best=0, bestCost=0;
@@ -6815,7 +6846,10 @@ function osGetConsumptionCoverage(key, cfg) {
   });
 
   Object.values(groups).forEach(function(g) {
-    var covMonths = g.rqSum > 0 ? (g.stock + inc) / g.rqSum : 99;
+    // Coverage reflects CURRENT stock only — matches the same fix applied to the
+    // main Coverage tab and Whey Planner. Incoming is still tracked (g.incoming
+    // via 'inc') and shown separately in the card, not blended into this number.
+    var covMonths = g.rqSum > 0 ? g.stock / g.rqSum : 99;
     g.items.forEach(function(d) {
       results.push({ name: d.name, covMonths: covMonths, rq: d.rq, stock: g.stock, incoming: inc });
     });
@@ -6828,7 +6862,7 @@ function osGetConsumptionCoverage(key, cfg) {
     var rq = bulkRQ(sku); if (rq <= 0) return;
     var stock = item.stock || 0;
     var suppInc = totalIncomingQty(sku);
-    results.push({ name: bCfg.label || sku, covMonths: (stock + suppInc) / rq, rq: rq, stock: stock, incoming: suppInc });
+    results.push({ name: bCfg.label || sku, covMonths: stock / rq, rq: rq, stock: stock, incoming: suppInc });
   });
 
   if (!results.length) return { model: 'consumption', covMonths: null, noData: true };
