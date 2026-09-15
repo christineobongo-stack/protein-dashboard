@@ -1104,8 +1104,12 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     <div id="pkgVerdict" style="margin-top:4px"></div>
     <div id="pkgAlerts" style="margin-bottom:10px"></div>
     <div class="pg-section">
+      <div class="pg-title">Synchronized China order schedule <span>(all items together, 2 shipments/year)</span></div>
+      <div id="pkgSyncSchedule"></div>
+    </div>
+    <div class="pg-section">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-        <div class="pg-title" style="margin-bottom:0">Stock position &amp; incoming order planner <span>(live from Odoo · 120-day lead all China items)</span></div>
+        <div class="pg-title" style="margin-bottom:0">Stock position &amp; incoming order planner <span>(live from Odoo · synchronized 6-month China order cycle, 134-day base lead + Chinese New Year buffer where it applies)</span></div>
         <button class="fbtn" id="growthToggle-packaging" onclick="toggleGrowth()" title="Apply 20% growth buffer to all RQs" style="border-color:#3a7d22;color:#3a7d22;white-space:nowrap">📈 +20% growth</button>
       </div>
       <div style="overflow-x:auto"><table class="comparison-table" id="pkgStockTable"></table></div>
@@ -1226,7 +1230,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       <div class="os-section">
         <div class="os-section-title">
           📦 Section C — Packaging &amp; China (Rolling Cargo)
-          <span class="os-supplier">Sea · 120-day lead · Shenzhen Yes Pack + Ningbo P&amp;M + AbsorbKing</span>
+          <span class="os-supplier">Sea · ~134-day lead (+CNY buffer where it applies) · Shenzhen Yes Pack + Ningbo P&amp;M + AbsorbKing</span>
         </div>
         <div id="os-pkg-dates" style="margin-bottom:10px;font-size:11px;color:var(--text2)"></div>
         <div style="overflow-x:auto">
@@ -1607,7 +1611,10 @@ let boms           = {};   // { 'CEVAN30': [{comp,compLower,qty,uom,isKg,isPcs},
 let monthlySales   = {};   // { '2026-03': { 'CEVAN30': 41, ... }, ... }
 let fgStock        = {};   // { 'CEVAN30': {baobab,scnb,nbo,total} }
 let rawConsumption = {};   // keyed by BoM component name (lowercase) → kg/mo
-let avgSales       = {};   // { 'CEVAN30': 41.3, ... } avg monthly
+let avgSales       = {};   // { 'CEVAN30': 41.3, ... } avg monthly (sales-based, for revenue/margin)
+let avgShipments   = {};   // { 'PROTSHAKBLK': 4.3, ... } avg monthly (FG leaving Baobab+SCNB — Sep 2026: wired
+                            // in for the Packaging & China tab's shaker consumption, which was previously
+                            // hardcoded to 0 even though Code.gs was already computing this correctly)
 let sellingPrices  = {};   // { 'CEVAN30': 4495, ... } selling prices — Odoo (WooCommerce) or Shopify fallback
 let pendingReceiptsBySupplier = {};  // Odoo pending receipts grouped by supplier (Order Schedule)
 let vendorPricelists          = {};  // Odoo product.supplierinfo unit costs
@@ -2478,6 +2485,7 @@ function applyPayload(payload){
   fgStock        = payload.fgStock        || {};
   rawConsumption = payload.rawConsumption || {};
   avgSales       = payload.avgSales       || {};
+  avgShipments   = payload.avgShipments   || {};
   // Selling prices: prefer Odoo (WooCommerce migration); Shopify fetch is async fallback only
   if (payload.sellingPrices && Object.keys(payload.sellingPrices).length > 0) {
     sellingPrices = payload.sellingPrices;
@@ -3096,9 +3104,25 @@ function renderOrderSheet() {
   }
 
   // ── SECTION C: Packaging ──────────────────────────────────────────────────
-  var pkgLead    = 120;
-  var pkgArrival = new Date(today.getTime() + pkgLead * 864e5);
-  var pkgOrderBy = new Date(today.getTime());
+  // Sep 15 2026: now pulls from the same synchronized China order schedule as
+  // the Packaging & China tab (computeChinaOrderSchedule), instead of an
+  // independent hardcoded 120-day lead + "always order today" + manually-typed
+  // PKG_INCOMING quantities. Printing this sheet now prints order 1's actual
+  // calculated level-up quantities and the real 134-day (+ CNY buffer where it
+  // applies) lead time — see the Packaging & China tab for the full breakdown.
+  var osGf = getGrowthFactor();
+  var osProtMo = Object.values(FORM_TABS).flatMap(function(c){return c.skus;}).reduce(function(s,sku){return s+(SALES[sku]||0);},0) * osGf;
+  var osBulkMo = Object.keys(BULK_CFG).reduce(function(s,sku){return s+(SALES[sku]||0);},0) * osGf;
+  var osMonthly = {
+    large_bag: osProtMo, medium_bag: 0, small_bag: osBulkMo, scoop_30g: osProtMo, scoop_5g: osBulkMo, silicon: osBulkMo*2,
+    shaker_blk: (avgShipments['PROTSHAKBLK']||0) * osGf,
+    shaker_wht: (avgShipments['PROTSHAKWT']||0) * osGf,
+    shaker_clr: (avgShipments['PROTSHAKCLR']||0) * osGf,
+  };
+  var osSched = computeChinaOrderSchedule(osMonthly);
+  var pkgOrderBy = osSched.orderDates[0];
+  var pkgArrival = osSched.arrivals[0];
+  var pkgLead    = osSched.leads[0].days;
 
   var pkgDatesEl = document.getElementById('os-pkg-dates');
   if (pkgDatesEl) {
@@ -3106,7 +3130,8 @@ function renderOrderSheet() {
       '<span class="os-date-chip order">📋 Order by: ' + fmtDateShort(pkgOrderBy) + '</span>'
       + ' &nbsp;→&nbsp; '
       + '<span class="os-date-chip arrive">📦 Arrives: ~' + fmtDateShort(pkgArrival) + '</span>'
-      + ' <span style="color:var(--text3);font-size:10px">(120-day lead)</span>';
+      + ' <span style="color:var(--text3);font-size:10px">(' + pkgLead + '-day lead'
+      + (osSched.leads[0].cny ? ', incl. 30-day CNY closure buffer' : '') + ')</span>';
   }
 
   var pkgTable = document.getElementById('os-pkg-table');
@@ -3124,7 +3149,7 @@ function renderOrderSheet() {
     var pkgRows = '', pkgEw = 0, pkgCbm = 0;
     Object.entries(PKG_ITEMS).forEach(function(entry) {
       var key = entry[0], cfg = entry[1];
-      var qty = PKG_INCOMING[key] || 0;
+      var qty = osSched.perItem[key].orders[0].qty || 0;
       if (!qty) return;
       var unitKsh = uKsh(cfg);
       var ew = qty * unitKsh;
@@ -5793,22 +5818,131 @@ function renderSupp(){
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PACKAGING & CHINA TAB — Rolling Cargo rates · all China items 120-day lead
+// PACKAGING & CHINA TAB — Rolling Cargo rates · synchronized biannual China orders
 // ═══════════════════════════════════════════════════════════════════════════════
+// Sep 15 2026 (Christine): all China items should ship together, 2x/year, not on
+// independent per-item schedules. See computeChinaOrderSchedule() below for the
+// synchronized order-date/quantity engine that replaced the old per-item
+// "120-day lead, order whenever this item runs low" logic.
 
-// pkgKey values MUST match what Code.gs writes into p.pkgKey via PKG_KEYWORDS
+// pkgKey values MUST match what Code.gs writes into p.pkgKey via PKG_KEYWORDS /
+// PKG_QUANT_MATCH. 'lead' here is no longer used for timing (see
+// computeChinaOrderSchedule) — kept only as informational metadata on the row.
 const PKG_ITEMS = {
-  large_bag:  {label:'Large bags',         pkgKey:'large_bag',  usdUnit:0.20,  lead:120, cbmPer1000:0.06,  supplier:'Shenzhen Yes Pack'},
-  small_bag:  {label:'Small bags',         pkgKey:'small_bag',  usdUnit:0.23,  lead:120, cbmPer1000:0.02,  supplier:'Shenzhen Yes Pack'},
-  scoop_30g:  {label:'30g Scoop',          pkgKey:'scoop_30g',  kshUnit:12,    lead:120, cbmPer1000:0.01,  supplier:'Ningbo P&M'},
-  scoop_5g:   {label:'5g Scoop',           pkgKey:'scoop_5g',   kshUnit:9,     lead:120, cbmPer1000:0.005, supplier:'Ningbo P&M'},
-  silicon:    {label:'Silicon Packs',      pkgKey:'silicon',    kshUnit:1.5,   lead:120, cbmPer1000:0.003, supplier:'AbsorbKing'},
-  shaker_blk: {label:'Shaker (black)',     pkgKey:'shaker_blk', usdUnit:1.00,  lead:120, cbmPer1000:0.02,  supplier:'TBC'},
-  shaker_wht: {label:'Shaker (white)',     pkgKey:'shaker_wht', usdUnit:1.00,  lead:120, cbmPer1000:0.02,  supplier:'TBC'},
-  shaker_clr: {label:'Shaker (clear)',     pkgKey:'shaker_clr', usdUnit:1.00,  lead:120, cbmPer1000:0.02,  supplier:'TBC'},
+  large_bag:  {label:'Large bags',         pkgKey:'large_bag',  usdUnit:0.20,  cbmPer1000:0.06,  supplier:'Shenzhen Yes Pack'},
+  medium_bag: {label:'Medium bags',        pkgKey:'medium_bag', usdUnit:null,  cbmPer1000:0.04,  supplier:'Shenzhen Yes Pack',
+               costTBC:true, usageTBC:true}, // Odoo name confirmed ("Medium Packaging Bags") Sep 15 2026 —
+               // unit cost and which SKUs use medium-format packaging still need confirming; see renderPackaging()
+  small_bag:  {label:'Small bags',         pkgKey:'small_bag',  usdUnit:0.23,  cbmPer1000:0.02,  supplier:'Shenzhen Yes Pack'},
+  scoop_30g:  {label:'30g Scoop',          pkgKey:'scoop_30g',  kshUnit:12,    cbmPer1000:0.01,  supplier:'Ningbo P&M'},
+  scoop_5g:   {label:'5g Scoop',           pkgKey:'scoop_5g',   kshUnit:9,     cbmPer1000:0.005, supplier:'Ningbo P&M'},
+  silicon:    {label:'Silicon Packs',      pkgKey:'silicon',    kshUnit:1.5,   cbmPer1000:0.003, supplier:'AbsorbKing'},
+  shaker_blk: {label:'Shaker (black)',     pkgKey:'shaker_blk', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
+  shaker_wht: {label:'Shaker (white)',     pkgKey:'shaker_wht', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
+  shaker_clr: {label:'Shaker (clear)',     pkgKey:'shaker_clr', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
 };
 
-const PKG_INCOMING = {large_bag:7500, small_bag:3500, scoop_30g:0, scoop_5g:0, silicon:0, shaker_blk:0, shaker_wht:0, shaker_clr:0};
+const PKG_INCOMING = {large_bag:7500, medium_bag:0, small_bag:3500, scoop_30g:0, scoop_5g:0, silicon:0, shaker_blk:0, shaker_wht:0, shaker_clr:0};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYNCHRONIZED CHINA ORDER SCHEDULE — 2 shipments/year, all items together
+// ═══════════════════════════════════════════════════════════════════════════════
+// Christine's confirmed timing (Sep 15 2026): production 1 month + sea shipping
+// 3 months + port/customs ~2 weeks = base transit lead. ORDER CYCLE is a separate
+// number — 6 months, i.e. 2 orders/year — not to be confused with the lead time:
+// cycle is how often we place an order, lead is how long that order then takes
+// to arrive.
+//
+// Chinese New Year: factories close for about a month around CNY. If an order's
+// production window (order date → order date+30d) overlaps that closure, that
+// order's lead time gets a 30-day buffer added, which is what actually keeps a
+// CNY-affected shipment from arriving late — the order date itself doesn't move.
+//
+// Real CNY dates only (Christine asked for actual dates, not an approximation).
+// Source: travelchinaguide.com / qppstudio.net, checked Sep 15 2026. EXTEND THIS
+// TABLE before it runs out — computeChinaOrderSchedule() plans 3 years ahead and
+// will silently apply zero CNY buffer for any order date past the last year listed.
+const CNY_DATES = {
+  2026: '2026-02-17', 2027: '2027-02-06', 2028: '2028-01-26', 2029: '2029-02-13',
+  2030: '2030-02-03', 2031: '2031-01-23', 2032: '2032-02-11', 2033: '2033-01-31',
+};
+const CHINA_LEAD = { productionDays: 30, shippingDays: 90, portDays: 14 }; // 134d base
+const CHINA_CYCLE_MONTHS = 6;
+const CNY_CLOSURE_HALF_WINDOW_DAYS = 15; // ~1 month total, centered on CNY — adjust if Christine's factories' actual closure window differs
+
+function chinaAddMonths(d, n) { const r = new Date(d.getTime()); r.setMonth(r.getMonth() + n); return r; }
+function chinaDaysBetween(a, b) { return (b.getTime() - a.getTime()) / 864e5; }
+
+function cnyClosureOverlaps(prodStart, prodEnd) {
+  for (const y in CNY_DATES) {
+    const cny = new Date(CNY_DATES[y] + 'T00:00:00');
+    const closeStart = new Date(cny.getTime() - CNY_CLOSURE_HALF_WINDOW_DAYS*864e5);
+    const closeEnd   = new Date(cny.getTime() + CNY_CLOSURE_HALF_WINDOW_DAYS*864e5);
+    if (prodStart <= closeEnd && prodEnd >= closeStart) return cny;
+  }
+  return null;
+}
+
+function chinaLeadDaysFor(orderDate) {
+  const prodEnd = new Date(orderDate.getTime() + CHINA_LEAD.productionDays*864e5);
+  const cnyHit = cnyClosureOverlaps(orderDate, prodEnd);
+  const base = CHINA_LEAD.productionDays + CHINA_LEAD.shippingDays + CHINA_LEAD.portDays;
+  return { days: base + (cnyHit?30:0), cny: cnyHit };
+}
+
+// Order 0 is placed now and "levels" every item's stock (existing + incoming) to
+// run out exactly when order 1 arrives — so items with very different current
+// coverage (e.g. silicon at 20mo vs shakers at 1mo) all land on the same
+// thereafter-fixed 6-month cadence. Order 1, 2, 3… follow a fixed calendar cadence
+// from order 0's date, each sized to bridge to the NEXT order's arrival (which
+// naturally absorbs any CNY delay into that cycle's quantity).
+//
+// IMPORTANT: order 0's date is pinned to CHINA_ORDER1_ANCHOR_DATE below, NOT to
+// "today" — this schedule is meant to be computed once and then stay fixed every
+// time the dashboard is reopened, per Christine's "fixed calendar months from
+// there on out." If this used `new Date()` directly, reopening the dashboard on
+// a different day would silently re-anchor the whole 2-orders/year cadence every
+// time, which defeats the point of synchronizing. Stock/incoming figures still
+// resolve live on every refresh — only the order DATES are pinned. Once you've
+// actually placed order 1, update this constant to the real date you placed it
+// (it won't change on its own).
+const CHINA_ORDER1_ANCHOR_DATE = '2026-09-15'; // update this once order 1 is actually placed
+
+function computeChinaOrderSchedule(monthlyRates) {
+  const today = new Date();
+  const anchor = new Date(CHINA_ORDER1_ANCHOR_DATE + 'T00:00:00');
+  const N = 6; // plan 6 cycles (3 years) ahead
+  const orderDates = [];
+  for (let n = 0; n <= N; n++) orderDates.push(chinaAddMonths(anchor, CHINA_CYCLE_MONTHS*n));
+  const leads = orderDates.map(chinaLeadDaysFor);
+  const arrivals = orderDates.map((d,n) => new Date(d.getTime() + leads[n].days*864e5));
+
+  const perItem = {};
+  Object.entries(PKG_ITEMS).forEach(function([key, cfg]) {
+    const {stock:cur} = getPkgStock(cfg.pkgKey);
+    const incRows = getIncoming(key);
+    const inc = incRows.reduce(function(s,r){return s+(parseFloat(r.qty)||0);},0);
+    const rate = monthlyRates[key] || 0;
+    const onHandTotal = cur + inc;
+
+    const daysToFirstArrival = chinaDaysBetween(today, arrivals[0]);
+    const neededToFirstArrival = rate>0 ? rate/30*daysToFirstArrival : 0;
+    const shortBeforeFirstOrder = rate>0 && onHandTotal < neededToFirstArrival;
+
+    const orders = [];
+    for (let n = 0; n <= N-1; n++) {
+      const bridgeDays = chinaDaysBetween(arrivals[n], arrivals[n+1]);
+      const need = rate>0 ? rate/30*bridgeDays : 0;
+      const qty = n===0 ? Math.max(0, need - onHandTotal) : need;
+      orders.push({
+        orderDate: orderDates[n], arrival: arrivals[n], qty: Math.round(qty),
+        cny: leads[n].cny, leadDays: leads[n].days,
+      });
+    }
+    perItem[key] = { orders, shortBeforeFirstOrder, daysToFirstArrival: Math.round(daysToFirstArrival), rate };
+  });
+  return { orderDates, arrivals, leads, perItem };
+}
 
 const CHINA_STICKERS = [
   {label:'CE Vanilla (large)',           usdUnit:0.07, orderQty:2500},
@@ -5861,16 +5995,34 @@ function renderPackaging() {
   const gf = getGrowthFactor();
   const protMo = Object.values(FORM_TABS).flatMap(c=>c.skus).reduce((s,sku)=>s+(SALES[sku]||0),0) * gf;
   const bulkMo = Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0) * gf;
-  const monthly = {large_bag:protMo,small_bag:bulkMo,scoop_30g:protMo,scoop_5g:bulkMo,silicon:bulkMo*2,shaker_blk:0,shaker_wht:0,shaker_clr:0};
+  // Shakers: real consumption from FG leaving Baobab+SCNB (avgShipments, wired in
+  // Sep 15 2026 — previously hardcoded to 0 here even though Code.gs already
+  // computed it correctly). medium_bag stays 0 until Christine confirms which
+  // SKUs use medium-format packaging (see PKG_ITEMS.medium_bag.usageTBC).
+  const monthly = {
+    large_bag: protMo, medium_bag: 0, small_bag: bulkMo, scoop_30g: protMo, scoop_5g: bulkMo, silicon: bulkMo*2,
+    shaker_blk: (avgShipments['PROTSHAKBLK']||0) * gf,
+    shaker_wht: (avgShipments['PROTSHAKWT']||0) * gf,
+    shaker_clr: (avgShipments['PROTSHAKCLR']||0) * gf,
+  };
 
-  function uKsh(cfg){ return cfg.kshUnit || (cfg.usdUnit*usdKes); }
+  // Returns the Ksh unit cost, or null when genuinely unknown (medium_bag until
+  // confirmed) — callers that need a number for a running total use uKsh()||0;
+  // callers displaying the figure to Christine check for null and show "TBC".
+  function uKsh(cfg,key){
+    if (cfg.costTBC) {
+      const live = key && pkgCosts[key] && pkgCosts[key].cost;
+      return (live>0) ? live : null;
+    }
+    return cfg.kshUnit || (cfg.usdUnit*usdKes);
+  }
   function seaCost(cbm){ return Math.max(seaMin, cbm*seaRate); }
 
   function computeShip(months) {
     let ew=0, cbm=0, units=0;
     Object.entries(PKG_ITEMS).forEach(function([k,cfg]){
       const qty=monthly[k]*months;
-      ew += qty*uKsh(cfg);
+      ew += qty*(uKsh(cfg,k)||0);
       cbm += qty/1000*(cfg.cbmPer1000||0);
       units += qty;
     });
@@ -5878,6 +6030,9 @@ function renderPackaging() {
     const total=cif+kra;
     return {ew,cbm,sea,kra,total,annual:total*12/months,perUnit:units>0?total/units:0};
   }
+
+  // Synchronized China order schedule — see computeChinaOrderSchedule() above.
+  const sched = computeChinaOrderSchedule(monthly);
 
   // ── Verdict ──────────────────────────────────────────────────────────────
   const r1=computeShip(1), rc=computeShip(cycle);
@@ -5891,22 +6046,56 @@ function renderPackaging() {
     'Sea minimum charge (Ksh '+seaMin.toLocaleString()+') is paid regardless of volume for orders under '+minsMonths+' months — always consolidate above that threshold.</div></div>';
 
   // ── Alerts ────────────────────────────────────────────────────────────────
+  // Driven by the synchronized schedule now: an item is only ever "urgent" if it
+  // can't bridge to order 0's arrival on existing stock — everything else rides
+  // the shared 6-month cadence and doesn't need its own countdown.
   const alerts=[];
   Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
-    const {stock:cur,source:curSrc}=getPkgStock(cfg.pkgKey), inc=PKG_INCOMING[key]||0, tot=cur+inc;
-    const mo=monthly[key]||0;
-    if(mo>0){
-      const cov=tot/mo, days=Math.round(cov*30-cfg.lead);
-      if(days<0) alerts.push({crit:true, msg:cfg.label+': order overdue by '+Math.abs(days)+'d — place order now'});
-      else if(days<30) alerts.push({crit:false, msg:cfg.label+': order deadline in '+days+' days'});
+    const it = sched.perItem[key];
+    if (it.shortBeforeFirstOrder) {
+      alerts.push({crit:true, msg:cfg.label+': existing stock runs out before the next China shipment arrives ('+
+        sched.arrivals[0].toLocaleDateString('en-GB',{day:'numeric',month:'short'})+') — needs an expedited/local top-up, the synchronized order won’t arrive in time'});
     }
   });
+  if (sched.leads[0].cny) {
+    alerts.push({crit:false, msg:'Order 1’s production window overlaps Chinese New Year ('+
+      new Date(sched.leads[0].cny).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+
+      ') — 30-day closure buffer already added to its lead time below'});
+  }
   if(el('pkgAlerts')) el('pkgAlerts').innerHTML=alerts.map(function(a){
     return '<div style="padding:7px 12px;border-radius:6px;margin-bottom:5px;font-size:11px;font-weight:500;'+
       (a.crit?'background:var(--crit-bg);color:var(--crit-txt);border:1px solid var(--crit-bdr)':
                'background:var(--low-bg);color:var(--low-txt);border:1px solid var(--low-bdr)')+
       '">'+(a.crit?'⚠ ':'! ')+a.msg+'</div>';
   }).join('');
+
+  // ── Synchronized China order schedule ───────────────────────────────────────
+  // Order 1 (now): tops up every item so it lasts until order 2 arrives, so all
+  // items land on the same cadence from here on. Order 2 is fixed 6 months later.
+  (function renderSyncSchedule(){
+    function orderBlock(n, label) {
+      let rows='', totalEw=0;
+      Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
+        const o = sched.perItem[key].orders[n];
+        if (!o.qty) return;
+        const unitCost = uKsh(cfg,key);
+        const ew = unitCost!=null ? o.qty*unitCost : null;
+        if (ew!=null) totalEw += ew;
+        rows += '<tr><td>'+cfg.label+'</td>'+
+          '<td style="text-align:right;font-family:var(--font-mono)">'+o.qty.toLocaleString()+'</td>'+
+          '<td style="text-align:right;font-family:var(--font-mono)">'+(ew!=null?'Ksh '+Math.round(ew).toLocaleString():'<span style="color:var(--text3)">TBC</span>')+'</td></tr>';
+      });
+      const cnyNote = sched.leads[n].cny ? ' — <span style="color:var(--low-txt)">includes 30-day Chinese New Year closure buffer</span>' : '';
+      return '<div style="margin-bottom:12px">'+
+        '<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+label+': place '+fmtD(sched.orderDates[n])+' · arrives ~'+fmtD(sched.arrivals[n])+cnyNote+'</div>'+
+        '<div style="overflow-x:auto"><table class="comparison-table"><thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">ExWorks</th></tr></thead>'+
+        '<tbody>'+(rows||'<tr><td colspan="3" style="color:var(--text3)">Nothing to order this cycle</td></tr>')+'</tbody>'+
+        '<tfoot><tr style="background:var(--surface2);font-weight:600"><td colspan="2">Total ExWorks</td>'+
+        '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(totalEw).toLocaleString()+'</td></tr></tfoot></table></div></div>';
+    }
+    if (el('pkgSyncSchedule')) el('pkgSyncSchedule').innerHTML =
+      orderBlock(0, 'Order 1 (level-up order — place now)') + orderBlock(1, 'Order 2 (fixed, +6 months)');
+  })();
 
   // ── Stock table ───────────────────────────────────────────────────────────
   let pkgRows='';
@@ -5916,16 +6105,19 @@ function renderPackaging() {
     const incRows=getIncoming(key);
     const inc=incRows.reduce(function(s,r){return s+(parseFloat(r.qty)||0);},0);
     const tot=cur+inc, mo=monthly[key]||0;
-    const cov=mo>0?tot/mo:99;
-    const stk=new Date(today.getTime()+cov*30*864e5);
-    const oby=new Date(stk.getTime()-cfg.lead*864e5);
-    const days=Math.round((oby-today)/864e5);
-    const st=cov<2?'critical':cov<4?'low':'ok';
-    const badge='<span class="badge '+st+'">'+(st==='critical'?'Critical':st==='low'?'Low':'OK')+'</span>';
-    const cog=cur*uKsh(cfg);
-    const urgency=days<0?'<b style="color:var(--crit-txt)">ORDER NOW ('+(Math.abs(days))+'d late)</b>':
-                  days<60?'<span style="color:var(--low-txt)">By '+oby.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</span>':
-                  '<span style="color:var(--text3)">By '+oby.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+'</span>';
+    const it=sched.perItem[key];
+    const nextOrder=it.orders[0];
+    const cov=mo>0?tot/mo:null;
+    const noData = cfg.usageTBC || !(mo>0);
+    const st = it.shortBeforeFirstOrder ? 'critical' : noData ? 'nodata' : 'ok';
+    const badgeLabel = it.shortBeforeFirstOrder ? 'Short' : noData ? 'No usage data' : 'OK';
+    const badge='<span class="badge '+(st==='nodata'?'':st)+'" '+(st==='nodata'?'style="background:var(--surface2);color:var(--text3);border:1px solid var(--border)"':'')+'>'+badgeLabel+'</span>';
+    const unitCost = uKsh(cfg,key);
+    const cog = unitCost!=null ? cur*unitCost : null;
+    const urgency = it.shortBeforeFirstOrder
+      ? '<b style="color:var(--crit-txt)">SHORT before next shipment</b>'
+      : noData ? '<span style="color:var(--text3)">—</span>'
+      : '<span style="color:var(--text3)">Order '+nextOrder.qty.toLocaleString()+' in synchronized order 1</span>';
 
     // One editable row per Odoo receipt (or blank manual row if no Odoo data)
     const incHtml=incRows.map(function(r,i){
@@ -5950,14 +6142,14 @@ function renderPackaging() {
     }).join('');
 
     pkgRows+='<tr>'+
-      '<td><b>'+cfg.label+'</b><div style="font-size:9px;color:var(--text3)">'+cfg.supplier+' \u00b7 '+cfg.lead+'d lead</div></td>'+
+      '<td><b>'+cfg.label+'</b><div style="font-size:9px;color:var(--text3)">'+cfg.supplier+' \u00b7 '+sched.leads[0].days+'d lead'+(sched.leads[0].cny?' (incl. CNY buffer)':'')+'</div></td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">'+cur.toLocaleString()+'<div style="font-size:9px;color:'+(curSrc==='odoo'?'#0F6E56':'#aaa')+';font-weight:600">'+(curSrc==='odoo'?'\u25cf Odoo':'\u25cf Sheet')+'</div></td>'+
       '<td style="min-width:170px">'+incHtml+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono);font-weight:700">'+tot.toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(cog).toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">'+(mo>0?mo+'/mo':'\u2014')+'</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">'+(cog!=null?'Ksh '+Math.round(cog).toLocaleString():'<span style="color:var(--text3)">TBC</span>')+'</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">'+(mo>0?mo.toFixed(1)+'/mo':'\u2014')+'</td>'+
       '<td>'+badge+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono);color:'+(cov<2?'var(--crit-txt)':cov<4?'var(--low-txt)':'var(--text)')+'">'+(cov>=99?'&#x221e;':cov.toFixed(1)+' mo')+'<div style="font-size:9px;color:var(--text3)">'+(cov<99?stk.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}):'')+'</div></td>'+
+      '<td style="text-align:right;font-family:var(--font-mono);color:'+(it.shortBeforeFirstOrder?'var(--crit-txt)':'var(--text)')+'">'+(cov!=null?cov.toFixed(1)+' mo':'\u2014')+'<div style="font-size:9px;color:var(--text3)">'+(cov!=null?'Order 1 arrives '+sched.arrivals[0].toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}):'')+'</div></td>'+
       '<td>'+urgency+'</td></tr>';
   });
   el('pkgStockTable').innerHTML='<thead><tr>'+
@@ -5965,7 +6157,7 @@ function renderPackaging() {
     '<th style="text-align:right">Incoming<div style="font-style:italic;font-weight:400;font-size:9px">editable</div></th>'+
     '<th style="text-align:right">Total</th><th style="text-align:right">Cost of goods</th>'+
     '<th style="text-align:right">Monthly need</th><th>Status</th>'+
-    '<th style="text-align:right">Coverage</th><th>Order by</th></tr></thead>'+
+    '<th style="text-align:right">Coverage</th><th>Synchronized order 1</th></tr></thead>'+
     '<tbody>'+pkgRows+'</tbody>';
 
   // ── Cycle table ───────────────────────────────────────────────────────────
@@ -5991,11 +6183,12 @@ function renderPackaging() {
   let oRows='',oEw=0,oCbm=0,oLand=0;
   Object.entries(PKG_ITEMS).forEach(function([key,cfg]){
     const qty=PKG_INCOMING[key]||0; if(!qty)return;
-    const ew=qty*uKsh(cfg),cbm=(cfg.cbmPer1000||0)*qty/1000,land=ew*1.055;
+    const unitCost=uKsh(cfg,key)||0;
+    const ew=qty*unitCost,cbm=(cfg.cbmPer1000||0)*qty/1000,land=ew*1.055;
     oEw+=ew;oCbm+=cbm;oLand+=land;
     oRows+='<tr><td><b>'+cfg.label+'</b></td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">'+qty.toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(uKsh(cfg)).toLocaleString()+'</td>'+
+      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(unitCost).toLocaleString()+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(ew).toLocaleString()+'</td>'+
       '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+Math.round(land).toLocaleString()+'</td></tr>';
   });
@@ -6034,25 +6227,22 @@ function renderPackaging() {
     '</tbody>';
 
   // ── Calendar ──────────────────────────────────────────────────────────────
-  const critCov=Math.min(...Object.entries(PKG_ITEMS).filter(function([k,c]){return (monthly[k]||0)>0;}).map(function([k,c]){
-    return (getPkgStock(c.pkgKey).stock+(PKG_INCOMING[k]||0))/(monthly[k]||1);
-  }));
-  const daysLeft=Math.max(0,Math.round((critCov*30-120)));
-  let orderDate=new Date(today.getTime()+daysLeft*864e5);
-  const dow=orderDate.getDay(), dSnap=dow<=0?0:dow<=4?(4-dow):(7-dow+4);
-  orderDate=new Date(orderDate.getTime()+dSnap*864e5);
-  if(el('pkgCalSub')) el('pkgCalSub').textContent='— '+cycle+'-month cycle · sea 32-day transit';
+  // Sep 15 2026: now driven by the synchronized schedule (computeChinaOrderSchedule)
+  // instead of an independent "worst-covered item, 120d lead, 32d transit" calc —
+  // those two assumptions were never reconciled with each other or with the
+  // production+shipping+port breakdown Christine confirmed, and showing a second,
+  // different set of dates right below the schedule above would just be confusing.
+  if(el('pkgCalSub')) el('pkgCalSub').textContent='— fixed 6-month cadence, all China items together';
   let calHtml='';
   for(let i=0;i<3;i++){
-    const ord=new Date(orderDate.getTime()+i*cycle*30*864e5);
-    const arr=new Date(ord.getTime()+32*864e5);
+    const ord=sched.orderDates[i], arr=sched.arrivals[i], lead=sched.leads[i];
     calHtml+='<div style="margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">'+
-      '<div style="font-size:11px;font-weight:600;margin-bottom:5px">Cycle '+(i+1)+'</div>'+
+      '<div style="font-size:11px;font-weight:600;margin-bottom:5px">Order '+(i+1)+(i===0?' (place now — levels every item to this cadence)':'')+'</div>'+
       '<div class="calendar-row">'+
       '<span class="cal-event order">&#x1F4CB; Place order '+fmtD(ord)+'</span>'+
       ' &rarr; <span class="cal-event arrive">&#x1F4E6; Arrives ~'+fmtD(arr)+'</span>'+
       '</div>'+
-      '<div style="font-size:10px;color:var(--text3);margin-top:3px">Ship '+(ord.getDay()===4?'Thursday':'Sunday')+' with Rolling Cargo</div>'+
+      '<div style="font-size:10px;color:var(--text3);margin-top:3px">'+lead.days+'-day lead ('+CHINA_LEAD.productionDays+'d production + '+CHINA_LEAD.shippingDays+'d shipping + '+CHINA_LEAD.portDays+'d port'+(lead.cny?' + 30d CNY closure buffer':'')+')</div>'+
       '</div>';
   }
   el('pkgCalendar').innerHTML=calHtml;
