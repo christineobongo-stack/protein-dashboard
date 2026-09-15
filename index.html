@@ -779,6 +779,8 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     <button class="sub-tab-btn" onclick="switchSubTab('planner','supplements',this)">Supplements</button>
     <button class="sub-tab-btn" onclick="switchSubTab('planner','packaging',this)">Packaging & China</button>
     <button class="sub-tab-btn" onclick="switchSubTab('planner','ordersheet',this)">Order Sheet</button>
+    <button class="sub-tab-btn" onclick="switchSubTab('planner','ordertracker',this)">Order Tracker</button>
+    <button class="sub-tab-btn" onclick="switchSubTab('planner','reordercalc',this)">Reorder Calculator</button>
   </div>
   <!-- TAB 4: SHIPPING OPTIMISER -->
   <div class="sub-section active" id="page-shipping">
@@ -1248,6 +1250,42 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       </div>
     </div>
   </div>
+
+  <!-- TAB 4e: ORDER TRACKER — live view of every open PO from Odoo -->
+  <div class="sub-section" id="page-ordertracker">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div class="pg-title" style="margin-bottom:0">Order Tracker <span>(live from Odoo — every draft/sent/confirmed PO with outstanding quantity)</span></div>
+      <button class="fbtn" onclick="safeRender('ordertracker', renderOrderTracker)">↻ Refresh</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.7;padding:9px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);margin-bottom:10px">
+      This is a live list of actual purchase orders in Odoo — not a projection. <b>Order deadline</b> is when a draft PO needs to be sent to arrive on time
+      (red = overdue, amber = within 14 days); it doesn't apply once a PO is already sent/confirmed. <b>Expected arrival</b> is the earliest outstanding
+      receipt date on the PO. Compare against the <b>Order Sheet</b> tab, which is a modelled/projected document, not an actual PO list.
+    </div>
+    <div id="ot-summary" style="margin-bottom:10px"></div>
+    <div style="overflow-x:auto">
+      <table class="comparison-table" id="ot-table"></table>
+    </div>
+  </div>
+
+  <!-- TAB 4f: REORDER CALCULATOR — live automation of the validated Sep 2026 methodology -->
+  <div class="sub-section" id="page-reordercalc">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div class="pg-title" style="margin-bottom:0">Reorder Calculator <span>(live from Odoo — when to order each raw material, and how much)</span></div>
+      <button class="fbtn" onclick="safeRender('reordercalc', renderReorderCalculator)">↻ Refresh</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.7;padding:9px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);margin-bottom:10px">
+      Methodology: monthly consumption = BOM × finished-goods stock entering dispatch (highest of the trailing 3 complete months, × 1.2 growth buffer).
+      Order date = exhaustion date − 14-day safety buffer − supplier lead time (30-day floor for every supplier). Order quantity = buffered rate ×
+      supplier order cycle, rounded up to pack size/MOQ. Materials whose supplier terms (lead time, order cycle, or pack size) aren't confirmed yet show
+      under <b>Needs supplier data</b> rather than a guessed number — see the supplier reference table in Code.gs to fill these in.
+    </div>
+    <div id="rc-filters" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div id="rc-summary" style="margin-bottom:10px"></div>
+    <div style="overflow-x:auto">
+      <table class="comparison-table" id="rc-table"></table>
+    </div>
+  </div>
   </div><!-- /page-planner -->
 
 
@@ -1573,6 +1611,8 @@ let avgSales       = {};   // { 'CEVAN30': 41.3, ... } avg monthly
 let sellingPrices  = {};   // { 'CEVAN30': 4495, ... } selling prices — Odoo (WooCommerce) or Shopify fallback
 let pendingReceiptsBySupplier = {};  // Odoo pending receipts grouped by supplier (Order Schedule)
 let vendorPricelists          = {};  // Odoo product.supplierinfo unit costs
+let reorderPlan    = [];   // computeReorderPlan() output — one entry per raw material
+let upcomingOrders = [];   // fetchUpcomingOrders() output — live PO list (Order Tracker)
 
 // Map abstract SKU codes → Odoo product refs (for FG stock + sales lookup)
 const PROT_ODOO_REFS = {
@@ -2446,6 +2486,10 @@ function applyPayload(payload){
   // Order Schedule — new payload fields
   pendingReceiptsBySupplier = payload.pendingReceiptsBySupplier || {};
   vendorPricelists          = payload.vendorPricelists          || {};
+
+  // Reorder Calculator + Order Tracker — new payload fields (Sep 2026)
+  reorderPlan    = payload.reorderPlan    || [];
+  upcomingOrders = payload.upcomingOrders || [];
 
   // Backfill SALES object from live avgSales so all existing tabs stay in sync
   Object.entries(PROT_ODOO_REFS).forEach(function([key, variants]) {
@@ -5008,6 +5052,139 @@ function switchSubTab(parentId, sectionId, btn) {
   if (sectionId === 'packaging')   safeRender('packaging', renderPackaging);
   if (sectionId === 'repacking')   { safeRender('repacking', renderRepacking); safeRender('repacking', renderWheyCapacity); }
   if (sectionId === 'ordersheet')  safeRender('ordersheet', renderOrderSheet);
+  if (sectionId === 'ordertracker') safeRender('ordertracker', renderOrderTracker);
+  if (sectionId === 'reordercalc') safeRender('reordercalc', renderReorderCalculator);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ORDER TRACKER — live view of every open Odoo PO (upcomingOrders payload field)
+// Distinct from Order Sheet, which is a modelled/projected document, not an
+// actual PO list.
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderOrderTracker() {
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+  const list = upcomingOrders || [];
+
+  let redCount = 0, amberCount = 0, totalOutstanding = 0;
+  const rows = list.map(function(o) {
+    if (o.deadlineBadge === 'red') redCount++;
+    if (o.deadlineBadge === 'amber') amberCount++;
+    totalOutstanding += o.estCostKes || 0;
+
+    const deadlineBadgeClass = o.deadlineBadge === 'red' ? 'critical' : o.deadlineBadge === 'amber' ? 'low' : 'ok';
+    const deadlineLabel = o.status !== 'Draft' ? 'Placed' : (o.deadlineBadge === 'red' ? 'Overdue' : o.deadlineBadge === 'amber' ? 'Due soon' : 'On track');
+
+    const materialsHtml = (o.materials || []).map(function(m) {
+      return m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>';
+    }).join('<br>');
+
+    const statusBadgeClass = o.status === 'Confirmed' ? 'ok' : o.status === 'Sent' ? 'low' : '';
+
+    return `<tr>
+      <td style="font-weight:600">${o.po}</td>
+      <td>${o.supplier}</td>
+      <td style="font-size:11px;line-height:1.6">${materialsHtml}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${o.totalQtyKg} kg</td>
+      <td style="text-align:right;font-family:var(--font-mono)">Ksh ${(o.estCostKes||0).toLocaleString()}</td>
+      <td><span class="badge ${deadlineBadgeClass}">${deadlineLabel}</span><div style="font-size:9px;color:var(--text3);margin-top:2px">${fmtDate(o.orderDeadline)}</div></td>
+      <td>${fmtDate(o.expectedArrival)}</td>
+      <td>${statusBadgeClass ? `<span class="badge ${statusBadgeClass}">${o.status}</span>` : `<span class="badge">${o.status}</span>`}</td>
+    </tr>`;
+  }).join('');
+
+  const summaryEl = document.getElementById('ot-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = list.length
+      ? `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--text2)">
+           <div><span class="badge critical">${redCount}</span> overdue</div>
+           <div><span class="badge low">${amberCount}</span> due within 14 days</div>
+           <div>${list.length} open PO${list.length===1?'':'s'} · Ksh ${Math.round(totalOutstanding).toLocaleString()} outstanding</div>
+         </div>`
+      : '';
+  }
+
+  const el = document.getElementById('ot-table');
+  if (el) el.innerHTML = list.length ? `
+    <thead><tr>
+      <th>PO</th><th>Supplier</th><th>Material(s)</th>
+      <th style="text-align:right">Total qty</th><th style="text-align:right">Est. cost</th>
+      <th>Order deadline</th><th>Expected arrival</th><th>Status</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>` : `<tbody><tr><td style="padding:16px;color:var(--text3)">No open purchase orders with outstanding quantity found in Odoo.</td></tr></tbody>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REORDER CALCULATOR — live view of computeReorderPlan() (reorderPlan payload field)
+// ═══════════════════════════════════════════════════════════════════════════════
+let rcFilter = 'all';
+const RC_STATUS_LABELS = {
+  order_now: 'Order now', order_soon: 'Order soon', ok: 'OK',
+  expiry_watch: 'Expiry watch', no_usage_data: 'No usage data', needs_supplier_data: 'Needs supplier data'
+};
+const RC_STATUS_BADGE = {
+  order_now: 'critical', order_soon: 'low', ok: 'ok',
+  expiry_watch: '', no_usage_data: '', needs_supplier_data: ''
+};
+
+function rcSetFilter(f) { rcFilter = f; safeRender('reordercalc', renderReorderCalculator); }
+
+function renderReorderCalculator() {
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+  const plan = reorderPlan || [];
+
+  const counts = {};
+  plan.forEach(function(p) { counts[p.status] = (counts[p.status]||0) + 1; });
+
+  const chips = ['all','order_now','order_soon','ok','expiry_watch','no_usage_data','needs_supplier_data'].map(function(f) {
+    const label = f === 'all' ? 'All (' + plan.length + ')' : (RC_STATUS_LABELS[f] || f) + ' (' + (counts[f]||0) + ')';
+    const active = rcFilter === f;
+    return `<button class="fbtn" style="${active ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : ''}" onclick="rcSetFilter('${f}')">${label}</button>`;
+  }).join('');
+  const filtersEl = document.getElementById('rc-filters');
+  if (filtersEl) filtersEl.innerHTML = chips;
+
+  const filtered = rcFilter === 'all' ? plan : plan.filter(function(p) { return p.status === rcFilter; });
+
+  let orderNowCost = 0;
+  plan.forEach(function(p) { if (p.status === 'order_now' && p.estCostKes) orderNowCost += p.estCostKes; });
+
+  const summaryEl = document.getElementById('rc-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = plan.length
+      ? `<div style="font-size:11px;color:var(--text2)">
+           <span class="badge critical">${counts.order_now||0}</span> need ordering now${orderNowCost ? ' (≈Ksh ' + Math.round(orderNowCost).toLocaleString() + ')' : ''}
+           &nbsp;·&nbsp; <span class="badge low">${counts.order_soon||0}</span> due within 14 days
+           &nbsp;·&nbsp; ${counts.needs_supplier_data||0} waiting on supplier data (not included above)
+         </div>`
+      : '<div style="font-size:11px;color:var(--text3)">No reorder plan data — refresh, or check the Apps Script execution log if this persists.</div>';
+  }
+
+  const rows = filtered.map(function(p) {
+    const badgeClass = RC_STATUS_BADGE[p.status] || '';
+    const label = RC_STATUS_LABELS[p.status] || p.status;
+    const daysNote = p.daysUntilOrder != null
+      ? `<div style="font-size:9px;color:var(--text3)">${p.daysUntilOrder<0?Math.abs(p.daysUntilOrder)+'d overdue':'in '+p.daysUntilOrder+'d'}</div>` : '';
+    return `<tr>
+      <td style="font-weight:600">${p.material}<div style="font-size:9px;color:var(--text3)">${p.supplier}</div></td>
+      <td style="text-align:right;font-family:var(--font-mono)">${p.onHandKg!=null?p.onHandKg+' kg':'—'}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${p.incomingKg!=null?p.incomingKg+' kg':'—'}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${p.bufferedMonthlyRateKg!=null?p.bufferedMonthlyRateKg+' kg/mo':'—'}</td>
+      <td>${p.exhaustionDate?fmtDate(p.exhaustionDate):'—'}</td>
+      <td>${p.orderDate?fmtDate(p.orderDate):'—'}${daysNote}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${p.orderQtyKg!=null?p.orderQtyKg+' kg':'—'}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">${p.estCostKes!=null?'Ksh '+p.estCostKes.toLocaleString():'—'}</td>
+      <td>${badgeClass ? `<span class="badge ${badgeClass}">${label}</span>` : `<span class="badge">${label}</span>`}</td>
+    </tr>`;
+  }).join('');
+
+  const el = document.getElementById('rc-table');
+  if (el) el.innerHTML = filtered.length ? `
+    <thead><tr>
+      <th>Material</th><th style="text-align:right">On hand</th><th style="text-align:right">Incoming</th>
+      <th style="text-align:right">Buffered rate</th><th>Exhausts</th><th>Order by</th>
+      <th style="text-align:right">Order qty</th><th style="text-align:right">Est. cost</th><th>Status</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>` : `<tbody><tr><td style="padding:16px;color:var(--text3)">No materials match this filter.</td></tr></tbody>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
