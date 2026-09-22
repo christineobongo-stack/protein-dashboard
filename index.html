@@ -2714,12 +2714,20 @@ async function fetchShopifyPrices() {
 var repackTargets = {};  // { 'CREATUN': 150, ... }
 
 // Maps procurement ingredient names → totalIncomingQty() keys
-// Covers all whey ingredients AND bulk supplements — keys match INCOMING_PRODUCT_MAP in Code.gs
+// Covers all whey ingredients AND bulk supplements — keys match classifyIncomingProduct() in Code.gs
+// FIX Sep 22 2026 (incoming-accuracy audit, round 2): this map only ever had
+// 10 entries (whey + Nutra bulk supplements) — every OSF flavour and every
+// IMCD/FA Generals/Munzing/Infinita/Venkatesh raw material had no entry at
+// all, so item.name lookups below always returned undefined and those rows
+// always showed "no incoming" regardless of real confirmed Odoo POs. Added
+// entries for everything readProcurement() now tracks; each new key here has
+// a matching classifyIncomingProduct() rule in Code.gs — keep both in sync.
 var PROC_INCOMING_MAP = {
   // Whey
   '35% Whey Concentrate': 'WPC35',
   '80% Whey Concentrate': 'WPC80',
   'WPI 90%':              'WPI90',
+  '90% Whey Isolate':     'WPI90', // real ORDER-sheet row name (was missing — 'WPI 90%' above is a different sheet's naming, kept for that use)
   // Bulk supplements
   'Bulk Pure Creatine':         'CREATUN',
   'Bulk Fruit Punch Creatine':  'CREATFP',
@@ -2728,6 +2736,31 @@ var PROC_INCOMING_MAP = {
   'Bulk PreWorkout Green Apple':'PWORKGA',
   'Bulk BCAAs':                 'BCAA',
   'Bulk Collagen':              'COLUN',
+  // Flavourings (OSF) — split rows use the exact real Odoo product names (see
+  // INGREDIENT_ROW_SPLITS in Code.gs); single-SKU rows use the ORDER sheet's own name
+  'Vanilla 5378B Flavoring':              'VAN5378B',
+  'Vanilla 4320C Flavoring':              'VAN4320C',
+  'Banana Flavouring 4493A':              'BANANA4493A',
+  'Banana Flavouring 9011B -PDR':         'BANANA9011B',
+  'Organic Caramel Flavouring NW 4453-O': 'CARAMEL4453',
+  'Organic Flavor Caramel NW 6134-O':     'CARAMEL6134',
+  'Vanilla Chai Flavoring 4537B':         'CHAI4537B',
+  'Vanilla Chai flavoring 8752A':         'CHAI8752A',
+  'Vanilla Birthday Flavouring':          'VANBIRTHDAY',
+  'Chocolate Flavouring':                 'CHOCFLAV',
+  'Cinnamon Flavouring':                  'CINNAMON',
+  'Cookies & cream flavouring':           'COOKIESCREAM',
+  'Hazelnut Flavouring':                  'HAZELNUT',
+  // Other raw materials (IMCD, FA Generals, Munzing, Infinita)
+  'Alkalized cocoa powder': 'COCOA',
+  'Xanthan Gum':            'XANTHAN',
+  'Soy Lecithin':           'SOYLEC',
+  'Sunflower Lecithin':     'SUNLEC',
+  'Non-dairy creamer':      'NDC',
+  'Stevia':                 'STEVIA',
+  'Sucralose':              'SUCRALOSE',
+  'Digesist':               'DIGESIST',
+  'Antifoam':               'ANTIFOAM',
 };
 
 // SKUs that physically require silicon desiccant sachets (2 per pack)
@@ -3811,7 +3844,15 @@ function renderProcurement(){
       const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
       const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
       const wf=cfg.sachets?`<div class="waste-flag">⚠ ${cfg.usable}/${cfg.sachets} sachets usable</div>`:'';
-      const {need:augNeedB,gap:augGapB}=coverageHorizonNeed(rq,item,0);
+      // FIX Sep 22 2026 (incoming-accuracy audit, round 2): this always passed
+      // 0 for incoming, so every bulk supplement (Nutra creatine/preworkout/
+      // BCAA/collagen variants) showed its full 4-month shortfall as "short"
+      // even when a real confirmed PO was already on the way — unlike the
+      // raw-materials table above, which has always looked this up via
+      // PROC_INCOMING_MAP. Now does the same lookup.
+      const bIncomingKey=PROC_INCOMING_MAP[item.name];
+      const bIncomingQty=bIncomingKey?totalIncomingQty(bIncomingKey):0;
+      const {need:augNeedB,gap:augGapB}=coverageHorizonNeed(rq,item,bIncomingQty);
       return`<tr style="${bg}">
         <td><div class="iname">${item.name}</div><div class="imeta">${cfg.label} · ${cfg.usable} packs/drum</div>${wf}</td>
         <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cov>=99?'∞':cov.toFixed(1)+'mo'}</span></div></td>
