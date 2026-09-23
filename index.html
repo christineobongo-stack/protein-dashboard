@@ -2761,6 +2761,14 @@ var PROC_INCOMING_MAP = {
   'Sucralose':              'SUCRALOSE',
   'Digesist':               'DIGESIST',
   'Antifoam':               'ANTIFOAM',
+  // China packaging — labels/stickers (FIX Sep 23 2026, China incoming-tracking
+  // gap): classifyIncomingProduct() in Code.gs never recognized 'sticker' at
+  // all, so confirmed incoming sticker POs (e.g. P00169, CAIYUNTIAN PRINTING)
+  // silently dropped out of fetchOdooIncoming()'s result. Exact row names from
+  // the live procurement sheet's "MARCH 2026 ORDER" tab (Product Labels rows).
+  'Large stickers':  'large_sticker',
+  'Medium stickers': 'medium_sticker',
+  'Small stickers':  'small_sticker',
 };
 
 // SKUs that physically require silicon desiccant sachets (2 per pack)
@@ -3558,28 +3566,11 @@ function passes(item,rq){
   return true;
 }
 
-function makeRow(item,rq,units,onchange,cost){
-  const st=getSt(item.stock,rq);
-  const cov=rq>0?item.stock/rq:99;
-  const bp=Math.min(cov/3,1)*100;
-  const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
-  const cl=cov>=99?'∞':cov.toFixed(1)+'mo';
-  const incomingKey=PROC_INCOMING_MAP[item.name];
-  const incomingQty=incomingKey?totalIncomingQty(incomingKey):0;
-  const fourMo=Math.max(0,rq*4-item.stock-incomingQty);
-  const ov=Math.round(fourMo*(cost||item.cost));
-  const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
-  const displayCost=cost||item.cost;
-  // Rolling coverage-horizon check (was hardcoded to end-of-August; now rolls
-  // forward from today automatically — see COVERAGE_HORIZON_MONTHS above)
-  const {need:covNeed,gap:covGap}=coverageHorizonNeed(rq,item,incomingQty);
-  const augCell=rq<=0?'<span style="color:var(--text3)">—</span>'
-    :'<div style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">'+covNeed.toFixed(1)+' '+units+'</div>'
-    +(covGap>0
-      ?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">▲'+covGap.toFixed(1)+' short</div>'
-      :'<div style="font-size:9px;color:var(--ok-txt)">✓ covered</div>');
-
-  // Gap analysis: stockout date vs first incoming date
+// Gap analysis: stockout date vs first incoming date. Shared by makeRow() (main
+// raw-materials + packaging table) and the Bulk Supplements custom render block
+// below — extracted Sep 23 2026 so Bulk Supplements (Nutra Healthcare/India
+// items) gets the same incoming-aware gap cell instead of silently omitting it.
+function buildGapCell(item, rq, incomingKey) {
   const soDate = rq > 0 ? stockoutDate(item.stock, rq) : null;
   const inDate  = incomingKey ? earliestIncomingDate(incomingKey) : null;
   let gapCell = '<span style="color:var(--text3);font-size:10px">—</span>';
@@ -3605,6 +3596,31 @@ function makeRow(item,rq,units,onchange,cost){
       }
     }
   }
+  return gapCell;
+}
+
+function makeRow(item,rq,units,onchange,cost){
+  const st=getSt(item.stock,rq);
+  const cov=rq>0?item.stock/rq:99;
+  const bp=Math.min(cov/3,1)*100;
+  const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
+  const cl=cov>=99?'∞':cov.toFixed(1)+'mo';
+  const incomingKey=PROC_INCOMING_MAP[item.name];
+  const incomingQty=incomingKey?totalIncomingQty(incomingKey):0;
+  const fourMo=Math.max(0,rq*4-item.stock-incomingQty);
+  const ov=Math.round(fourMo*(cost||item.cost));
+  const bg=st==='critical'?'background:#fff8f7':st==='low'?'background:#fffdf5':'';
+  const displayCost=cost||item.cost;
+  // Rolling coverage-horizon check (was hardcoded to end-of-August; now rolls
+  // forward from today automatically — see COVERAGE_HORIZON_MONTHS above)
+  const {need:covNeed,gap:covGap}=coverageHorizonNeed(rq,item,incomingQty);
+  const augCell=rq<=0?'<span style="color:var(--text3)">—</span>'
+    :'<div style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">'+covNeed.toFixed(1)+' '+units+'</div>'
+    +(covGap>0
+      ?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">▲'+covGap.toFixed(1)+' short</div>'
+      :'<div style="font-size:9px;color:var(--ok-txt)">✓ covered</div>');
+
+  const gapCell = buildGapCell(item, rq, incomingKey);
 
   return`<tr style="${bg}">
     <td><div class="iname" title="${item.name}">${item.name}</div><div class="imeta">${item.func}</div></td>
@@ -3801,7 +3817,7 @@ function renderProcurement(){
     return passes(item,rq);
   });
   if(mainRows.length){
-    html+=`<tr class="sec-divider"><td colspan="13">Formulated protein raw materials — RQ from Protein Product Development VERSION 8</td></tr>`;
+    html+=`<tr class="sec-divider"><td colspan="14">Formulated protein raw materials — RQ from Protein Product Development VERSION 8</td></tr>`;
     html+=mainRows.map(item=>{
       const gi=procItems.main.indexOf(item);
       const rq=computeRQ(item.name);
@@ -3830,7 +3846,7 @@ function renderProcurement(){
     return item&&passes(item,bulkRQ(sku));
   });
   if(bulkEntries.length){
-    html+=`<tr class="sec-divider"><td colspan="13">Bulk supplements — repackaged 200g retail packs</td></tr>`;
+    html+=`<tr class="sec-divider"><td colspan="14">Bulk supplements — repackaged 200g retail packs</td></tr>`;
     html+=bulkEntries.map(([sku,cfg])=>{
       const item=procItems.bulk[sku];
       const rq=bulkRQ(sku);
@@ -3853,6 +3869,14 @@ function renderProcurement(){
       const bIncomingKey=PROC_INCOMING_MAP[item.name];
       const bIncomingQty=bIncomingKey?totalIncomingQty(bIncomingKey):0;
       const {need:augNeedB,gap:augGapB}=coverageHorizonNeed(rq,item,bIncomingQty);
+      // FIX Sep 23 2026 (India incoming-tracking gap): this row never had the
+      // incoming-aware gap-analysis cell that makeRow() has for the raw
+      // materials/packaging tables, so it rendered only 13 <td>s against the
+      // 14-column header — Nutra Healthcare (India) incoming dates for
+      // creatine/collagen/BCAA/preworkout were both hidden AND every value
+      // from here on (deadline/lead/supplier) visually shifted one column
+      // left. Now uses the same shared buildGapCell() as makeRow().
+      const bGapCell = buildGapCell(item, rq, bIncomingKey);
       return`<tr style="${bg}">
         <td><div class="iname">${item.name}</div><div class="imeta">${cfg.label} · ${cfg.usable} packs/drum</div>${wf}</td>
         <td><div class="covwrap"><div class="covbar-bg"><div class="covbar-fill" style="width:${bp.toFixed(0)}%;background:${bc}"></div></div><span class="covlbl" style="color:${bc}">${cov>=99?'∞':cov.toFixed(1)+'mo'}</span></div></td>
@@ -3861,9 +3885,10 @@ function renderProcurement(){
         <td class="mono">${item.cost>0?item.cost.toLocaleString():'—'}</td>
         <td class="mono">${rq>0?rq.toFixed(2)+' kg':'—'}</td>
         <td class="mono">${rq>0?(rq*2).toFixed(2)+' kg':'—'}</td>
-        <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' kg':'—'}</td>
+        <td class="${fourMo>0?'redval':'mono'}">${fourMo>0?fourMo.toFixed(2)+' kg':'—'}${bIncomingQty>0?'<div style="font-size:9px;color:#0F6E56;margin-top:1px">−'+bIncomingQty.toFixed(1)+' incoming</div>':''}</td>
         <td class="mono strong">${fourMo>0?ksh(fourMo*item.cost):'—'}</td>
         <td style="text-align:right">${rq>0?'<div style="font-family:var(--font-mono);font-size:11px">'+augNeedB.toFixed(1)+' kg</div>'+(augGapB>0?'<div style="font-size:9px;font-weight:700;color:var(--crit-txt)">&#9650;'+augGapB.toFixed(1)+' short</div>':'<div style="font-size:9px;color:var(--ok-txt)">&#10003; covered</div>'):'<span style="color:var(--text3)">—</span>'}</td>
+        <td style="padding:6px 8px">${bGapCell}</td>
         <td>${dlLbl(computeDeadline(item.stock, rq, item.lead))}</td>
         <td style="font-size:10px;color:var(--text3);white-space:nowrap">${item.lead||'—'}</td>
         <td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis">${item.supplier||'—'}</td>
@@ -3874,7 +3899,7 @@ function renderProcurement(){
   // Section 3: Packaging
   const pkgRows=packaging.filter(item=>passes(item,item.pkgKey?(needs[item.pkgKey]||0):0));
   if(pkgRows.length){
-    html+=`<tr class="sec-divider"><td colspan="13">Packaging materials</td></tr>`;
+    html+=`<tr class="sec-divider"><td colspan="14">Packaging materials</td></tr>`;
     html+=pkgRows.map(item=>{
       const gi=packaging.indexOf(item);
       const rq=item.pkgKey?(needs[item.pkgKey]||0):0;
@@ -3886,7 +3911,7 @@ function renderProcurement(){
     }).join('');
   }
 
-  if(!html) html=`<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text3)">No items match.</td></tr>`;
+  if(!html) html=`<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text3)">No items match.</td></tr>`;
   document.getElementById('tbody').innerHTML=html;
 
   const pPacks=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0);
