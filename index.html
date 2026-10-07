@@ -5207,16 +5207,25 @@ function renderOrderTracker() {
   const slackText = slackLines.join('\n');
 
   // ── Build a compact table for a given section ─────────────────────────────
+  const isFreightPO = function(o) {
+    return /evolve/i.test(o.supplier) || /freight|clearing|logistics|forwarding/i.test(o.supplier);
+  };
   const makeSection = function(emoji, colour, title, items, hint) {
     if (!items.length) return '';
     const rows = items.map(function(o) {
       const mats = (o.materials||[]).map(m => m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>').join('<br>');
+      // For freight/clearing agents, show the PO notes (which link the freight to the product being cleared)
+      const notesHtml = (isFreightPO(o) && o.notes)
+        ? '<div style="margin-top:4px;font-size:10px;color:var(--text2);border-left:2px solid var(--accent);padding-left:6px;line-height:1.5">' +
+          o.notes.replace(/\n/g, '<br>') + '</div>'
+        : '';
+      const matsCell = '<td style="font-size:11px;line-height:1.6">' + mats + notesHtml + '</td>';
       const dateCell = o.status === 'Draft'
         ? '<td>' + (o.orderDeadline ? '<span class="badge critical" style="font-size:9px">Send by ' + fmtDate(o.orderDeadline) + '</span>' : '—') + '</td>'
         : '<td>' + (o.expectedArrival ? '<span class="badge low" style="font-size:9px">Expected ' + fmtDate(o.expectedArrival) + '</span>' : '—') + '</td>';
       return '<tr><td style="font-weight:600;white-space:nowrap">' + o.po + '</td>' +
         '<td>' + o.supplier + '</td>' +
-        '<td style="font-size:11px;line-height:1.6">' + mats + '</td>' +
+        matsCell +
         dateCell +
         '<td style="text-align:right;font-family:var(--font-mono);font-size:11px">Ksh ' + (o.estCostKes||0).toLocaleString() + '</td></tr>';
     }).join('');
@@ -5236,11 +5245,15 @@ function renderOrderTracker() {
   if (others.length) {
     const rows = others.map(function(o) {
       const mats = (o.materials||[]).map(m => m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>').join('<br>');
+      const notesHtml = (isFreightPO(o) && o.notes)
+        ? '<div style="margin-top:4px;font-size:10px;color:var(--text2);border-left:2px solid var(--accent);padding-left:6px;line-height:1.5">' +
+          o.notes.replace(/\n/g, '<br>') + '</div>'
+        : '';
       const statusClass = o.status === 'Confirmed' ? 'ok' : o.status === 'Sent' ? 'low' : '';
       return '<tr>' +
         '<td style="font-weight:600;white-space:nowrap">' + o.po + '</td>' +
         '<td>' + o.supplier + '</td>' +
-        '<td style="font-size:11px;line-height:1.6">' + mats + '</td>' +
+        '<td style="font-size:11px;line-height:1.6">' + mats + notesHtml + '</td>' +
         '<td>' + fmtDate(o.orderDeadline) + '</td>' +
         '<td>' + fmtDate(o.expectedArrival) + '</td>' +
         '<td>' + (statusClass ? '<span class="badge ' + statusClass + '">' + o.status + '</span>' : '<span class="badge">' + o.status + '</span>') + '</td>' +
@@ -7791,9 +7804,11 @@ function osRenderActiveOrders() {
     var products = (data.products || []).slice(0, 3).map(function(p) {
       return p.name.replace(/^\[[^\]]+\]\s*/, '').substring(0, 28) + (p.qty ? ' \xd7' + Math.round(p.qty) : '');
     }).join(', ');
+    var poList = (data.poRefs || []).join(', ') || (data.ref || '\u2014');
     return '<tr style="' + (isOverdue ? 'background:var(--crit-bg)' : '') + '">'
       + '<td style="font-size:11px;font-weight:600;padding:8px 10px">' + sName + '</td>'
-      + '<td style="font-size:10px;color:var(--text2);padding:8px 10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (products || '\u2014') + '</td>'
+      + '<td style="font-family:var(--font-mono);font-size:10px;padding:8px 10px;white-space:nowrap;color:var(--text2)">' + poList + '</td>'
+      + '<td style="font-size:10px;color:var(--text2);padding:8px 10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (products || '\u2014') + '</td>'
       + '<td style="font-family:var(--font-mono);font-size:10px;padding:8px 10px;white-space:nowrap;color:' + (isOverdue ? 'var(--crit-txt)' : 'var(--text2)') + '">' + (data.scheduledDate || '\u2014') + (isOverdue ? ' \u26a0' : '') + '</td>'
       + '<td style="padding:8px 10px"><span class="badge ' + (isOverdue ? 'critical' : 'low') + '">In Transit</span></td>'
       + '</tr>';
@@ -7801,7 +7816,7 @@ function osRenderActiveOrders() {
 
   return '<div style="margin-top:20px">'
     + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">\ud83d\udcec Incoming Supplier Orders (from Odoo)</div>'
-    + '<div class="tcard"><table><thead><tr><th>Supplier</th><th>Products</th><th>Expected</th><th>Status</th></tr></thead>'
+    + '<div class="tcard"><table><thead><tr><th>Supplier</th><th>PO #</th><th>Products</th><th>Expected arrival</th><th>Status</th></tr></thead>'
     + '<tbody>' + rows + '</tbody></table></div></div>';
 }
 
