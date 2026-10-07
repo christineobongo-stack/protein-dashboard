@@ -322,6 +322,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 </header>
 
 <div id="dataFreshnessBanner"></div>
+<div id="action-required-banner" style="display:none"></div>
 <div class="sources">
   <div class="src"><span class="dot idle" id="dot-proc"></span><span id="lbl-proc">Loading…</span></div>
   <div class="src" id="cacheStatus" style="margin-left:auto;font-size:10px;color:var(--text3)"></div>
@@ -1267,9 +1268,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       receipt date on the PO. Compare against the <b>Order Sheet</b> tab, which is a modelled/projected document, not an actual PO list.
     </div>
     <div id="ot-summary" style="margin-bottom:10px"></div>
-    <div style="overflow-x:auto">
-      <table class="comparison-table" id="ot-table"></table>
-    </div>
+    <div id="ot-table"></div>
   </div>
 
   <!-- TAB 4f: REORDER CALCULATOR — live automation of the validated Sep 2026 methodology -->
@@ -2608,6 +2607,8 @@ function applyPayload(payload){
   updateWheyRQFields();
   // Today tab — refresh whenever fresh data loads
   try { renderToday(); } catch(e) { console.error('renderToday error:', e); }
+  // Action Required banner — shown at top of every tab when there are urgent PO actions
+  try { renderActionBanner(); } catch(e) { console.error('renderActionBanner error:', e); }
   // Phase 1: validate all inputs after live data loads
   setTimeout(validateAllInputs, 600);
 }
@@ -5152,56 +5153,193 @@ function switchSubTab(parentId, sectionId, btn) {
 // Distinct from Order Sheet, which is a modelled/projected document, not an
 // actual PO list.
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── Order Tracker — 3-section layout ─────────────────────────────────────────
+// Section 1: SEND NOW   — Draft RFQs with deadline today or past
+// Section 2: FOLLOW UP  — Confirmed/Sent POs overdue on arrival (arrival date past)
+// Section 3: COMING UP  — Draft RFQs with deadline within 7 days
+// All other open POs with no urgent action appear in a collapsible "All open POs" table.
 function renderOrderTracker() {
   const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}) : '—';
   const list = upcomingOrders || [];
+  const todayStr = new Date().toISOString().substring(0,10);
 
-  let redCount = 0, amberCount = 0, totalOutstanding = 0;
-  const rows = list.map(function(o) {
-    if (o.deadlineBadge === 'red') redCount++;
-    if (o.deadlineBadge === 'amber') amberCount++;
-    totalOutstanding += o.estCostKes || 0;
+  // Partition orders into the three action buckets + remainder.
+  const sendNow  = [];
+  const followUp = [];
+  const comingUp = [];
+  const others   = [];
 
-    const deadlineBadgeClass = o.deadlineBadge === 'red' ? 'critical' : o.deadlineBadge === 'amber' ? 'low' : 'ok';
-    const deadlineLabel = o.status !== 'Draft' ? 'Placed' : (o.deadlineBadge === 'red' ? 'Overdue' : o.deadlineBadge === 'amber' ? 'Due soon' : 'On track');
+  list.forEach(function(o) {
+    const dl = o.orderDeadline;
+    if (o.status === 'Draft') {
+      if (!dl) { others.push(o); return; }
+      const daysUntil = Math.round((new Date(dl).getTime() - Date.now()) / 864e5);
+      if (daysUntil <= 0)      sendNow.push(o);
+      else if (daysUntil <= 7) comingUp.push(o);
+      else                     others.push(o);
+    } else if (o.status === 'Confirmed' || o.status === 'Sent') {
+      // Confirmed/Sent: flag if expected arrival is already past
+      if (o.expectedArrival && o.expectedArrival < todayStr) followUp.push(o);
+      else others.push(o);
+    } else {
+      others.push(o);
+    }
+  });
 
-    const materialsHtml = (o.materials || []).map(function(m) {
-      return m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>';
-    }).join('<br>');
+  // Build Slack-ready text for the Copy button
+  const slackLines = ['*📋 Protein.ke Procurement – ' + new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) + '*',''];
+  const appendSlackSection = function(emoji, title, items) {
+    if (!items.length) return;
+    slackLines.push('*' + emoji + ' ' + title + ':*');
+    items.forEach(function(o) {
+      const mats = (o.materials||[]).map(m => m.name + ' (' + m.qty + ' kg)').join(', ');
+      const dateHint = o.status === 'Draft'
+        ? ' — send by ' + fmtDate(o.orderDeadline)
+        : ' — expected ' + fmtDate(o.expectedArrival);
+      slackLines.push('• ' + o.po + ' → ' + o.supplier + ': ' + mats + dateHint);
+    });
+    slackLines.push('');
+  };
+  appendSlackSection('🔴','SEND NOW — dispatch these RFQs today', sendNow);
+  appendSlackSection('🟠','FOLLOW UP — arrival overdue, chase supplier', followUp);
+  appendSlackSection('🟡','COMING UP — send within 7 days', comingUp);
+  slackLines.push('_Dashboard: https://christineobongo-stack.github.io/protein-dashboard/_');
+  const slackText = slackLines.join('\n');
 
-    const statusBadgeClass = o.status === 'Confirmed' ? 'ok' : o.status === 'Sent' ? 'low' : '';
+  // ── Build a compact table for a given section ─────────────────────────────
+  const makeSection = function(emoji, colour, title, items, hint) {
+    if (!items.length) return '';
+    const rows = items.map(function(o) {
+      const mats = (o.materials||[]).map(m => m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>').join('<br>');
+      const dateCell = o.status === 'Draft'
+        ? '<td>' + (o.orderDeadline ? '<span class="badge critical" style="font-size:9px">Send by ' + fmtDate(o.orderDeadline) + '</span>' : '—') + '</td>'
+        : '<td>' + (o.expectedArrival ? '<span class="badge low" style="font-size:9px">Expected ' + fmtDate(o.expectedArrival) + '</span>' : '—') + '</td>';
+      return '<tr><td style="font-weight:600;white-space:nowrap">' + o.po + '</td>' +
+        '<td>' + o.supplier + '</td>' +
+        '<td style="font-size:11px;line-height:1.6">' + mats + '</td>' +
+        dateCell +
+        '<td style="text-align:right;font-family:var(--font-mono);font-size:11px">Ksh ' + (o.estCostKes||0).toLocaleString() + '</td></tr>';
+    }).join('');
+    return '<div style="margin-bottom:14px">' +
+      '<div style="font-size:12px;font-weight:700;color:' + colour + ';margin-bottom:6px;display:flex;align-items:center;gap:8px">' +
+      emoji + ' ' + title + ' <span style="background:' + colour + ';color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700">' + items.length + '</span>' +
+      (hint ? '<span style="font-size:10px;font-weight:400;color:var(--text3)">' + hint + '</span>' : '') +
+      '</div>' +
+      '<div style="overflow-x:auto">' +
+      '<table class="comparison-table" style="font-size:12px"><thead><tr>' +
+      '<th>PO</th><th>Supplier</th><th>Material(s)</th><th>Date</th><th style="text-align:right">Est. cost</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  };
 
-    return `<tr>
-      <td style="font-weight:600">${o.po}</td>
-      <td>${o.supplier}</td>
-      <td style="font-size:11px;line-height:1.6">${materialsHtml}</td>
-      <td style="text-align:right;font-family:var(--font-mono)">${o.totalQtyKg} kg</td>
-      <td style="text-align:right;font-family:var(--font-mono)">Ksh ${(o.estCostKes||0).toLocaleString()}</td>
-      <td><span class="badge ${deadlineBadgeClass}">${deadlineLabel}</span><div style="font-size:9px;color:var(--text3);margin-top:2px">${fmtDate(o.orderDeadline)}</div></td>
-      <td>${fmtDate(o.expectedArrival)}</td>
-      <td>${statusBadgeClass ? `<span class="badge ${statusBadgeClass}">${o.status}</span>` : `<span class="badge">${o.status}</span>`}</td>
-    </tr>`;
-  }).join('');
+  // ── Other open POs (no urgent action) ────────────────────────────────────
+  let othersHtml = '';
+  if (others.length) {
+    const rows = others.map(function(o) {
+      const mats = (o.materials||[]).map(m => m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>').join('<br>');
+      const statusClass = o.status === 'Confirmed' ? 'ok' : o.status === 'Sent' ? 'low' : '';
+      return '<tr>' +
+        '<td style="font-weight:600;white-space:nowrap">' + o.po + '</td>' +
+        '<td>' + o.supplier + '</td>' +
+        '<td style="font-size:11px;line-height:1.6">' + mats + '</td>' +
+        '<td>' + fmtDate(o.orderDeadline) + '</td>' +
+        '<td>' + fmtDate(o.expectedArrival) + '</td>' +
+        '<td>' + (statusClass ? '<span class="badge ' + statusClass + '">' + o.status + '</span>' : '<span class="badge">' + o.status + '</span>') + '</td>' +
+        '<td style="text-align:right;font-family:var(--font-mono);font-size:11px">Ksh ' + (o.estCostKes||0).toLocaleString() + '</td></tr>';
+    }).join('');
+    othersHtml = '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:var(--text3);padding:6px 0;list-style:none">' +
+      '▸ All other open POs (' + others.length + ') — no immediate action</summary>' +
+      '<div style="overflow-x:auto;margin-top:8px"><table class="comparison-table" style="font-size:11px"><thead><tr>' +
+      '<th>PO</th><th>Supplier</th><th>Material(s)</th><th>Order deadline</th><th>Expected arrival</th><th>Status</th><th style="text-align:right">Est. cost</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+  }
 
+  // ── Assemble ──────────────────────────────────────────────────────────────
+  const needsAction = sendNow.length + followUp.length + comingUp.length;
+  const totalOutstanding = list.reduce(function(s,o){ return s + (o.estCostKes||0); }, 0);
+
+  const copyBtnId = 'ot-copy-btn';
   const summaryEl = document.getElementById('ot-summary');
   if (summaryEl) {
     summaryEl.innerHTML = list.length
-      ? `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--text2)">
-           <div><span class="badge critical">${redCount}</span> overdue</div>
-           <div><span class="badge low">${amberCount}</span> due within 14 days</div>
-           <div>${list.length} open PO${list.length===1?'':'s'} · Ksh ${Math.round(totalOutstanding).toLocaleString()} outstanding</div>
+      ? `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;font-size:11px;color:var(--text2)">
+           <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+             ${sendNow.length ? '<span class="badge critical">' + sendNow.length + ' to send now</span>' : ''}
+             ${followUp.length ? '<span class="badge" style="background:var(--warn-bg,#fff3cd);color:var(--warn-txt,#856404);border-color:var(--warn-bdr,#ffc107)">' + followUp.length + ' overdue arrival</span>' : ''}
+             ${comingUp.length ? '<span class="badge low">' + comingUp.length + ' due within 7 days</span>' : ''}
+             ${!needsAction ? '<span style="color:var(--ok-txt)">✓ No urgent actions</span>' : ''}
+             <span style="color:var(--text3)">${list.length} open PO${list.length===1?'':'s'} · Ksh ${Math.round(totalOutstanding).toLocaleString()} outstanding</span>
+           </div>
+           ${needsAction ? '<button class="fbtn" id="' + copyBtnId + '" onclick="otCopySlack()" style="font-size:11px">📋 Copy Slack message</button>' : ''}
          </div>`
       : '';
   }
 
   const el = document.getElementById('ot-table');
-  if (el) el.innerHTML = list.length ? `
-    <thead><tr>
-      <th>PO</th><th>Supplier</th><th>Material(s)</th>
-      <th style="text-align:right">Total qty</th><th style="text-align:right">Est. cost</th>
-      <th>Order deadline</th><th>Expected arrival</th><th>Status</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>` : `<tbody><tr><td style="padding:16px;color:var(--text3)">No open purchase orders with outstanding quantity found in Odoo.</td></tr></tbody>`;
+  if (!el) return;
+
+  if (!list.length) {
+    el.innerHTML = '<p style="padding:16px;color:var(--text3);font-size:11px">No open purchase orders with outstanding quantity found in Odoo.</p>';
+    return;
+  }
+
+  // Store slack text for copy button
+  window._otSlackText = slackText;
+
+  el.innerHTML =
+    makeSection('🔴','#c0392b','Send now — dispatch these RFQs today', sendNow, '') +
+    makeSection('🟠','#e67e22','Follow up — arrival is overdue, chase the supplier', followUp, '') +
+    makeSection('🟡','#f39c12','Coming up — send within the next 7 days', comingUp, '') +
+    othersHtml;
+}
+
+function otCopySlack() {
+  const text = window._otSlackText || '';
+  if (!text) return;
+  const btn = document.getElementById('ot-copy-btn');
+  navigator.clipboard.writeText(text).then(function() {
+    if (btn) { btn.textContent = '✓ Copied!'; setTimeout(function(){ btn.textContent = '📋 Copy Slack message'; }, 2000); }
+  }).catch(function() {
+    // Fallback: select from a temporary textarea
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (btn) { btn.textContent = '✓ Copied!'; setTimeout(function(){ btn.textContent = '📋 Copy Slack message'; }, 2000); }
+  });
+}
+
+// ── Action Required banner ────────────────────────────────────────────────────
+// Shown at the top of every page when there are overdue draft RFQs or
+// arrival-overdue POs, so the team sees it regardless of which tab they're on.
+function renderActionBanner() {
+  const el = document.getElementById('action-required-banner');
+  if (!el) return;
+  const list = upcomingOrders || [];
+  const todayStr = new Date().toISOString().substring(0,10);
+
+  const sendNow  = list.filter(o => o.status === 'Draft' && o.orderDeadline && o.orderDeadline <= todayStr);
+  const arrivals = list.filter(o => (o.status === 'Confirmed' || o.status === 'Sent') && o.expectedArrival && o.expectedArrival < todayStr);
+
+  if (!sendNow.length && !arrivals.length) { el.style.display = 'none'; return; }
+
+  const parts = [];
+  if (sendNow.length) {
+    const names = sendNow.slice(0,3).map(o => '<b>' + o.po + '</b> (' + o.supplier + ')').join(', ');
+    parts.push('🔴 <b>' + sendNow.length + ' RFQ' + (sendNow.length>1?'s':'') + ' to send:</b> ' + names + (sendNow.length>3?' + '+(sendNow.length-3)+' more':''));
+  }
+  if (arrivals.length) {
+    const names = arrivals.slice(0,2).map(o => '<b>' + o.po + '</b>').join(', ');
+    parts.push('🟠 <b>' + arrivals.length + ' arrival' + (arrivals.length>1?'s':'') + ' overdue:</b> ' + names + (arrivals.length>2?' + '+(arrivals.length-2)+' more':''));
+  }
+
+  const isRed = sendNow.length > 0;
+  el.style.display = 'block';
+  el.innerHTML = '<div style="background:' + (isRed ? 'var(--crit-bg,#fee2e2)' : '#fff3cd') + ';color:' + (isRed ? 'var(--crit-txt,#7f1d1d)' : '#664d03') + ';border-bottom:1px solid ' + (isRed ? 'var(--crit-bdr,#fca5a5)' : '#ffc107') + ';padding:8px 16px;font-size:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">' +
+    '<span style="flex:1">' + parts.join('&ensp;·&ensp;') + '</span>' +
+    '<a onclick="switchMainTab(\'orders\',document.querySelector(\'.tab-btn\'));switchSubTab(\'planner\',\'ordertracker\',null)" href="javascript:void(0)" style="color:inherit;font-weight:600;white-space:nowrap;text-decoration:underline">→ View Order Tracker</a>' +
+    '</div>';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
