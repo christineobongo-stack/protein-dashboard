@@ -333,9 +333,11 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="switchMainTab('orders',this)">📦 Orders</button>
-  <button class="tab-btn" onclick="switchMainTab('costs',this)">💰 Costs</button>
-  <button class="tab-btn" onclick="switchMainTab('health',this)">📊 Health</button>
+  <button class="tab-btn active" onclick="switchMainTab('action',this)">🔴 Action Today</button>
+  <button class="tab-btn" onclick="switchMainTab('stockhealth',this)">📦 Stock Health</button>
+  <button class="tab-btn" onclick="switchMainTab('ordertracker',this)">📋 Order Tracker</button>
+  <button class="tab-btn" onclick="switchMainTab('planning',this)">📊 Planning</button>
+  <button class="tab-btn" onclick="switchMainTab('calculators',this)">🧮 Calculators</button>
 </div>
 <div class="tabs" id="secondaryNav" style="padding:0 12px 6px;gap:0;border-bottom:1px solid var(--border)"></div>
 
@@ -1436,6 +1438,36 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   </div>
 
   <!-- TAB: HEALTH — placeholder -->
+  <div class="tab-page" id="page-stockhealth">
+    <!-- v16: FG Stock Health — producibility, run-out dates, bottlenecks -->
+    <div class="toolbar" style="margin-bottom:10px">
+      <div style="font-size:12px;font-weight:600;color:var(--text)">📦 Finished Goods — Stock Health</div>
+      <button class="fbtn" onclick="safeRender('stockhealth',renderStockHealth)">↻ Refresh</button>
+    </div>
+    <div class="metrics" id="sh-metrics">
+      <div class="metric"><div class="mlabel">Critical — &lt; 7 days</div><div class="mval danger" id="sh-m-critical">—</div></div>
+      <div class="metric"><div class="mlabel">Low — &lt; 30 days</div><div class="mval warn" id="sh-m-low">—</div></div>
+      <div class="metric"><div class="mlabel">Producible units</div><div class="mval" id="sh-m-producible">—</div></div>
+      <div class="metric"><div class="mlabel">Bottleneck ingredient</div><div class="mval" id="sh-m-bottleneck" style="font-size:13px">—</div></div>
+    </div>
+    <div class="tcard">
+      <table>
+        <thead><tr>
+          <th>SKU</th>
+          <th style="text-align:right">On shelf</th>
+          <th style="text-align:right">Sales/mo</th>
+          <th style="text-align:right">Run-out</th>
+          <th style="text-align:right">Days cover</th>
+          <th style="text-align:right">Producible</th>
+          <th>Bottleneck RM</th>
+          <th style="text-align:center">Status</th>
+        </tr></thead>
+        <tbody id="sh-tbody"><tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+      </table>
+      <div class="tfoot" id="sh-tfoot">Loads on refresh or tab switch</div>
+    </div>
+  </div>
+
   <div class="tab-page" id="page-health" style="padding:20px">
     <div style="display:grid;gap:16px;max-width:600px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
@@ -1619,6 +1651,8 @@ let pendingReceiptsBySupplier = {};  // Odoo pending receipts grouped by supplie
 let vendorPricelists          = {};  // Odoo product.supplierinfo unit costs
 let reorderPlan    = [];   // computeReorderPlan() output — one entry per raw material
 let upcomingOrders = [];   // fetchUpcomingOrders() output — live PO list (Order Tracker)
+let actionToday    = {sendNow:[],followUp:[],comingUp:[],totalActionItems:0}; // buildActionToday_() — v16
+let stockHealth    = [];   // buildStockHealth_() — per-FG-SKU run-out data — v16
 
 // Map abstract SKU codes → Odoo product refs (for FG stock + sales lookup)
 const PROT_ODOO_REFS = {
@@ -2415,7 +2449,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v6';
+const CACHE_KEY_LS = 'pk_payload_v16'; // bumped v6→v16: payload shape changed (actionToday + stockHealth fields added)
 
 function lsCacheGet(){
   try{
@@ -2497,6 +2531,8 @@ function applyPayload(payload){
   // Reorder Calculator + Order Tracker — new payload fields (Sep 2026)
   reorderPlan    = payload.reorderPlan    || [];
   upcomingOrders = payload.upcomingOrders || [];
+  actionToday    = payload.actionToday    || {sendNow:[],followUp:[],comingUp:[],totalActionItems:0}; // v16
+  stockHealth    = payload.stockHealth    || [];   // v16
 
   // Backfill SALES object from live avgSales so all existing tabs stay in sync
   Object.entries(PROT_ODOO_REFS).forEach(function([key, variants]) {
@@ -4937,7 +4973,7 @@ function renderShipping(){
   // ── Ordering calendar ─────────────────────────────────────────────────────
   const best = sea; // use sea for calendar
   // Derive cycle start from earliest whey stockout date (using current Odoo stock)
-  const wheyIngNames = ['35% Whey Concentrate', '80% Whey Concentrate', 'WPI 90%'];
+  const wheyIngNames = ['35% Whey Concentrate', '80% Whey Concentrate', '90% Whey Isolate']; // fix: real ORDER-sheet name is '90% Whey Isolate', not 'WPI 90%'
   const wheySOs = wheyIngNames.map(function(n){
     const itm = procItems.main.find(function(i){ return i.name === n; });
     const rqN = computeRQ(n);
@@ -5015,33 +5051,39 @@ function renderShipping(){
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const MAIN_TABS = {
-  orders: {
+  action: {
+    subs: [],               // no secondary nav — shows page-today directly
+    defaultSub: 'today'
+  },
+  stockhealth: {
+    subs: [],               // no secondary nav — shows page-stockhealth directly
+    defaultSub: 'stockhealth'
+  },
+  ordertracker: {
+    subs: [],               // no secondary nav — shows page-planner ordertracker sub-tab
+    defaultSub: 'ordertracker'
+  },
+  planning: {
     subs: [
-      {id:'schedule', label:'🗓 Schedule'},
-      {id:'stock',    label:'📊 Coverage'},
-      {id:'planner',  label:'🚢 Planning'}
+      {id:'reordercalc', label:'🔄 Reorder Calc'},
+      {id:'stock',       label:'📊 RM Coverage'},
+      {id:'planner',     label:'🚢 Shipping & Packaging'}
+    ],
+    defaultSub: 'reordercalc'
+  },
+  calculators: {
+    subs: [
+      {id:'schedule',   label:'🗓 Order Schedule'},
+      {id:'insights',   label:'💰 SKU Costs'},
+      {id:'playground', label:'🧮 Cost Calculator'}
     ],
     defaultSub: 'schedule'
-  },
-  costs: {
-    subs: [
-      {id:'insights',   label:'💰 SKU Costs'},
-      {id:'playground', label:'🧮 Calculator'}
-    ],
-    defaultSub: 'insights'
-  },
-  health: {
-    subs: [
-      {id:'today',  label:'📋 FG Stock & Sales'},
-      {id:'health', label:'🔍 Data Quality'}
-    ],
-    defaultSub: 'today'
   }
 };
 
 function switchMainTab(group, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
 
   const nav = document.getElementById('secondaryNav');
   const config = MAIN_TABS[group];
@@ -5050,8 +5092,21 @@ function switchMainTab(group, btn) {
     nav.innerHTML = '';
     nav.style.display = 'none';
     document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+
+    // Special case: 'ordertracker' promotes the planner's ordertracker sub-section
+    if (group === 'ordertracker') {
+      var plannerPg = document.getElementById('page-planner');
+      if (plannerPg) plannerPg.classList.add('active');
+      switchSubTab('planner', 'ordertracker', null);
+      return;
+    }
+
     var pg = document.getElementById('page-' + config.defaultSub);
     if (pg) pg.classList.add('active');
+
+    // Trigger render for no-sub tabs
+    if (group === 'action')      safeRender('today', renderToday);
+    if (group === 'stockhealth') safeRender('stockhealth', renderStockHealth);
     return;
   }
 
@@ -5078,6 +5133,7 @@ function switchSecondary(id, btn) {
   if (id === 'playground') { safeRender('playground', renderPlayground); return; }
   if (id === 'schedule')   { safeRender('schedule', renderOrderSchedule); return; }
   if (id === 'health')     { return; }
+  if (id === 'stockhealth') { safeRender('stockhealth', renderStockHealth); return; }
   if (id === 'stock') {
     switchSubTab('stock', 'procurement', document.querySelector('#page-stock .sub-tab-btn'));
     return;
@@ -5351,7 +5407,7 @@ function renderActionBanner() {
   el.style.display = 'block';
   el.innerHTML = '<div style="background:' + (isRed ? 'var(--crit-bg,#fee2e2)' : '#fff3cd') + ';color:' + (isRed ? 'var(--crit-txt,#7f1d1d)' : '#664d03') + ';border-bottom:1px solid ' + (isRed ? 'var(--crit-bdr,#fca5a5)' : '#ffc107') + ';padding:8px 16px;font-size:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">' +
     '<span style="flex:1">' + parts.join('&ensp;·&ensp;') + '</span>' +
-    '<a onclick="switchMainTab(\'orders\',document.querySelector(\'.tab-btn\'));switchSubTab(\'planner\',\'ordertracker\',null)" href="javascript:void(0)" style="color:inherit;font-weight:600;white-space:nowrap;text-decoration:underline">→ View Order Tracker</a>' +
+    '<a onclick="switchMainTab(\'ordertracker\',document.querySelector(\'.tab-btn:nth-child(3)\'))" href="javascript:void(0)" style="color:inherit;font-weight:600;white-space:nowrap;text-decoration:underline">→ View Order Tracker</a>' +
     '</div>';
 }
 
@@ -6495,6 +6551,102 @@ function renderPackaging() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TODAY TAB — landing screen: alerts, FG coverage, order deadlines, supp snapshot
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STOCK HEALTH — live FG run-out table using stockHealth payload (v16)
+// buildStockHealth_() in Code.gs computes: unitsOnShelf, salesRate30d,
+// runOutDate, producibleUnits, bottleneck, status (critical/low/ok)
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderStockHealth() {
+  var tbody = document.getElementById('sh-tbody');
+  var tfoot = document.getElementById('sh-tfoot');
+  if (!tbody) return;
+
+  var items = stockHealth || [];
+
+  // Supplement with local fgStock + avgSales where stockHealth payload is missing
+  // (backwards compat if Code.gs hasn't been updated yet)
+  if (!items.length) {
+    var allRefs = [];
+    Object.entries(PROT_ODOO_REFS).forEach(function([sku, variants]) {
+      variants.forEach(function(v) { allRefs.push({sku:sku, ref:v.ref, serves:v.serves}); });
+    });
+    allRefs.forEach(function(item) {
+      var stock = (fgStock[item.ref] || 0);
+      var sales = (avgSales[item.ref] || SALES[item.sku] || 0);
+      if (!stock && !sales) return;
+      var coverDays = sales > 0 ? Math.round((stock / sales) * 30.44) : null;
+      var runOut = sales > 0 ? new Date(Date.now() + coverDays * 864e5) : null;
+      var status = coverDays === null ? 'ok' : coverDays < 7 ? 'critical' : coverDays < 30 ? 'low' : 'ok';
+      items.push({
+        ref: item.ref, name: item.ref, unitsOnShelf: stock,
+        salesRate30d: sales, runOutDate: runOut ? runOut.toISOString().substring(0,10) : null,
+        producibleUnits: null, bottleneck: null, status: status
+      });
+    });
+    items.sort(function(a,b){ var s={critical:0,low:1,ok:2}; return (s[a.status]||2)-(s[b.status]||2); });
+  }
+
+  var fmtDate = function(d) {
+    if (!d) return '—';
+    var dt = new Date(d);
+    return dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'});
+  };
+  var fmtN = function(n) { return n == null ? '—' : Math.round(n).toLocaleString(); };
+
+  var critCount = items.filter(function(i){ return i.status === 'critical'; }).length;
+  var lowCount  = items.filter(function(i){ return i.status === 'low'; }).length;
+  var totalProd = items.reduce(function(s,i){ return s + (i.producibleUnits||0); }, 0);
+
+  // Top bottleneck (most constraining RM)
+  var btCounts = {};
+  items.forEach(function(i){ if (i.bottleneck) btCounts[i.bottleneck] = (btCounts[i.bottleneck]||0)+1; });
+  var topBt = Object.entries(btCounts).sort(function(a,b){return b[1]-a[1];})[0];
+  var topBtName = topBt ? topBt[0] : '—';
+
+  var mCrit = document.getElementById('sh-m-critical');
+  var mLow  = document.getElementById('sh-m-low');
+  var mProd = document.getElementById('sh-m-producible');
+  var mBt   = document.getElementById('sh-m-bottleneck');
+  if (mCrit) { mCrit.textContent = critCount || '—'; mCrit.className = 'mval' + (critCount ? ' danger' : ''); }
+  if (mLow)  { mLow.textContent  = lowCount  || '—'; mLow.className  = 'mval' + (lowCount  ? ' warn'   : ''); }
+  if (mProd) mProd.textContent = totalProd ? totalProd.toLocaleString() : '—';
+  if (mBt)   mBt.textContent   = topBtName;
+
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">No FG stock data — click Refresh to load live data from Odoo.</td></tr>';
+    if (tfoot) tfoot.textContent = 'No data';
+    return;
+  }
+
+  var rows = items.map(function(i) {
+    var today = new Date();
+    var runOut = i.runOutDate ? new Date(i.runOutDate) : null;
+    var coverDays = (runOut && i.salesRate30d > 0)
+      ? Math.max(0, Math.round((runOut - today) / 864e5))
+      : null;
+    var statusClass = i.status === 'critical' ? 'critical' : i.status === 'low' ? 'low' : 'ok';
+    var statusLabel = i.status === 'critical' ? 'Critical' : i.status === 'low' ? 'Low' : 'OK';
+    return '<tr>' +
+      '<td><div class="iname">' + (i.name||i.ref||'—') + '</div>' +
+        (i.ref && i.ref !== i.name ? '<div class="imeta">' + i.ref + '</div>' : '') + '</td>' +
+      '<td class="mono strong">' + fmtN(i.unitsOnShelf) + '</td>' +
+      '<td class="mono">' + (i.salesRate30d ? i.salesRate30d.toFixed(1) : '—') + '/mo</td>' +
+      '<td class="mono' + (i.status === 'critical' ? ' strong' : '') + '">' + fmtDate(i.runOutDate) + '</td>' +
+      '<td class="mono">' + (coverDays !== null ? coverDays + 'd' : '—') + '</td>' +
+      '<td class="mono">' + fmtN(i.producibleUnits) + '</td>' +
+      '<td style="font-size:11px;color:var(--text3)">' + (i.bottleneck||'—') + '</td>' +
+      '<td style="text-align:center"><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+      '</tr>';
+  }).join('');
+  tbody.innerHTML = rows;
+  if (tfoot) {
+    var generatedAt = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
+      ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB')
+      : '';
+    tfoot.textContent = items.length + ' SKUs' + generatedAt;
+  }
+}
 
 function renderToday() {
   todayGreeting();
@@ -7962,8 +8114,8 @@ function osCloseModal(event, force) {
 }
 
 loadAll();
-// Initialize the 3-tab layout — default to Orders > Schedule
-switchMainTab('orders', document.querySelector('.tab-btn'));
+// Initialize the 5-tab layout — default to Action Today
+switchMainTab('action', document.querySelector('.tab-btn'));
 </script>
 </body>
 </html>
