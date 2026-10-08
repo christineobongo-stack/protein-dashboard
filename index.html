@@ -5454,7 +5454,7 @@ function renderReorderCalculator() {
            &nbsp;·&nbsp; <span class="badge low">${counts.order_soon||0}</span> due within 14 days
            &nbsp;·&nbsp; ${counts.needs_supplier_data||0} waiting on supplier data (not included above)
          </div>`
-      : '<div style="font-size:11px;color:var(--text3)">No reorder plan data — refresh, or check the Apps Script execution log if this persists.</div>';
+      : '<div style="font-size:11px;color:var(--text3)">No reorder plan data. Try a hard-refresh (Ctrl+Shift+R). If it persists, ask your developer to run <code>diagReorderPlan()</code> in the Apps Script editor and check the execution log for errors.</div>';
   }
 
   const rows = filtered.map(function(p) {
@@ -6622,7 +6622,8 @@ function renderStockHealth() {
   var rows = items.map(function(i) {
     var today = new Date();
     var runOut = i.runOutDate ? new Date(i.runOutDate) : null;
-    var coverDays = (runOut && i.salesRate30d > 0)
+    // salesRate30d is units/month; run-out date comes from server — just show days remaining
+    var coverDays = runOut
       ? Math.max(0, Math.round((runOut - today) / 864e5))
       : null;
     var statusClass = i.status === 'critical' ? 'critical' : i.status === 'low' ? 'low' : 'ok';
@@ -6743,6 +6744,17 @@ function todayAlerts() {
     var deadline = computeDeadline(item.stock, rq, item.lead);
     var daysToDeadline = deadline ? Math.round((deadline - Date.now()) / 864e5) : null;
 
+    // FIX (Oct 2026): was hardcoded incomingQty:0 — now looks up actual incoming
+    // via PROC_INCOMING_MAP using cfg.ingKey (the ORDER-sheet row name for this bulk item)
+    var bIncomingKey  = PROC_INCOMING_MAP[cfg.ingKey];
+    var incomingQty   = bIncomingKey ? totalIncomingQty(bIncomingKey)   : 0;
+    var incomingDate  = bIncomingKey ? earliestIncomingDate(bIncomingKey) : null;
+
+    // Gap: will current stock run out before incoming arrives?
+    var gap = false;
+    if (so && incomingDate && incomingDate > so) gap = true;
+    if (so && !incomingDate && coverageMo < 1.5) gap = true;
+
     var severity = 'ok';
     if (daysToDeadline !== null && daysToDeadline <= LEAD_CRIT) severity = 'critical';
     else if (daysToDeadline !== null && daysToDeadline <= LEAD_WARN) severity = 'warning';
@@ -6756,9 +6768,9 @@ function todayAlerts() {
         stockoutDate: so,
         deadline: deadline,
         daysToDeadline: daysToDeadline,
-        incomingQty: 0,
-        incomingDate: null,
-        gap: false,
+        incomingQty: incomingQty,
+        incomingDate: incomingDate,
+        gap: gap,
         stock: item.stock,
         rq: rq,
         lead: item.lead
