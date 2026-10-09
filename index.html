@@ -1438,36 +1438,86 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
   </div>
 
-  <!-- TAB: HEALTH — placeholder -->
+  <!-- TAB: STOCK HEALTH — v27: sub-tabs for FG + RM Coverage -->
   <div class="tab-page" id="page-stockhealth">
-    <!-- v16: FG Stock Health — producibility, run-out dates, bottlenecks -->
-    <div class="toolbar" style="margin-bottom:10px">
-      <div style="font-size:12px;font-weight:600;color:var(--text)">📦 Finished Goods — Stock Health</div>
-      <button class="fbtn" onclick="safeRender('stockhealth',renderStockHealth)">↻ Refresh</button>
+    <div class="sub-tabs">
+      <button class="sub-tab-btn active" onclick="switchSubTab('stockhealth','sh-fg',this)">📦 Finished Goods</button>
+      <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-rm',this)">🧪 Raw Materials</button>
     </div>
-    <div class="metrics" id="sh-metrics">
-      <div class="metric"><div class="mlabel">Critical — &lt; 7 days</div><div class="mval danger" id="sh-m-critical">—</div></div>
-      <div class="metric"><div class="mlabel">Low — &lt; 30 days</div><div class="mval warn" id="sh-m-low">—</div></div>
-      <div class="metric"><div class="mlabel">Producible units</div><div class="mval" id="sh-m-producible">—</div></div>
-      <div class="metric"><div class="mlabel">Bottleneck ingredient</div><div class="mval" id="sh-m-bottleneck" style="font-size:13px">—</div></div>
-    </div>
-    <div class="tcard">
-      <table>
-        <thead><tr>
-          <th>SKU</th>
-          <th style="text-align:right">On shelf</th>
-          <th style="text-align:right">Sales/mo</th>
-          <th style="text-align:right">Run-out</th>
-          <th style="text-align:right">Days cover</th>
-          <th style="text-align:right">Producible</th>
-          <th>Bottleneck RM</th>
-          <th style="text-align:center">Status</th>
-        </tr></thead>
-        <tbody id="sh-tbody"><tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
-      </table>
-      <div class="tfoot" id="sh-tfoot">Loads on refresh or tab switch</div>
-    </div>
-  </div>
+
+    <!-- ── FG sub-section ──────────────────────────────────────────────────── -->
+    <div class="sub-section active" id="page-sh-fg">
+      <div class="toolbar" style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">📦 Finished Goods — Stock Health</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="chip active" id="sh-chip-all"      onclick="shSetFilter('all',this)">All</button>
+          <button class="chip"        id="sh-chip-critical" onclick="shSetFilter('critical',this)">🔴 Critical</button>
+          <button class="chip"        id="sh-chip-low"      onclick="shSetFilter('low',this)">🟡 Low</button>
+          <button class="chip"        id="sh-chip-ok"       onclick="shSetFilter('ok',this)">🟢 OK</button>
+          <button class="fbtn" style="margin-left:6px" onclick="safeRender('sh-fg',renderStockHealth)">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="metrics" id="sh-metrics">
+        <div class="metric"><div class="mlabel">Critical — &lt; 7 days</div><div class="mval danger" id="sh-m-critical">—</div></div>
+        <div class="metric"><div class="mlabel">Low — &lt; 30 days</div><div class="mval warn" id="sh-m-low">—</div></div>
+        <div class="metric"><div class="mlabel">Producible units</div><div class="mval" id="sh-m-producible">—</div></div>
+        <div class="metric"><div class="mlabel">Bottleneck ingredient</div><div class="mval" id="sh-m-bottleneck" style="font-size:13px">—</div></div>
+      </div>
+      <div class="tcard">
+        <table>
+          <thead><tr>
+            <th>SKU</th>
+            <th style="text-align:right">On shelf</th>
+            <th style="text-align:right">Sales/mo</th>
+            <th style="text-align:right">Run-out</th>
+            <th style="text-align:right">Days cover</th>
+            <th style="text-align:right">Producible</th>
+            <th>Bottleneck RM</th>
+            <th style="text-align:center">Status</th>
+          </tr></thead>
+          <tbody id="sh-tbody"><tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+        </table>
+        <div class="tfoot" id="sh-tfoot">Loads on refresh or tab switch</div>
+      </div>
+    </div><!-- /sh-fg -->
+
+    <!-- ── RM Coverage sub-section ────────────────────────────────────────── -->
+    <div class="sub-section" id="page-sh-rm">
+      <div class="toolbar" style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">🧪 Raw Materials — Coverage</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="chip active" id="sh-rm-chip-all"      onclick="shRMSetFilter('all',this)">All</button>
+          <button class="chip"        id="sh-rm-chip-critical" onclick="shRMSetFilter('critical',this)">🔴 Critical</button>
+          <button class="chip"        id="sh-rm-chip-low"      onclick="shRMSetFilter('low',this)">🟡 Low</button>
+          <button class="chip"        id="sh-rm-chip-ok"       onclick="shRMSetFilter('ok',this)">🟢 OK</button>
+          <button class="fbtn" style="margin-left:6px" onclick="safeRender('sh-rm',renderRMCoverage)">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="metrics" id="sh-rm-metrics">
+        <div class="metric"><div class="mlabel">Critical — &lt; 4 wks</div><div class="mval danger" id="sh-rm-m-crit">—</div></div>
+        <div class="metric"><div class="mlabel">Low — &lt; 8 wks</div><div class="mval warn" id="sh-rm-m-low">—</div></div>
+        <div class="metric"><div class="mlabel">OK</div><div class="mval good" id="sh-rm-m-ok">—</div></div>
+        <div class="metric"><div class="mlabel">Overdue deadlines</div><div class="mval warn" id="sh-rm-m-overdue">—</div></div>
+      </div>
+      <div class="tcard">
+        <table>
+          <thead><tr>
+            <th>Raw material</th>
+            <th style="text-align:right">On hand (kg)</th>
+            <th style="text-align:right">Monthly RQ</th>
+            <th style="text-align:right">Cover</th>
+            <th style="text-align:right">Incoming</th>
+            <th style="text-align:right">Stockout</th>
+            <th>Supplier</th>
+            <th style="text-align:center">Status</th>
+          </tr></thead>
+          <tbody id="sh-rm-tbody"><tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+        </table>
+        <div class="tfoot" id="sh-rm-tfoot"></div>
+      </div>
+    </div><!-- /sh-rm -->
+
+  </div><!-- /page-stockhealth -->
 
   <!-- ══ COVERAGE TAB ════════════════════════════════════════════════════════ -->
   <div class="tab-page" id="page-coverage" style="padding:0">
@@ -5196,17 +5246,21 @@ const MAIN_TABS = {
     defaultSub: 'coverage'
   },
   stockhealth: {
-    subs: [],               // no secondary nav — shows page-stockhealth directly
-    defaultSub: 'stockhealth'
+    // v27: now has sub-tabs — FG producibility + RM coverage (moved from Planning)
+    subs: [
+      {id:'sh-fg', label:'📦 Finished Goods'},
+      {id:'sh-rm', label:'🧪 Raw Materials'}
+    ],
+    defaultSub: 'sh-fg'
   },
   ordertracker: {
     subs: [],               // no secondary nav — shows page-planner ordertracker sub-tab
     defaultSub: 'ordertracker'
   },
   planning: {
+    // v27: RM Coverage moved to Stock Health — Planning now shows Reorder Calc + Shipping
     subs: [
       {id:'reordercalc', label:'🔄 Reorder Calc'},
-      {id:'stock',       label:'📊 RM Coverage'},
       {id:'planner',     label:'🚢 Shipping & Packaging'}
     ],
     defaultSub: 'reordercalc'
@@ -5246,7 +5300,7 @@ function switchMainTab(group, btn) {
 
     // Trigger render for no-sub tabs
     if (group === 'action')      safeRender('today', renderToday);
-    if (group === 'stockhealth') safeRender('stockhealth', renderStockHealth);
+    // stockhealth now has subs — handled by subs.length branch above (v27)
     if (group === 'coverage')    safeRender('coverage', renderCoverage);
     return;
   }
@@ -5274,7 +5328,9 @@ function switchSecondary(id, btn) {
   if (id === 'playground') { safeRender('playground', renderPlayground); return; }
   if (id === 'schedule')   { safeRender('schedule', renderOrderSchedule); return; }
   if (id === 'health')     { return; }
-  if (id === 'stockhealth') { safeRender('stockhealth', renderStockHealth); return; }
+  // v27: stockhealth sub-tabs
+  if (id === 'sh-fg') { safeRender('sh-fg', renderStockHealth); return; }
+  if (id === 'sh-rm') { safeRender('sh-rm', renderRMCoverage); return; }
   if (id === 'stock') {
     switchSubTab('stock', 'procurement', document.querySelector('#page-stock .sub-tab-btn'));
     return;
@@ -5343,6 +5399,9 @@ function switchSubTab(parentId, sectionId, btn) {
   if (sectionId === 'ordersheet')  safeRender('ordersheet', renderOrderSheet);
   if (sectionId === 'ordertracker') safeRender('ordertracker', renderOrderTracker);
   if (sectionId === 'reordercalc') safeRender('reordercalc', renderReorderCalculator);
+  // v27: Stock Health sub-tabs
+  if (sectionId === 'sh-fg') safeRender('sh-fg', renderStockHealth);
+  if (sectionId === 'sh-rm') safeRender('sh-rm', renderRMCoverage);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -6769,7 +6828,7 @@ function renderStockHealth() {
       : null;
     var statusClass = i.status === 'critical' ? 'critical' : i.status === 'low' ? 'low' : 'ok';
     var statusLabel = i.status === 'critical' ? 'Critical' : i.status === 'low' ? 'Low' : 'OK';
-    return '<tr>' +
+    return '<tr data-severity="' + statusClass + '">' +
       '<td><div class="iname">' + (i.name||i.ref||'—') + '</div>' +
         (i.ref && i.ref !== i.name ? '<div class="imeta">' + i.ref + '</div>' : '') + '</td>' +
       '<td class="mono strong">' + fmtN(i.unitsOnShelf) + '</td>' +
@@ -6787,6 +6846,127 @@ function renderStockHealth() {
       ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB')
       : '';
     tfoot.textContent = items.length + ' SKUs' + generatedAt;
+  }
+}
+
+// ── v27: FG filter chip handler ───────────────────────────────────────────────
+var _shFilter = 'all';
+function shSetFilter(f, btn) {
+  _shFilter = f;
+  document.querySelectorAll('#page-sh-fg .chip').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  // Re-apply filter by toggling row visibility
+  document.querySelectorAll('#sh-tbody tr[data-severity]').forEach(function(row) {
+    row.style.display = (f === 'all' || row.dataset.severity === f) ? '' : 'none';
+  });
+}
+
+// ── v27: RM Coverage render + filter ─────────────────────────────────────────
+var _shRMFilter = 'all';
+function shRMSetFilter(f, btn) {
+  _shRMFilter = f;
+  document.querySelectorAll('#page-sh-rm .chip').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('#sh-rm-tbody tr[data-severity]').forEach(function(row) {
+    row.style.display = (f === 'all' || row.dataset.severity === f) ? '' : 'none';
+  });
+}
+
+function renderRMCoverage() {
+  var tbody  = document.getElementById('sh-rm-tbody');
+  var tfoot  = document.getElementById('sh-rm-tfoot');
+  var mCrit  = document.getElementById('sh-rm-m-crit');
+  var mLow   = document.getElementById('sh-rm-m-low');
+  var mOk    = document.getElementById('sh-rm-m-ok');
+  var mOver  = document.getElementById('sh-rm-m-overdue');
+  if (!tbody) return;
+
+  var allItems = (procItems.main || []).slice();
+
+  // Add bulk supps as simple items
+  Object.entries(BULK_CFG).forEach(function(e) {
+    var sku = e[0], cfg = e[1];
+    var itm = procItems.bulk[sku];
+    if (!itm) return;
+    var rq = cfg.salesUnit === 'kg'
+      ? (SALES[sku] || 0) * (RQ_W[sku] || 0) / 1000
+      : (SALES[sku] || 0) * (cfg.kgPerUnit || cfg.kgPerBag || 0);
+    allItems.push({
+      name:     cfg.label || sku,
+      stock:    itm.stock || 0,
+      cost:     itm.cost  || 0,
+      supplier: cfg.supplier || '—',
+      deadline: null,
+      lead:     '',
+      _rq:      rq,
+      _isBulk:  true,
+    });
+  });
+
+  var critCount = 0, lowCount = 0, okCount = 0, overdueCount = 0;
+  var today = new Date();
+  var fmtDate = function(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+  };
+
+  var rows = allItems.map(function(item) {
+    var rq = item._rq !== undefined ? item._rq : computeRQ(item.name);
+    var stock = item.stock || 0;
+    var covMo = rq > 0 ? stock / rq : 99;
+    var incomingKey = !item._isBulk ? procIncomingKey(item.name) : null;
+    var incomingQty = incomingKey ? totalIncomingQty(incomingKey) : 0;
+    var incomingDate = incomingKey ? earliestIncomingDate(incomingKey) : null;
+
+    // Severity: critical < 4wks, low < 8wks, ok otherwise
+    var severity, badgeClass, badgeLabel;
+    if (rq <= 0) {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'No RQ';
+    } else if (covMo < 1) {
+      severity = 'critical'; badgeClass = 'critical'; badgeLabel = 'Critical';
+    } else if (covMo < 2) {
+      severity = 'low'; badgeClass = 'low'; badgeLabel = 'Low';
+    } else {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'OK';
+    }
+    if (severity === 'critical') critCount++;
+    else if (severity === 'low') lowCount++;
+    else okCount++;
+
+    var dl = item.deadline instanceof Date ? item.deadline : null;
+    var isOverdue = dl && dl < today;
+    if (isOverdue) overdueCount++;
+
+    var stockoutDt = rq > 0 ? stockoutDate(stock, rq) : null;
+    var covStr = rq > 0 ? covMo.toFixed(1) + ' mo' : '—';
+    var covColor = covMo < 1 ? 'var(--crit-txt)' : covMo < 2 ? 'var(--low-txt)' : 'var(--ok-txt)';
+
+    var incomingCell = incomingQty > 0
+      ? '<span style="color:var(--ok-txt);font-weight:600">' + incomingQty.toFixed(1) + ' kg</span>'
+        + (incomingDate ? '<div style="font-size:9px;color:var(--text3)">' + fmtDate(incomingDate) + '</div>' : '')
+      : '<span style="color:var(--text3)">—</span>';
+
+    return '<tr data-severity="' + severity + '" style="' + (_shRMFilter !== 'all' && _shRMFilter !== severity ? 'display:none' : '') + '">'
+      + '<td><div class="iname">' + item.name + '</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + stock.toFixed(1) + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + (rq > 0 ? rq.toFixed(1) : '—') + '</td>'
+      + '<td style="text-align:right"><span style="font-family:var(--font-mono);font-weight:600;color:' + covColor + '">' + covStr + '</span></td>'
+      + '<td style="text-align:right">' + incomingCell + '</td>'
+      + '<td style="text-align:right;font-size:10px;color:var(--text2)">' + (stockoutDt ? fmtDate(stockoutDt) : '—') + '</td>'
+      + '<td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="' + (item.supplier||'') + '">' + (item.supplier||'—') + '</td>'
+      + '<td style="text-align:center"><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>'
+      + '</tr>';
+  }).join('');
+
+  tbody.innerHTML = rows || '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">No data — load dashboard first</td></tr>';
+  if (mCrit) mCrit.textContent = critCount;
+  if (mLow)  mLow.textContent  = lowCount;
+  if (mOk)   mOk.textContent   = okCount;
+  if (mOver) mOver.textContent  = overdueCount;
+  if (tfoot) {
+    var ts = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
+      ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
+    tfoot.textContent = allItems.length + ' materials' + ts;
   }
 }
 
