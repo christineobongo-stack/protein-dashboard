@@ -5248,10 +5248,8 @@ const MAIN_TABS = {
   stockhealth: {
     // v27: now has sub-tabs — FG producibility + RM coverage (moved from Planning)
     subs: [
-      {id:'sh-fg', label:'📦 Finished Goods'},
-      {id:'sh-rm', label:'🧪 Raw Materials'}
     ],
-    defaultSub: 'sh-fg'
+    defaultSub: 'stockhealth'
   },
   ordertracker: {
     subs: [],               // no secondary nav — shows page-planner ordertracker sub-tab
@@ -5300,7 +5298,11 @@ function switchMainTab(group, btn) {
 
     // Trigger render for no-sub tabs
     if (group === 'action')      safeRender('today', renderToday);
-    // stockhealth now has subs — handled by subs.length branch above (v27)
+    // v27: stockhealth uses in-page sub-tabs, not secondary nav — activate default FG sub
+    if (group === 'stockhealth') {
+      switchSubTab('stockhealth', 'sh-fg',
+        document.querySelector('#page-stockhealth .sub-tab-btn'));
+    }
     if (group === 'coverage')    safeRender('coverage', renderCoverage);
     return;
   }
