@@ -334,6 +334,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
 <div class="tabs">
   <button class="tab-btn active" onclick="switchMainTab('action',this)">🔴 Action Today</button>
+  <button class="tab-btn" onclick="switchMainTab('coverage',this)">📊 Coverage</button>
   <button class="tab-btn" onclick="switchMainTab('stockhealth',this)">📦 Stock Health</button>
   <button class="tab-btn" onclick="switchMainTab('ordertracker',this)">📋 Order Tracker</button>
   <button class="tab-btn" onclick="switchMainTab('planning',this)">📊 Planning</button>
@@ -1468,6 +1469,57 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
   </div>
 
+  <!-- ══ COVERAGE TAB ════════════════════════════════════════════════════════ -->
+  <div class="tab-page" id="page-coverage" style="padding:0">
+
+    <!-- Commercial pipeline demand input -->
+    <div id="cov-channel-panel" style="background:var(--surface2);border-bottom:1px solid var(--border);padding:12px 20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--text)">📦 Commercial Pipeline — Monthly Unit Demand by Channel</span>
+        <button class="fbtn" onclick="covToggleChannelEditor()" id="cov-channel-toggle" style="font-size:11px;padding:4px 10px">Edit channels</button>
+        <button class="fbtn" onclick="safeRender('coverage',renderCoverage)" style="font-size:11px;padding:4px 10px">↻ Refresh</button>
+      </div>
+      <div id="cov-channel-summary" style="font-size:11px;color:var(--text3);line-height:1.8"></div>
+      <div id="cov-channel-editor" style="display:none;margin-top:10px"></div>
+    </div>
+
+    <!-- Coverage summary metrics -->
+    <div class="metrics" id="cov-metrics" style="padding:12px 20px">
+      <div class="metric"><div class="mlabel">Order now</div><div class="mval danger" id="cov-m-order-now">—</div></div>
+      <div class="metric"><div class="mlabel">Order soon (≤45 days)</div><div class="mval warn" id="cov-m-order-soon">—</div></div>
+      <div class="metric"><div class="mlabel">On order</div><div class="mval" id="cov-m-on-order">—</div></div>
+      <div class="metric"><div class="mlabel">OK</div><div class="mval good" id="cov-m-ok">—</div></div>
+    </div>
+
+    <!-- Coverage table -->
+    <div class="tcard" style="margin:0 20px 20px">
+      <!-- Filter chips -->
+      <div id="cov-filter-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="chip active" onclick="covSetFilter('all',this)">All</button>
+        <button class="chip" onclick="covSetFilter('order_now',this)">🔴 Order now</button>
+        <button class="chip" onclick="covSetFilter('order_soon',this)">🟡 Order soon</button>
+        <button class="chip" onclick="covSetFilter('on_order',this)">🔵 On order</button>
+        <button class="chip" onclick="covSetFilter('ok',this)">🟢 OK</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Product</th>
+          <th style="text-align:right">On shelf</th>
+          <th style="text-align:right">Demand/mo</th>
+          <th style="text-align:right">Cover</th>
+          <th style="text-align:right">Run-out</th>
+          <th>Bottleneck RM</th>
+          <th style="text-align:right">RM on hand</th>
+          <th style="text-align:right">RM incoming</th>
+          <th style="text-align:right">RM exhaustion</th>
+          <th style="text-align:right">Order by</th>
+          <th style="text-align:center">Status</th>
+        </tr></thead>
+        <tbody id="cov-tbody"><tr><td colspan="11" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div><!-- /page-coverage -->
+
   <div class="tab-page" id="page-health" style="padding:20px">
     <div style="display:grid;gap:16px;max-width:600px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
@@ -2449,7 +2501,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v16'; // bumped v6→v16: payload shape changed (actionToday + stockHealth fields added)
+const CACHE_KEY_LS = 'pk_payload_v18'; // bumped v17→v18: matches Code.gs v18 (dispatch-entry consumption methodology)
 
 function lsCacheGet(){
   try{
@@ -5055,6 +5107,10 @@ const MAIN_TABS = {
     subs: [],               // no secondary nav — shows page-today directly
     defaultSub: 'today'
   },
+  coverage: {
+    subs: [],               // no secondary nav — shows page-coverage directly
+    defaultSub: 'coverage'
+  },
   stockhealth: {
     subs: [],               // no secondary nav — shows page-stockhealth directly
     defaultSub: 'stockhealth'
@@ -5107,6 +5163,7 @@ function switchMainTab(group, btn) {
     // Trigger render for no-sub tabs
     if (group === 'action')      safeRender('today', renderToday);
     if (group === 'stockhealth') safeRender('stockhealth', renderStockHealth);
+    if (group === 'coverage')    safeRender('coverage', renderCoverage);
     return;
   }
 
@@ -8123,6 +8180,315 @@ function osCloseModal(event, force) {
   if (!force && event && event.target !== document.getElementById('os-modal-overlay')) return;
   var o = document.getElementById('os-modal-overlay');
   if (o) o.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COVERAGE TAB
+// Combines FG stock health (stockHealth) + raw material reorder plan (reorderPlan)
+// into a single per-product-line coverage view.
+// Commercial pipeline demand (localStorage) adjusts demand rates dynamically.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const COV_CHANNEL_KEY = 'pk_commercial_channels_v1';
+const COV_DEFAULT_CHANNELS = [
+  { name: 'Good Life', skuDemand: {} },
+  { name: 'Zucchini', skuDemand: {} },
+  { name: 'Consignment Partners', skuDemand: {} }
+];
+let covFilter = 'all';
+
+function covLoadChannels() {
+  try {
+    const raw = localStorage.getItem(COV_CHANNEL_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return COV_DEFAULT_CHANNELS.map(function(c) { return JSON.parse(JSON.stringify(c)); });
+}
+
+function covSaveChannels(channels) {
+  try { localStorage.setItem(COV_CHANNEL_KEY, JSON.stringify(channels)); } catch(e) {}
+}
+
+function covSetFilter(f, btn) {
+  covFilter = f;
+  document.querySelectorAll('#cov-filter-chips .chip').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  safeRender('coverage', renderCoverage);
+}
+
+// Build combined channel demand per SKU ref (additional units/month beyond baseline)
+function covChannelDemand() {
+  const channels = covLoadChannels();
+  const total = {};
+  channels.forEach(function(ch) {
+    Object.entries(ch.skuDemand || {}).forEach(function([ref, qty]) {
+      total[ref] = (total[ref] || 0) + (parseFloat(qty) || 0);
+    });
+  });
+  return total;
+}
+
+// Build a coverage row per SKU from stockHealth + reorderPlan
+function covBuildRows(channelDemand) {
+  const sh = (payload && payload.stockHealth) ? payload.stockHealth : [];
+  const rp = (payload && payload.reorderPlan) ? payload.reorderPlan : [];
+
+  // Index reorderPlan by material name (lower-case)
+  const planIdx = {};
+  rp.forEach(function(p) {
+    const k = (p.material || '').toLowerCase().trim();
+    if (k) planIdx[k] = p;
+  });
+
+  const today = new Date();
+  const DAYS_PER_MONTH = 30.44;
+
+  return sh.map(function(sku) {
+    const channelExtra = channelDemand[sku.ref] || 0;
+    const adjustedDemand = (sku.salesRate30d || 0) + channelExtra;
+    const bottleneckKey = (sku.bottleneck || '').toLowerCase().trim();
+    const plan = planIdx[bottleneckKey] || null;
+
+    // FG coverage: units on shelf / adjusted demand
+    const fgMonths = adjustedDemand > 0 ? (sku.unitsOnShelf || 0) / adjustedDemand : null;
+
+    // Run-out date adjusted for channel demand
+    let runOutDate = null;
+    if (adjustedDemand > 0 && (sku.unitsOnShelf || 0) >= 0) {
+      const daysLeft = ((sku.unitsOnShelf || 0) / adjustedDemand) * DAYS_PER_MONTH;
+      runOutDate = new Date(today.getTime() + daysLeft * 86400000).toISOString().substring(0, 10);
+    }
+
+    // Raw material side — from reorderPlan's bottleneck entry
+    const rmOnHand  = plan ? (plan.onHandKg || 0) : null;
+    const rmIncoming = plan ? (plan.incomingKg || 0) : null;
+    const rmExhaustion = plan ? plan.exhaustionDate : null;
+    const orderDate = plan ? plan.orderDate : null;
+    const daysUntilOrder = plan ? plan.daysUntilOrder : null;
+    const supplier = plan ? plan.supplier : null;
+    const rmRate = plan ? plan.bufferedMonthlyRateKg : null;
+
+    // Coverage status
+    let status;
+    if (plan && daysUntilOrder !== null) {
+      if (daysUntilOrder <= 0)   status = 'order_now';
+      else if (daysUntilOrder <= 45) status = 'order_soon';
+      else status = 'ok';
+    } else if (plan && plan.status === 'ok') {
+      status = 'ok';
+    } else if (rmIncoming !== null && rmIncoming > 0) {
+      status = 'on_order';
+    } else if (!plan) {
+      status = 'no_data';
+    } else {
+      status = plan.status === 'order_now' ? 'order_now'
+             : plan.status === 'order_soon' ? 'order_soon'
+             : 'ok';
+    }
+
+    // If there's incoming stock and status is order_soon or ok, classify as on_order
+    if ((status === 'ok' || status === 'order_soon') && rmIncoming && rmIncoming > 0) {
+      // Only override if clearly covered by incoming
+      if (plan && plan.status === 'ok') status = 'on_order';
+    }
+
+    return {
+      ref: sku.ref,
+      name: sku.name,
+      fgOnShelf: sku.unitsOnShelf || 0,
+      baselineDemand: sku.salesRate30d || 0,
+      channelExtra,
+      adjustedDemand,
+      fgMonths,
+      runOutDate,
+      bottleneck: sku.bottleneck,
+      producibleUnits: sku.producibleUnits,
+      rmOnHand,
+      rmIncoming,
+      rmRate,
+      rmExhaustion,
+      orderDate,
+      daysUntilOrder,
+      supplier,
+      status,
+    };
+  });
+}
+
+function covFmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function covStatusBadge(status) {
+  const map = {
+    order_now:  ['crit', '🔴 Order now'],
+    order_soon: ['warn', '🟡 Order soon'],
+    on_order:   ['info', '🔵 On order'],
+    ok:         ['ok',   '🟢 OK'],
+    no_data:    ['none', '— No data'],
+  };
+  const [cls, label] = map[status] || ['none', status || '—'];
+  const bg = cls === 'crit' ? 'var(--crit-bg)' : cls === 'warn' ? 'var(--low-bg)' : cls === 'info' ? '#eef4ff' : cls === 'ok' ? '#edfbee' : 'var(--surface2)';
+  const col = cls === 'crit' ? 'var(--crit-txt)' : cls === 'warn' ? 'var(--low-txt)' : cls === 'info' ? '#1a4fa0' : cls === 'ok' ? '#1a7a20' : 'var(--text3)';
+  return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:' + bg + ';color:' + col + '">' + label + '</span>';
+}
+
+function covCoverageBar(months) {
+  if (months === null || isNaN(months)) return '<span style="color:var(--text3)">—</span>';
+  const capped = Math.min(months, 6);
+  const pct = (capped / 6) * 100;
+  const color = months < 1 ? 'var(--crit-txt)' : months < 2 ? '#d97706' : '#16a34a';
+  return '<div style="display:flex;align-items:center;gap:6px">'
+    + '<div style="width:60px;height:6px;border-radius:3px;background:var(--border);overflow:hidden">'
+    + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px"></div></div>'
+    + '<span style="font-size:11px;font-weight:600;color:' + color + '">' + months.toFixed(1) + ' mo</span>'
+    + '</div>';
+}
+
+function renderCoverage() {
+  const tbody = document.getElementById('cov-tbody');
+  if (!tbody) return;
+  if (!payload || !payload.stockHealth) {
+    tbody.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--text3)">Data not loaded — click Refresh</td></tr>';
+    return;
+  }
+
+  const channelDemand = covChannelDemand();
+  const rows = covBuildRows(channelDemand);
+
+  // Metrics
+  const counts = { order_now: 0, order_soon: 0, on_order: 0, ok: 0 };
+  rows.forEach(function(r) { if (counts[r.status] !== undefined) counts[r.status]++; });
+  ['order_now','order_soon','on_order','ok'].forEach(function(k) {
+    const el = document.getElementById('cov-m-' + k.replace('_','-'));
+    if (el) el.textContent = counts[k];
+  });
+
+  // Channel summary
+  const chSummary = document.getElementById('cov-channel-summary');
+  if (chSummary) {
+    const channels = covLoadChannels();
+    const parts = channels.map(function(ch) {
+      const skus = Object.entries(ch.skuDemand || {}).filter(function([,v]) { return v > 0; });
+      if (!skus.length) return '<span style="color:var(--text3)">' + ch.name + ': <em>none set</em></span>';
+      return '<span><strong>' + ch.name + '</strong>: ' + skus.map(function([ref, qty]) { return ref + '&nbsp;+' + qty + '/mo'; }).join(', ') + '</span>';
+    });
+    chSummary.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  }
+
+  // Filter and sort
+  const filtered = rows.filter(function(r) {
+    return covFilter === 'all' || r.status === covFilter;
+  });
+  const STATUS_ORDER = { order_now: 0, order_soon: 1, on_order: 2, ok: 3, no_data: 4 };
+  filtered.sort(function(a, b) {
+    const sa = STATUS_ORDER[a.status] || 4, sb = STATUS_ORDER[b.status] || 4;
+    if (sa !== sb) return sa - sb;
+    if (a.daysUntilOrder !== null && b.daysUntilOrder !== null) return a.daysUntilOrder - b.daysUntilOrder;
+    return 0;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--text3)">No items match this filter</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(function(r) {
+    const demandStr = r.channelExtra > 0
+      ? r.baselineDemand.toFixed(0) + ' <span style="color:#1a4fa0;font-size:10px">+' + r.channelExtra.toFixed(0) + ' pipeline</span>'
+      : r.adjustedDemand > 0 ? r.adjustedDemand.toFixed(0) : '—';
+    return '<tr>'
+      + '<td style="font-weight:500">' + (r.name || r.ref) + '<div style="font-size:10px;color:var(--text3)">' + r.ref + '</div></td>'
+      + '<td style="text-align:right">' + r.fgOnShelf.toLocaleString() + '</td>'
+      + '<td style="text-align:right">' + demandStr + '</td>'
+      + '<td>' + covCoverageBar(r.fgMonths) + '</td>'
+      + '<td style="text-align:right;font-size:11px">' + covFmtDate(r.runOutDate) + '</td>'
+      + '<td style="font-size:11px;max-width:140px">' + (r.bottleneck || '<span style="color:var(--text3)">—</span>') + '</td>'
+      + '<td style="text-align:right;font-size:11px">' + (r.rmOnHand !== null ? r.rmOnHand.toFixed(1) + ' kg' : '—') + '</td>'
+      + '<td style="text-align:right;font-size:11px">' + (r.rmIncoming !== null && r.rmIncoming > 0 ? '+' + r.rmIncoming.toFixed(1) + ' kg' : '<span style="color:var(--text3)">none</span>') + '</td>'
+      + '<td style="text-align:right;font-size:11px">' + covFmtDate(r.rmExhaustion) + '</td>'
+      + '<td style="text-align:right;font-size:11px;font-weight:500;color:' + (r.daysUntilOrder !== null && r.daysUntilOrder <= 14 ? 'var(--crit-txt)' : 'inherit') + '">' + covFmtDate(r.orderDate) + '</td>'
+      + '<td style="text-align:center">' + covStatusBadge(r.status) + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+// ── Commercial pipeline channel editor ────────────────────────────────────────
+
+function covToggleChannelEditor() {
+  const editor = document.getElementById('cov-channel-editor');
+  const toggle = document.getElementById('cov-channel-toggle');
+  if (!editor) return;
+  const open = editor.style.display !== 'none';
+  if (open) {
+    editor.style.display = 'none';
+    toggle.textContent = 'Edit channels';
+  } else {
+    editor.style.display = 'block';
+    toggle.textContent = 'Close editor';
+    covRenderChannelEditor();
+  }
+}
+
+function covRenderChannelEditor() {
+  const editor = document.getElementById('cov-channel-editor');
+  if (!editor) return;
+  const channels = covLoadChannels();
+  const sh = (payload && payload.stockHealth) ? payload.stockHealth : [];
+  const refs = sh.map(function(s) { return s.ref; });
+
+  let html = '<div style="display:grid;gap:12px">';
+  channels.forEach(function(ch, ci) {
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+    html += '<input id="cov-ch-name-' + ci + '" type="text" value="' + (ch.name || '') + '" style="font-size:12px;font-weight:600;border:1px solid var(--border2);border-radius:4px;padding:3px 8px;width:180px" onchange="covSaveChannelName(' + ci + ',this.value)">';
+    html += '<span style="font-size:11px;color:var(--text3)">— monthly units by SKU</span></div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+    refs.forEach(function(ref) {
+      const val = ch.skuDemand[ref] || '';
+      html += '<label style="display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--text3)">' + ref
+        + '<input type="number" min="0" step="1" value="' + val + '" style="width:70px;font-size:11px;border:1px solid var(--border2);border-radius:4px;padding:2px 6px;text-align:right" onchange="covSaveSkuDemand(' + ci + ',\'' + ref + '\',this.value)"></label>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  html += '<div style="margin-top:10px;display:flex;gap:8px">';
+  html += '<button class="fbtn" onclick="covAddChannel()" style="font-size:11px">+ Add channel</button>';
+  html += '<button class="fbtn" onclick="covResetChannels()" style="font-size:11px;color:var(--crit-txt)">Reset to defaults</button>';
+  html += '</div>';
+  editor.innerHTML = html;
+}
+
+function covSaveChannelName(ci, name) {
+  const channels = covLoadChannels();
+  if (channels[ci]) { channels[ci].name = name; covSaveChannels(channels); safeRender('coverage', renderCoverage); }
+}
+
+function covSaveSkuDemand(ci, ref, val) {
+  const channels = covLoadChannels();
+  if (channels[ci]) {
+    channels[ci].skuDemand = channels[ci].skuDemand || {};
+    const n = parseFloat(val);
+    if (n > 0) channels[ci].skuDemand[ref] = n;
+    else delete channels[ci].skuDemand[ref];
+    covSaveChannels(channels);
+    safeRender('coverage', renderCoverage);
+  }
+}
+
+function covAddChannel() {
+  const channels = covLoadChannels();
+  channels.push({ name: 'New channel', skuDemand: {} });
+  covSaveChannels(channels);
+  covRenderChannelEditor();
+}
+
+function covResetChannels() {
+  covSaveChannels(COV_DEFAULT_CHANNELS.map(function(c) { return JSON.parse(JSON.stringify(c)); }));
+  covRenderChannelEditor();
+  safeRender('coverage', renderCoverage);
 }
 
 loadAll();
