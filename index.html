@@ -8314,8 +8314,10 @@ function covChannelDemand() {
 
 // Build a coverage row per SKU from stockHealth + reorderPlan
 function covBuildRows(channelDemand) {
-  const sh = (payload && payload.stockHealth) ? payload.stockHealth : [];
-  const rp = (payload && payload.reorderPlan) ? payload.reorderPlan : [];
+  // FIX v26: payload is only a local parameter inside onSuccess/applyPayload — never
+  // set as a global. Use the actual globals (set in applyPayload) directly.
+  const sh = stockHealth || [];
+  const rp = reorderPlan || [];
 
   // Index reorderPlan by material name (lower-case)
   const planIdx = {};
@@ -8434,7 +8436,8 @@ function covCoverageBar(months) {
 function renderCoverage() {
   const tbody = document.getElementById('cov-tbody');
   if (!tbody) return;
-  if (!payload || !payload.stockHealth) {
+  // FIX v26: same as covBuildRows — use the stockHealth global, not undefined local payload
+  if (!stockHealth || !stockHealth.length) {
     tbody.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--text3)">Data not loaded — click Refresh</td></tr>';
     return;
   }
@@ -8520,7 +8523,8 @@ function covRenderChannelEditor() {
   const editor = document.getElementById('cov-channel-editor');
   if (!editor) return;
   const channels = covLoadChannels();
-  const sh = (payload && payload.stockHealth) ? payload.stockHealth : [];
+  // FIX v26: use the stockHealth global, not undefined local payload
+  const sh = stockHealth || [];
   const refs = sh.map(function(s) { return s.ref; });
 
   let html = '<div style="display:grid;gap:12px">';
