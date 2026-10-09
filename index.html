@@ -2551,7 +2551,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v18'; // bumped v17→v18: matches Code.gs v18 (dispatch-entry consumption methodology)
+const CACHE_KEY_LS = 'pk_payload_v19'; // bumped v18→v19: matches Code.gs v26 (packaging consumption median; classifyIncomingProduct catch-alls)
 
 function lsCacheGet(){
   try{
@@ -2979,17 +2979,21 @@ function procIncomingKey(name) {
   if (nl.includes('scoop')) {
     if (nl.includes('30g')) return 'scoop_30g';
     if (nl.includes('5g') && !nl.includes('30g') && !nl.includes('50g')) return 'scoop_5g';
+    if (nl.includes('50g')) return 'scoop_50g';
+    return 'scoop_5g'; // FIX Deploy 5: unsized scoop catch-all
   }
   if (nl.includes('shaker')) {
     if (nl.includes('black')) return 'shaker_blk';
     if (nl.includes('clear')) return 'shaker_clr';
     if (nl.includes('white')) return 'shaker_wht';
+    return 'shaker_blk'; // FIX Deploy 5: uncoloured shaker catch-all
   }
   if (nl.includes('silicon')) return 'silicon';
   if (nl.includes('sticker') || nl.includes('label')) {
     if (nl.includes('large')) return 'large_sticker';
     if (nl.includes('medium')) return 'medium_sticker';
     if (nl.includes('small')) return 'small_sticker';
+    return 'small_sticker'; // FIX Deploy 5: unsized sticker/label catch-all
   }
   return undefined;
 }
