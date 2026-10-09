@@ -2580,6 +2580,19 @@ function applyPayload(payload){
   pendingReceiptsBySupplier = payload.pendingReceiptsBySupplier || {};
   vendorPricelists          = payload.vendorPricelists          || {};
 
+  // Bulk supplement stock from ALL internal Odoo quants (FIX Oct 2026: getSuppStockKg
+  // was reading procItems.bulk[sku].stock which came from readProcurement(fetchOdooStock()),
+  // but fetchOdooStock() only queries RM locations 19/69 — Nutra Healthcare receipts land
+  // at non-RM locations so bulk supplement stock silently fell back to the ORDER-sheet
+  // column 20 figure, which is often stale FG stock. bulkSuppStock overrides this with
+  // the correct available quantity summed across all internal Odoo quants.)
+  const bss = payload.bulkSuppStock || {};
+  Object.entries(bss).forEach(function([sku, val]) {
+    if (!procItems.bulk[sku]) procItems.bulk[sku] = {};
+    procItems.bulk[sku].stock       = val.stock;
+    procItems.bulk[sku].stockSource = val.source || 'odoo';
+  });
+
   // Reorder Calculator + Order Tracker — new payload fields (Sep 2026)
   reorderPlan    = payload.reorderPlan    || [];
   upcomingOrders = payload.upcomingOrders || [];
@@ -2858,7 +2871,78 @@ var PROC_INCOMING_MAP = {
   'Large stickers':  'large_sticker',
   'Medium stickers': 'medium_sticker',
   'Small stickers':  'small_sticker',
+  // Packaging — bags, scoops, silicon, shakers (FIX Oct 2026: these were missing,
+  // so confirmed incoming bag/scoop/silicon/shaker POs never showed in the main
+  // procurement table despite classifyIncomingProduct() correctly classifying them).
+  // Multiple name variants to match whatever the ORDER sheet uses — keys below
+  // are case-insensitive via procIncomingKey() which replaces direct lookups.
+  'Large bags':          'large_bag',
+  'Large Bags':          'large_bag',
+  'Medium bags':         'medium_bag',
+  'Medium Bags':         'medium_bag',
+  'Small bags':          'small_bag',
+  'Small Bags':          'small_bag',
+  'Taster bags':         'small_bag',
+  'Taster Bags':         'small_bag',
+  '30g Scoop':           'scoop_30g',
+  '30g scoops':          'scoop_30g',
+  '30g Scoops':          'scoop_30g',
+  '5g Scoop':            'scoop_5g',
+  '5g scoops':           'scoop_5g',
+  '5g Scoops':           'scoop_5g',
+  'Silicon':             'silicon',
+  'Silicon packs':       'silicon',
+  'Silicon Packs':       'silicon',
+  'Silicon sachets':     'silicon',
+  'Shaker (black)':      'shaker_blk',
+  'Shaker Black':        'shaker_blk',
+  'Black Shaker':        'shaker_blk',
+  'Shaker (clear)':      'shaker_clr',
+  'Shaker Clear':        'shaker_clr',
+  'Clear Shaker':        'shaker_clr',
+  'Shaker (white)':      'shaker_wht',
+  'Shaker White':        'shaker_wht',
+  'White Shaker':        'shaker_wht',
 };
+
+// Case-insensitive PROC_INCOMING_MAP lookup with substring fallback for packaging.
+// Replaces direct PROC_INCOMING_MAP[item.name] access throughout.
+// FIX Oct 2026: direct lookups missed packaging items whose exact case or wording
+// in the ORDER sheet didn't match the hardcoded PROC_INCOMING_MAP keys.
+function procIncomingKey(name) {
+  if (!name) return undefined;
+  // 1. Exact match (fast path — covers all existing raw material entries)
+  if (PROC_INCOMING_MAP[name] !== undefined) return PROC_INCOMING_MAP[name];
+  // 2. Case-insensitive exact match
+  var nl = name.toLowerCase().trim();
+  for (var k in PROC_INCOMING_MAP) {
+    if (k.toLowerCase() === nl) return PROC_INCOMING_MAP[k];
+  }
+  // 3. Substring fallback — mirrors classifyIncomingProduct() logic in Code.gs
+  //    so any ORDER-sheet name that classifyIncomingProduct would classify also
+  //    resolves here, even if we don't have its exact spelling in PROC_INCOMING_MAP.
+  if (nl.includes('bag')) {
+    if (nl.includes('large')) return 'large_bag';
+    if (nl.includes('medium')) return 'medium_bag';
+    if (nl.includes('small') || nl.includes('taster')) return 'small_bag';
+  }
+  if (nl.includes('scoop')) {
+    if (nl.includes('30g')) return 'scoop_30g';
+    if (nl.includes('5g') && !nl.includes('30g') && !nl.includes('50g')) return 'scoop_5g';
+  }
+  if (nl.includes('shaker')) {
+    if (nl.includes('black')) return 'shaker_blk';
+    if (nl.includes('clear')) return 'shaker_clr';
+    if (nl.includes('white')) return 'shaker_wht';
+  }
+  if (nl.includes('silicon')) return 'silicon';
+  if (nl.includes('sticker') || nl.includes('label')) {
+    if (nl.includes('large')) return 'large_sticker';
+    if (nl.includes('medium')) return 'medium_sticker';
+    if (nl.includes('small')) return 'small_sticker';
+  }
+  return undefined;
+}
 
 // SKUs that physically require silicon desiccant sachets (2 per pack)
 // cfg.sachets is a drum-level field and means something different on preworkout
@@ -3694,7 +3778,7 @@ function makeRow(item,rq,units,onchange,cost){
   const bp=Math.min(cov/3,1)*100;
   const bc=st==='critical'?'#c0341d':st==='low'?'#d4860e':'#3a7d22';
   const cl=cov>=99?'∞':cov.toFixed(1)+'mo';
-  const incomingKey=PROC_INCOMING_MAP[item.name];
+  const incomingKey=procIncomingKey(item.name);
   const incomingQty=incomingKey?totalIncomingQty(incomingKey):0;
   const fourMo=Math.max(0,rq*4-item.stock-incomingQty);
   const ov=Math.round(fourMo*(cost||item.cost));
@@ -3955,7 +4039,7 @@ function renderProcurement(){
       // even when a real confirmed PO was already on the way — unlike the
       // raw-materials table above, which has always looked this up via
       // PROC_INCOMING_MAP. Now does the same lookup.
-      const bIncomingKey=PROC_INCOMING_MAP[item.name];
+      const bIncomingKey=procIncomingKey(item.name);
       const bIncomingQty=bIncomingKey?totalIncomingQty(bIncomingKey):0;
       const {need:augNeedB,gap:augGapB}=coverageHorizonNeed(rq,item,bIncomingQty);
       // FIX Sep 23 2026 (India incoming-tracking gap): this row never had the
@@ -6751,7 +6835,7 @@ function todayAlerts() {
   procItems.main.forEach(function(item) {
     var rq = computeRQ(item.name) * gf;
     if (!rq || rq <= 0) return;
-    var incomingKey = PROC_INCOMING_MAP[item.name];
+    var incomingKey = procIncomingKey(item.name);
     var incomingQty = incomingKey ? totalIncomingQty(incomingKey) : 0;
     var freeStock   = item.stock; // current stock only — incoming tracked separately via incomingQty/incomingDate/gap below
     var coverageMo  = freeStock / rq;
@@ -6803,7 +6887,7 @@ function todayAlerts() {
 
     // FIX (Oct 2026): was hardcoded incomingQty:0 — now looks up actual incoming
     // via PROC_INCOMING_MAP using cfg.ingKey (the ORDER-sheet row name for this bulk item)
-    var bIncomingKey  = PROC_INCOMING_MAP[cfg.ingKey];
+    var bIncomingKey  = procIncomingKey(cfg.ingKey);
     var incomingQty   = bIncomingKey ? totalIncomingQty(bIncomingKey)   : 0;
     var incomingDate  = bIncomingKey ? earliestIncomingDate(bIncomingKey) : null;
 
@@ -6957,7 +7041,7 @@ function todayDeadlines() {
   procItems.main.forEach(function(item) {
     var rq = computeRQ(item.name) * gf;
     if (!rq) return;
-    var incomingKey = PROC_INCOMING_MAP[item.name];
+    var incomingKey = procIncomingKey(item.name);
     var incomingQty = incomingKey ? totalIncomingQty(incomingKey) : 0;
     var freeStock   = item.stock; // current stock only — incoming tracked separately via incomingQty/incomingDate/gap below
     var deadline    = computeDeadline(freeStock, rq, item.lead);
