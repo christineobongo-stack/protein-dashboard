@@ -1438,11 +1438,13 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
   </div>
 
-  <!-- TAB: STOCK HEALTH — v27: sub-tabs for FG + RM Coverage -->
+  <!-- TAB: STOCK HEALTH — v28: sub-tabs for FG + RM + Packaging + Bulk Supps -->
   <div class="tab-page" id="page-stockhealth">
     <div class="sub-tabs">
       <button class="sub-tab-btn active" onclick="switchSubTab('stockhealth','sh-fg',this)">📦 Finished Goods</button>
       <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-rm',this)">🧪 Raw Materials</button>
+      <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-pkg',this)">📦 Packaging &amp; China</button>
+      <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-bulk',this)">💊 Bulk Supplements</button>
     </div>
 
     <!-- ── FG sub-section ──────────────────────────────────────────────────── -->
@@ -1516,6 +1518,77 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="tfoot" id="sh-rm-tfoot"></div>
       </div>
     </div><!-- /sh-rm -->
+
+    <!-- ── Packaging & China sub-section ──────────────────────────────────── -->
+    <div class="sub-section" id="page-sh-pkg">
+      <div class="toolbar" style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">📦 Packaging &amp; China — Coverage</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="chip active" id="sh-pkg-chip-all"      onclick="shPkgSetFilter('all',this)">All</button>
+          <button class="chip"        id="sh-pkg-chip-critical" onclick="shPkgSetFilter('critical',this)">🔴 Critical</button>
+          <button class="chip"        id="sh-pkg-chip-low"      onclick="shPkgSetFilter('low',this)">🟡 Low</button>
+          <button class="chip"        id="sh-pkg-chip-ok"       onclick="shPkgSetFilter('ok',this)">🟢 OK</button>
+          <button class="fbtn" style="margin-left:6px" onclick="safeRender('sh-pkg',renderPkgCoverage)">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="metrics" id="sh-pkg-metrics">
+        <div class="metric"><div class="mlabel">Critical — &lt; 4 mo lead time</div><div class="mval danger" id="sh-pkg-m-crit">—</div></div>
+        <div class="metric"><div class="mlabel">Low — &lt; 5 months</div><div class="mval warn" id="sh-pkg-m-low">—</div></div>
+        <div class="metric"><div class="mlabel">OK</div><div class="mval good" id="sh-pkg-m-ok">—</div></div>
+        <div class="metric"><div class="mlabel">Total packaging lines</div><div class="mval" id="sh-pkg-m-total">—</div></div>
+      </div>
+      <div class="tcard">
+        <table>
+          <thead><tr>
+            <th>Item</th>
+            <th style="text-align:right">On hand</th>
+            <th style="text-align:right">Monthly rate</th>
+            <th style="text-align:right">Cover</th>
+            <th style="text-align:right">Incoming</th>
+            <th style="text-align:right">Stockout</th>
+            <th style="text-align:center">Status</th>
+          </tr></thead>
+          <tbody id="sh-pkg-tbody"><tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+        </table>
+        <div class="tfoot" id="sh-pkg-tfoot"></div>
+      </div>
+    </div><!-- /sh-pkg -->
+
+    <!-- ── Bulk Supplements sub-section ───────────────────────────────────── -->
+    <div class="sub-section" id="page-sh-bulk">
+      <div class="toolbar" style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">💊 Bulk Supplements — Coverage</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="chip active" id="sh-bulk-chip-all"      onclick="shBulkSetFilter('all',this)">All</button>
+          <button class="chip"        id="sh-bulk-chip-critical" onclick="shBulkSetFilter('critical',this)">🔴 Critical</button>
+          <button class="chip"        id="sh-bulk-chip-low"      onclick="shBulkSetFilter('low',this)">🟡 Low</button>
+          <button class="chip"        id="sh-bulk-chip-ok"       onclick="shBulkSetFilter('ok',this)">🟢 OK</button>
+          <button class="fbtn" style="margin-left:6px" onclick="safeRender('sh-bulk',renderBulkCoverage)">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="metrics" id="sh-bulk-metrics">
+        <div class="metric"><div class="mlabel">Critical — &lt; 4 wks</div><div class="mval danger" id="sh-bulk-m-crit">—</div></div>
+        <div class="metric"><div class="mlabel">Low — &lt; 8 wks</div><div class="mval warn" id="sh-bulk-m-low">—</div></div>
+        <div class="metric"><div class="mlabel">OK</div><div class="mval good" id="sh-bulk-m-ok">—</div></div>
+        <div class="metric"><div class="mlabel">Total SKUs</div><div class="mval" id="sh-bulk-m-total">—</div></div>
+      </div>
+      <div class="tcard">
+        <table>
+          <thead><tr>
+            <th>Bulk supplement</th>
+            <th style="text-align:right">On hand (kg)</th>
+            <th style="text-align:right">Monthly RQ</th>
+            <th style="text-align:right">Cover</th>
+            <th style="text-align:right">Incoming</th>
+            <th style="text-align:right">Stockout</th>
+            <th>Supplier</th>
+            <th style="text-align:center">Status</th>
+          </tr></thead>
+          <tbody id="sh-bulk-tbody"><tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+        </table>
+        <div class="tfoot" id="sh-bulk-tfoot"></div>
+      </div>
+    </div><!-- /sh-bulk -->
 
   </div><!-- /page-stockhealth -->
 
@@ -2551,7 +2624,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v19'; // bumped v18→v19: matches Code.gs v26 (packaging consumption median; classifyIncomingProduct catch-alls)
+const CACHE_KEY_LS = 'pk_payload_v20'; // bumped v19→v20: v28 UI — Packaging & China + Bulk Supplements sub-tabs in Stock Health
 
 function lsCacheGet(){
   try{
@@ -5405,9 +5478,11 @@ function switchSubTab(parentId, sectionId, btn) {
   if (sectionId === 'ordersheet')  safeRender('ordersheet', renderOrderSheet);
   if (sectionId === 'ordertracker') safeRender('ordertracker', renderOrderTracker);
   if (sectionId === 'reordercalc') safeRender('reordercalc', renderReorderCalculator);
-  // v27: Stock Health sub-tabs
-  if (sectionId === 'sh-fg') safeRender('sh-fg', renderStockHealth);
-  if (sectionId === 'sh-rm') safeRender('sh-rm', renderRMCoverage);
+  // v27/v28: Stock Health sub-tabs
+  if (sectionId === 'sh-fg')   safeRender('sh-fg',   renderStockHealth);
+  if (sectionId === 'sh-rm')   safeRender('sh-rm',   renderRMCoverage);
+  if (sectionId === 'sh-pkg')  safeRender('sh-pkg',  renderPkgCoverage);
+  if (sectionId === 'sh-bulk') safeRender('sh-bulk', renderBulkCoverage);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -6973,6 +7048,204 @@ function renderRMCoverage() {
     var ts = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
       ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
     tfoot.textContent = allItems.length + ' materials' + ts;
+  }
+}
+
+// ── v28: Packaging & China Coverage ──────────────────────────────────────────
+var _shPkgFilter = 'all';
+function shPkgSetFilter(f, btn) {
+  _shPkgFilter = f;
+  document.querySelectorAll('#page-sh-pkg .chip').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('#sh-pkg-tbody tr[data-severity]').forEach(function(row) {
+    row.style.display = (f === 'all' || row.dataset.severity === f) ? '' : 'none';
+  });
+}
+
+function renderPkgCoverage() {
+  var tbody = document.getElementById('sh-pkg-tbody');
+  var tfoot = document.getElementById('sh-pkg-tfoot');
+  var mCrit = document.getElementById('sh-pkg-m-crit');
+  var mLow  = document.getElementById('sh-pkg-m-low');
+  var mOk   = document.getElementById('sh-pkg-m-ok');
+  var mTot  = document.getElementById('sh-pkg-m-total');
+  if (!tbody) return;
+
+  // Monthly rates per packaging key (units/month) from pkgNeeds()
+  var needs = pkgNeeds();
+
+  // Packaging labels for display
+  var PKG_LABELS = {
+    large_bag:      'Large bag (protein, 1kg)',
+    small_bag:      'Small bag (bulk supp, 200g)',
+    medium_bag:     'Medium bag',
+    large_sticker:  'Large sticker',
+    small_sticker:  'Small sticker',
+    medium_sticker: 'Medium sticker',
+    scoop_30g:      '30g scoop',
+    scoop_5g:       '5g scoop',
+    scoop_50g:      '50g scoop',
+    sachet:         'Silicon sachet (desiccant)',
+    shaker_blk:     'Shaker (black)',
+    shaker_clr:     'Shaker (clear)',
+    shaker_wht:     'Shaker (white)',
+  };
+
+  var critCount = 0, lowCount = 0, okCount = 0;
+  var fmtDate = function(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+  };
+
+  // Build rows from the packaging array
+  var items = (packaging || []).filter(function(p) { return p && p.key; });
+
+  var rows = items.map(function(p) {
+    var key   = p.key;
+    var stock = p.stock || 0;
+    var rq    = needs[key] || 0;  // units/month
+    var covMo = rq > 0 ? stock / rq : 99;
+
+    var incomingQty  = totalIncomingQty(key);
+    var incomingDate = earliestIncomingDate(key);
+
+    // China lead time ~120 days = 4 months
+    // Critical: cover < 4 months (within lead time — can't reorder in time)
+    // Low: cover < 5 months (order soon)
+    var severity, badgeClass, badgeLabel;
+    if (rq <= 0) {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'No rate';
+    } else if (covMo < 4) {
+      severity = 'critical'; badgeClass = 'critical'; badgeLabel = 'Critical';
+    } else if (covMo < 5) {
+      severity = 'low'; badgeClass = 'low'; badgeLabel = 'Low';
+    } else {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'OK';
+    }
+    if (severity === 'critical') critCount++;
+    else if (severity === 'low') lowCount++;
+    else okCount++;
+
+    var stockoutDt = rq > 0 ? stockoutDate(stock, rq) : null;
+    var covStr  = rq > 0 ? covMo.toFixed(1) + ' mo' : '—';
+    var covColor = covMo < 4 ? 'var(--crit-txt)' : covMo < 5 ? 'var(--low-txt)' : 'var(--ok-txt)';
+
+    var incomingCell = incomingQty > 0
+      ? '<span style="color:var(--ok-txt);font-weight:600">' + Math.round(incomingQty) + ' pcs</span>'
+        + (incomingDate ? '<div style="font-size:9px;color:var(--text3)">' + fmtDate(incomingDate) + '</div>' : '')
+      : '<span style="color:var(--text3)">—</span>';
+
+    var label = PKG_LABELS[key] || p.name || key;
+
+    return '<tr data-severity="' + severity + '" style="' + (_shPkgFilter !== 'all' && _shPkgFilter !== severity ? 'display:none' : '') + '">'
+      + '<td><div class="iname">' + label + '</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + Math.round(stock).toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + (rq > 0 ? Math.round(rq).toLocaleString() + '/mo' : '—') + '</td>'
+      + '<td style="text-align:right"><span style="font-family:var(--font-mono);font-weight:600;color:' + covColor + '">' + covStr + '</span></td>'
+      + '<td style="text-align:right">' + incomingCell + '</td>'
+      + '<td style="text-align:right;font-size:10px;color:var(--text2)">' + (stockoutDt ? fmtDate(stockoutDt) : '—') + '</td>'
+      + '<td style="text-align:center"><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>'
+      + '</tr>';
+  }).join('');
+
+  tbody.innerHTML = rows || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">No packaging data — load dashboard first</td></tr>';
+  if (mCrit) mCrit.textContent = critCount;
+  if (mLow)  mLow.textContent  = lowCount;
+  if (mOk)   mOk.textContent   = okCount;
+  if (mTot)  mTot.textContent  = items.length;
+  if (tfoot) {
+    var ts = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
+      ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
+    tfoot.textContent = items.length + ' packaging items · China lead time ~120 days' + ts;
+  }
+}
+
+// ── v28: Bulk Supplements Coverage ───────────────────────────────────────────
+var _shBulkFilter = 'all';
+function shBulkSetFilter(f, btn) {
+  _shBulkFilter = f;
+  document.querySelectorAll('#page-sh-bulk .chip').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('#sh-bulk-tbody tr[data-severity]').forEach(function(row) {
+    row.style.display = (f === 'all' || row.dataset.severity === f) ? '' : 'none';
+  });
+}
+
+function renderBulkCoverage() {
+  var tbody = document.getElementById('sh-bulk-tbody');
+  var tfoot = document.getElementById('sh-bulk-tfoot');
+  var mCrit = document.getElementById('sh-bulk-m-crit');
+  var mLow  = document.getElementById('sh-bulk-m-low');
+  var mOk   = document.getElementById('sh-bulk-m-ok');
+  var mTot  = document.getElementById('sh-bulk-m-total');
+  if (!tbody) return;
+
+  var critCount = 0, lowCount = 0, okCount = 0;
+  var fmtDate = function(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+  };
+
+  var skus = Object.keys(BULK_CFG);
+
+  var rows = skus.map(function(sku) {
+    var cfg   = BULK_CFG[sku];
+    var itm   = (procItems.bulk || {})[sku] || {};
+    var stock = itm.stock || 0;  // kg
+    var rq    = bulkRQ(sku);     // kg/month
+
+    // Incoming via PROC_INCOMING_MAP key (e.g. 'CREATUN' etc.)
+    // The incomingData is keyed by procIncomingKey — for bulk supps the key is the sku directly
+    var incomingQty  = totalIncomingQty(sku);
+    var incomingDate = earliestIncomingDate(sku);
+
+    var covMo = rq > 0 ? stock / rq : 99;
+
+    // Same thresholds as Raw Materials: critical < 1 month, low < 2 months
+    var severity, badgeClass, badgeLabel;
+    if (rq <= 0) {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'No RQ';
+    } else if (covMo < 1) {
+      severity = 'critical'; badgeClass = 'critical'; badgeLabel = 'Critical';
+    } else if (covMo < 2) {
+      severity = 'low'; badgeClass = 'low'; badgeLabel = 'Low';
+    } else {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'OK';
+    }
+    if (severity === 'critical') critCount++;
+    else if (severity === 'low') lowCount++;
+    else okCount++;
+
+    var stockoutDt = rq > 0 ? stockoutDate(stock, rq) : null;
+    var covStr   = rq > 0 ? covMo.toFixed(1) + ' mo' : '—';
+    var covColor = covMo < 1 ? 'var(--crit-txt)' : covMo < 2 ? 'var(--low-txt)' : 'var(--ok-txt)';
+
+    var incomingCell = incomingQty > 0
+      ? '<span style="color:var(--ok-txt);font-weight:600">' + incomingQty.toFixed(1) + ' kg</span>'
+        + (incomingDate ? '<div style="font-size:9px;color:var(--text3)">' + fmtDate(incomingDate) + '</div>' : '')
+      : '<span style="color:var(--text3)">—</span>';
+
+    return '<tr data-severity="' + severity + '" style="' + (_shBulkFilter !== 'all' && _shBulkFilter !== severity ? 'display:none' : '') + '">'
+      + '<td><div class="iname">' + (cfg.label || sku) + '</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + stock.toFixed(1) + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + (rq > 0 ? rq.toFixed(1) : '—') + '</td>'
+      + '<td style="text-align:right"><span style="font-family:var(--font-mono);font-weight:600;color:' + covColor + '">' + covStr + '</span></td>'
+      + '<td style="text-align:right">' + incomingCell + '</td>'
+      + '<td style="text-align:right;font-size:10px;color:var(--text2)">' + (stockoutDt ? fmtDate(stockoutDt) : '—') + '</td>'
+      + '<td style="font-size:10px;color:var(--text2)">' + (cfg.supplier || '—') + '</td>'
+      + '<td style="text-align:center"><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>'
+      + '</tr>';
+  }).join('');
+
+  tbody.innerHTML = rows || '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">No bulk supplement data — load dashboard first</td></tr>';
+  if (mCrit) mCrit.textContent = critCount;
+  if (mLow)  mLow.textContent  = lowCount;
+  if (mOk)   mOk.textContent   = okCount;
+  if (mTot)  mTot.textContent  = skus.length;
+  if (tfoot) {
+    var ts = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
+      ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
+    tfoot.textContent = skus.length + ' bulk supplement SKUs' + ts;
   }
 }
 
