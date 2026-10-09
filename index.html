@@ -1546,9 +1546,10 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
             <th style="text-align:right">Cover</th>
             <th style="text-align:right">Incoming</th>
             <th style="text-align:right">Stockout</th>
+            <th>Supplier</th>
             <th style="text-align:center">Status</th>
           </tr></thead>
-          <tbody id="sh-pkg-tbody"><tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+          <tbody id="sh-pkg-tbody"><tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
         </table>
         <div class="tfoot" id="sh-pkg-tfoot"></div>
       </div>
@@ -7097,11 +7098,11 @@ function renderPkgCoverage() {
     return new Date(d).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
   };
 
-  // Build rows from the packaging array
-  var items = (packaging || []).filter(function(p) { return p && p.key; });
+  // Build rows from the packaging array (payload field is pkgKey, not key)
+  var items = (packaging || []).filter(function(p) { return p && p.pkgKey; });
 
   var rows = items.map(function(p) {
-    var key   = p.key;
+    var key   = p.pkgKey;
     var stock = p.stock || 0;
     var rq    = needs[key] || 0;  // units/month
     var covMo = rq > 0 ? stock / rq : 99;
@@ -7144,11 +7145,12 @@ function renderPkgCoverage() {
       + '<td style="text-align:right"><span style="font-family:var(--font-mono);font-weight:600;color:' + covColor + '">' + covStr + '</span></td>'
       + '<td style="text-align:right">' + incomingCell + '</td>'
       + '<td style="text-align:right;font-size:10px;color:var(--text2)">' + (stockoutDt ? fmtDate(stockoutDt) : '—') + '</td>'
+      + '<td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="' + (p.supplier||'') + '">' + (p.supplier || '—') + '</td>'
       + '<td style="text-align:center"><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>'
       + '</tr>';
   }).join('');
 
-  tbody.innerHTML = rows || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">No packaging data — load dashboard first</td></tr>';
+  tbody.innerHTML = rows || '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">No packaging data — load dashboard first</td></tr>';
   if (mCrit) mCrit.textContent = critCount;
   if (mLow)  mLow.textContent  = lowCount;
   if (mOk)   mOk.textContent   = okCount;
