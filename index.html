@@ -339,6 +339,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <button class="tab-btn" onclick="switchMainTab('ordertracker',this)">📋 Order Tracker</button>
   <button class="tab-btn" onclick="switchMainTab('planning',this)">📊 Planning</button>
   <button class="tab-btn" onclick="switchMainTab('calculators',this)">🧮 Calculators</button>
+  <button class="tab-btn" onclick="switchMainTab('cogs',this)">💰 Unit Costs</button>
 </div>
 <div class="tabs" id="secondaryNav" style="padding:0 12px 6px;gap:0;border-bottom:1px solid var(--border)"></div>
 
@@ -1671,6 +1672,58 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     </div>
   </div>
 
+  <!-- ══ UNIT COSTS / COGS TAB ══════════════════════════════════════════════ -->
+  <div class="tab-page" id="page-cogs" style="padding:20px">
+
+    <!-- Header + controls -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <span style="font-size:14px;font-weight:700;color:var(--text)">💰 Unit Cost Tracker</span>
+      <span style="font-size:11px;color:var(--text3)">Source: Odoo stock valuation layers (actual FIFO cost + landed costs) · 2026 receipts</span>
+      <button class="fbtn" style="margin-left:auto" onclick="safeRender('cogs',renderCogs)">↻ Refresh</button>
+    </div>
+
+    <!-- Category filter chips -->
+    <div id="cogs-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="chip active" onclick="cogsSetFilter('all',this)">All</button>
+      <button class="chip" onclick="cogsSetFilter('rm',this)">🧪 Raw Materials</button>
+      <button class="chip" onclick="cogsSetFilter('bulk',this)">💊 Bulk Supplements</button>
+      <button class="chip" onclick="cogsSetFilter('pkg',this)">📦 Packaging</button>
+      <button class="chip" onclick="cogsSetFilter('fg',this)">🏷 Finished Goods</button>
+      <button class="chip" onclick="cogsSetFilter('other',this)">Other</button>
+    </div>
+
+    <!-- Metric cards -->
+    <div class="metrics" style="margin-bottom:16px">
+      <div class="metric"><div class="mlabel">Products tracked</div><div class="mval" id="cogs-m-total">—</div></div>
+      <div class="metric"><div class="mlabel">Price increases &gt;10%</div><div class="mval warn" id="cogs-m-up">—</div></div>
+      <div class="metric"><div class="mlabel">Price drops &gt;10%</div><div class="mval good" id="cogs-m-down">—</div></div>
+      <div class="metric"><div class="mlabel">Months with data</div><div class="mval" id="cogs-m-months">—</div></div>
+    </div>
+
+    <!-- Search filter -->
+    <div style="margin-bottom:10px">
+      <input id="cogs-search" type="text" placeholder="Search product…"
+             oninput="cogsApplyFilters()"
+             style="width:260px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--surface);color:var(--text)">
+    </div>
+
+    <!-- Unit cost pivot table — months as columns -->
+    <div class="tcard" style="overflow-x:auto">
+      <table id="cogs-table">
+        <thead id="cogs-thead"><tr><td colspan="12" style="padding:16px;text-align:center;color:var(--text3)">Loading…</td></tr></thead>
+        <tbody id="cogs-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Footnote -->
+    <div style="margin-top:10px;font-size:10px;color:var(--text3);line-height:1.6">
+      Unit cost = total valuation value ÷ total quantity received per month (KES per Odoo UoM unit).
+      Includes landed costs posted against each receipt. Colour: <span style="color:#d97706;font-weight:600">amber</span> = &gt;10% change vs prior month,
+      <span style="color:#dc2626;font-weight:600">red</span> = &gt;20% increase, <span style="color:#16a34a;font-weight:600">green</span> = &gt;10% price drop.
+      Only positive-quantity valuation layers are included (receipts and adjustments adding stock).
+    </div>
+  </div><!-- /page-cogs -->
+
   <!-- Plan Order Modal Overlay (fixed, outside tab flow) -->
   <div id="os-modal-overlay" onclick="osCloseModal(event)"
        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px">
@@ -2625,7 +2678,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v20'; // bumped v19→v20: v28 UI — Packaging & China + Bulk Supplements sub-tabs in Stock Health
+const CACHE_KEY_LS = 'pk_payload_v21'; // bumped v20→v21: valuationLayers in payload for COGS unit cost tracker tab
 
 function lsCacheGet(){
   try{
@@ -5348,6 +5401,10 @@ const MAIN_TABS = {
       {id:'playground', label:'🧮 Cost Calculator'}
     ],
     defaultSub: 'schedule'
+  },
+  cogs: {
+    subs: [],
+    defaultSub: 'cogs'
   }
 };
 
@@ -5382,6 +5439,7 @@ function switchMainTab(group, btn) {
         document.querySelector('#page-stockhealth .sub-tab-btn'));
     }
     if (group === 'coverage')    safeRender('coverage', renderCoverage);
+    if (group === 'cogs')        safeRender('cogs', renderCogs);
     return;
   }
 
@@ -7234,7 +7292,7 @@ function renderBulkCoverage() {
       + '<td style="text-align:right"><span style="font-family:var(--font-mono);font-weight:600;color:' + covColor + '">' + covStr + '</span></td>'
       + '<td style="text-align:right">' + incomingCell + '</td>'
       + '<td style="text-align:right;font-size:10px;color:var(--text2)">' + (stockoutDt ? fmtDate(stockoutDt) : '—') + '</td>'
-      + '<td style="font-size:10px;color:var(--text2)">' + (cfg.supplier || '—') + '</td>'
+      + '<td style="font-size:10px;color:var(--text2)">' + ((procItems.bulk && procItems.bulk[sku] && procItems.bulk[sku].supplier) || cfg.supplier || '—') + '</td>'
       + '<td style="text-align:center"><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>'
       + '</tr>';
   }).join('');
@@ -7249,6 +7307,173 @@ function renderBulkCoverage() {
       ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
     tfoot.textContent = skus.length + ' bulk supplement SKUs' + ts;
   }
+}
+
+// ─── COGS / Unit Cost Tracker ────────────────────────────────────────────────
+// Reads payload.valuationLayers: { productId: { name, months: { 'YYYY-MM': { qty, value, unitCost } } } }
+// Renders a pivot table: product rows × month columns, unit cost cells with colour coding.
+
+var _cogsFilter = 'all';
+var _cogsSearch = '';
+
+// Categorise a product name into rm / bulk / pkg / fg / other
+function cogsCategory(name) {
+  var n = (name || '').toLowerCase();
+  // Bulk supplements
+  var bulkPat = /\b(creatine|pre-?workout|bcaa|collagen unflavoured|collagen pink)\b/;
+  if (bulkPat.test(n)) return 'bulk';
+  // Packaging
+  var pkgPat = /\b(bag|sachet|sticker|scoop|shaker|silicon|pouch|label|foil|doypack)\b/;
+  if (pkgPat.test(n)) return 'pkg';
+  // Finished goods — contain a weight like 500g or 1kg and protein-type words, or have a known FG prefix
+  var fgPat = /\b(whey|protein powder|mass gainer|meal replacement|vegan|rusf)\b.*\b(500g|1kg|2kg|bag|pack)\b|\b(500g|1kg|2kg)\b.*\b(whey|protein|mass|meal|vegan)\b/;
+  if (fgPat.test(n)) return 'fg';
+  // Flavourings / essences → raw materials
+  var flavorPat = /\b(flavou?r|essence|extract|lecithin|sucralose|xanthan|cocoa|silicon|antifoam|enzyme|digest|vitamin|mineral|creatine monohydrate|wpc|wpi|ndc|pea protein|acacia|soy)\b/;
+  if (flavorPat.test(n)) return 'rm';
+  // Otherwise
+  return 'other';
+}
+
+function cogsSetFilter(f, btn) {
+  _cogsFilter = f;
+  document.querySelectorAll('#cogs-chips .chip').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  cogsApplyFilters();
+}
+
+function cogsApplyFilters() {
+  var search = (document.getElementById('cogs-search') || {}).value || '';
+  _cogsSearch = search.toLowerCase();
+  document.querySelectorAll('#cogs-tbody tr[data-cat]').forEach(function(row) {
+    var catMatch = (_cogsFilter === 'all' || row.dataset.cat === _cogsFilter);
+    var nameMatch = !_cogsSearch || (row.dataset.name || '').indexOf(_cogsSearch) !== -1;
+    row.style.display = (catMatch && nameMatch) ? '' : 'none';
+  });
+}
+
+function renderCogs() {
+  var payload = _memCache;
+  if (!payload) { console.warn('renderCogs: no payload'); return; }
+  var layers = payload.valuationLayers || {};
+
+  var thead  = document.getElementById('cogs-thead');
+  var tbody  = document.getElementById('cogs-tbody');
+  var mTotal = document.getElementById('cogs-m-total');
+  var mUp    = document.getElementById('cogs-m-up');
+  var mDown  = document.getElementById('cogs-m-down');
+  var mMonths= document.getElementById('cogs-m-months');
+  if (!thead || !tbody) return;
+
+  // Collect all month keys that appear in the data, sorted
+  var monthSet = {};
+  Object.values(layers).forEach(function(prod) {
+    Object.keys(prod.months || {}).forEach(function(m) { monthSet[m] = true; });
+  });
+  var months = Object.keys(monthSet).sort(); // ['2026-01', '2026-02', …]
+  if (!months.length) {
+    thead.innerHTML = '<tr><th>Product</th><th>No data</th></tr>';
+    tbody.innerHTML = '<tr><td colspan="2" style="padding:16px;text-align:center;color:var(--text3)">No valuation layer data found. Redeploy Code.gs (v27) and refresh.</td></tr>';
+    return;
+  }
+
+  // Month display labels
+  var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function monthLabel(ym) {
+    var parts = ym.split('-');
+    return MONTH_NAMES[parseInt(parts[1], 10) - 1] || ym;
+  }
+
+  // Build header
+  thead.innerHTML = '<tr>'
+    + '<th style="min-width:200px">Product</th>'
+    + '<th style="text-align:center;font-size:10px;color:var(--text3)">Cat</th>'
+    + months.map(function(m) {
+        return '<th style="text-align:right;white-space:nowrap">' + monthLabel(m) + '</th>';
+      }).join('')
+    + '<th style="text-align:right">Latest (KES)</th>'
+    + '</tr>';
+
+  // Counters for metric cards
+  var totalProducts = 0, upCount = 0, downCount = 0;
+
+  // Sort by total valuation value across all months — best-selling / highest-throughput first.
+  // This naturally surfaces high-volume products (both FG and the raw materials that feed them).
+  function totalValue(prod) {
+    return Object.values(prod.months || {}).reduce(function(s, b) { return s + (b.value || 0); }, 0);
+  }
+  var productIds = Object.keys(layers).sort(function(a, b) {
+    return totalValue(layers[b]) - totalValue(layers[a]);
+  });
+
+  var catLabels = { rm: '🧪', bulk: '💊', pkg: '📦', fg: '🏷', other: '—' };
+
+  var rowsHtml = productIds.map(function(id) {
+    var prod  = layers[id];
+    var name  = prod.name || id;
+    var cat   = cogsCategory(name);
+    var mdata = prod.months || {};
+
+    // Build cell values per month column
+    var prevUC = null;
+    var latestUC = null;
+    var cellsHtml = months.map(function(m) {
+      var bucket = mdata[m];
+      if (!bucket || bucket.qty === 0) {
+        prevUC = null; // gap breaks the trend chain
+        return '<td style="text-align:right;color:var(--text3);font-size:10px">—</td>';
+      }
+      var uc = bucket.unitCost;
+      latestUC = uc;
+
+      // Colour vs prior month
+      var cellStyle = 'text-align:right;font-family:var(--font-mono);font-size:11px';
+      var pctChange = null;
+      if (prevUC !== null && prevUC > 0) {
+        pctChange = (uc - prevUC) / prevUC;
+        if (pctChange > 0.20) {
+          cellStyle += ';color:#dc2626;font-weight:600'; // red: >20% up
+        } else if (pctChange > 0.10) {
+          cellStyle += ';color:#d97706;font-weight:600'; // amber: >10% up
+        } else if (pctChange < -0.10) {
+          cellStyle += ';color:#16a34a;font-weight:600'; // green: >10% down
+        }
+      }
+      prevUC = uc;
+
+      return '<td style="' + cellStyle + '">' + Math.round(uc).toLocaleString() + '</td>';
+    });
+
+    // Count large moves for metric cards
+    var ucValues = months.map(function(m) { return (mdata[m] && mdata[m].qty > 0) ? mdata[m].unitCost : null; }).filter(function(v) { return v !== null; });
+    if (ucValues.length >= 2) {
+      var first = ucValues[0], last = ucValues[ucValues.length - 1];
+      var chg = (last - first) / first;
+      if (chg > 0.10) upCount++;
+      else if (chg < -0.10) downCount++;
+    }
+    totalProducts++;
+
+    var latestStr = latestUC !== null ? 'KES ' + Math.round(latestUC).toLocaleString() : '—';
+
+    return '<tr data-cat="' + cat + '" data-name="' + name.toLowerCase() + '">'
+      + '<td style="font-size:11px">' + name + '</td>'
+      + '<td style="text-align:center;font-size:12px" title="' + cat + '">' + (catLabels[cat] || '—') + '</td>'
+      + cellsHtml.join('')
+      + '<td style="text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600">' + latestStr + '</td>'
+      + '</tr>';
+  }).join('');
+
+  tbody.innerHTML = rowsHtml || '<tr><td colspan="' + (months.length + 3) + '" style="padding:16px;text-align:center;color:var(--text3)">No products found</td></tr>';
+
+  // Update metric cards
+  if (mTotal)  mTotal.textContent  = totalProducts;
+  if (mUp)     mUp.textContent     = upCount;
+  if (mDown)   mDown.textContent   = downCount;
+  if (mMonths) mMonths.textContent = months.length;
+
+  // Re-apply any active category / search filter
+  cogsApplyFilters();
 }
 
 function renderToday() {
