@@ -1632,32 +1632,44 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
 
       <!-- Kenya (Print Knight) sticker variants -->
       <div class="tcard" style="margin-bottom:14px">
-        <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px 4px">🇰🇪 Kenya stickers — Print Knight (print-on-demand, short lead time)</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px 4px">🇰🇪 Kenya stickers — Print Knight (print-on-demand, 14-day lead · 1 pair = front+back)</div>
         <table>
           <thead><tr>
+            <th>SKU</th>
             <th>Variant</th>
             <th>Size</th>
-            <th style="text-align:right">Unit cost (Ksh)</th>
-            <th>Note</th>
+            <th style="text-align:right">On hand</th>
+            <th style="text-align:right">Monthly need</th>
+            <th style="text-align:right">Surplus / Deficit</th>
+            <th style="text-align:right">Coverage</th>
+            <th style="text-align:right">Run-out</th>
+            <th style="text-align:right">Order deadline</th>
+            <th style="text-align:center">Status</th>
           </tr></thead>
-          <tbody id="sh-sticker-kenya-tbody"><tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+          <tbody id="sh-sticker-kenya-tbody"><tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
         </table>
+        <div class="tfoot">Print-on-demand · no MOQ · order each SKU separately as needed · order deadline = run-out − 14 days</div>
       </div>
 
       <!-- China sticker variants -->
       <div class="tcard">
-        <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px 4px">🇨🇳 China stickers — Shenzhen/CAIYUNTIAN (4-month lead time, MOQ applies)</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px 4px">🇨🇳 China stickers — CAIYUNTIAN (120-day lead · MOQ applies · 1 pair = front+back)</div>
         <table>
           <thead><tr>
+            <th>SKU</th>
             <th>Variant</th>
             <th>Size</th>
-            <th style="text-align:right">Unit cost (USD)</th>
-            <th style="text-align:right">MOQ (pcs)</th>
-            <th style="text-align:right">Est. order cost (USD)</th>
+            <th style="text-align:right">On hand</th>
+            <th style="text-align:right">Monthly need</th>
+            <th style="text-align:right">Surplus / Deficit</th>
+            <th style="text-align:right">Coverage</th>
+            <th style="text-align:right">Run-out</th>
+            <th style="text-align:right">Order deadline</th>
+            <th style="text-align:center">Status</th>
           </tr></thead>
-          <tbody id="sh-sticker-china-tbody"><tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+          <tbody id="sh-sticker-china-tbody"><tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
         </table>
-        <div class="tfoot">China lead time ~120 days (4 months) · Order well ahead of run-out · Excess stickers should be rejected at invoice — confirm MOQ with supplier before placing order</div>
+        <div class="tfoot">China lead time 120 days · Order deadline = run-out − 120 days · MOQ applies — confirm with supplier before ordering</div>
       </div>
     </div><!-- /sh-sticker -->
 
@@ -2759,7 +2771,8 @@ function pkgNeeds(){
   const sachet = sachetMo !== null ? sachetMo : bulk*2; // 2 sachets per pack, all bulk SKUs
   return{
     large_bag:prot, small_bag:bulk,
-    large_sticker:prot*2, small_sticker:bulk*2,
+    // 1 Odoo sticker unit = 1 front+back pair; 1 pair used per pack
+    large_sticker:prot, small_sticker:bulk,
     scoop_30g:prot, scoop_5g:bulk,
     sachet:sachet,
     medium_bag:0, medium_sticker:0, scoop_50g:0,
@@ -6700,40 +6713,43 @@ function computeChinaOrderSchedule(monthlyRates) {
 
 const CHINA_STICKERS = [
   // 1 unit in Odoo = 1 front+back pair. stickersPerPack:1 throughout.
-  {label:'CE Vanilla',         sku:'CEVAN',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1},
-  {label:'CE Chocolate (1kg)',sku:'CECHOC',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1},
-  {label:'CE Cookies & Cream',sku:'CECNC',    pkgKey:'large_sticker', usdUnit:0.07, orderQty:1000, stickersPerPack:1},
-  {label:'Creatine Unflav',   sku:'CREATUN',  pkgKey:'small_sticker', usdUnit:0.04, orderQty:2500, stickersPerPack:1},
-  {label:'Creatine Fruit Punch',sku:'CREATFP',pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1},
-  {label:'Creatine Pink Guava',sku:'CREATPG', pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1},
+  // odooProductId: product.product id from Odoo (confirmed via diagStickerProducts Oct 2026)
+  {label:'CE Vanilla',          sku:'CEVAN',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1, odooProductId:262},
+  {label:'CE Chocolate (1kg)',  sku:'CECHOC',  pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1, odooProductId:263},
+  {label:'CE Cookies & Cream',  sku:'CECNC',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:1000, stickersPerPack:1, odooProductId:265},
+  {label:'Creatine Unflav',     sku:'CREATUN', pkgKey:'small_sticker', usdUnit:0.04, orderQty:2500, stickersPerPack:1, odooProductId:499},
+  {label:'Creatine Fruit Punch',sku:'CREATFP', pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1, odooProductId:502},
+  {label:'Creatine Pink Guava', sku:'CREATPG', pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1, odooProductId:501},
 ];
 
 const KENYA_STICKERS = [
-  // Protein (large bag — 2 large stickers per pack)
-  {label:'CE Banana',            sku:'CEBAN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'CE Birthday Cake',     sku:'CEVBC',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'CE Vanilla Chai',      sku:'CEVCHAI', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'CE Salted Caramel',    sku:'CESC',    pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'Economy+ Vanilla',     sku:'ECOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'Economy+ Banana',      sku:'ECOBAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'BioBalance Vanilla',   sku:'BIOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'IsoPro Vanilla',       sku:'ISPVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'IsoPro Unflavoured',   sku:'ISPUN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  {label:'PureForm Unflavoured', sku:'PureForm',pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
-  // Protein (medium bag — 2 medium stickers per pack)
-  {label:'Economy+ Choc',        sku:'ECOCHOC', pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
-  {label:'CE Choc',              sku:'CECHOC',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
-  {label:'CE Banana (500g)',     sku:'CEBAN',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
-  {label:'CE Birthday (500g)',   sku:'CEVBC',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
-  {label:'BioBalance Unflavoured',sku:'BIOUN',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
-  // Bulk supplements (small sticker — 2 per pack)
-  {label:'PreWorkout Watermelon',sku:'PWORKWM', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
-  {label:'PreWorkout Green Apple',sku:'PWORKGA',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
-  {label:'BCAAs Unflavoured',    sku:'BCAA',    pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
-  {label:'Creatine Unflavoured', sku:'CREATUN', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
-  {label:'Creatine Fruit Punch', sku:'CREATFP', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
-  {label:'Creatine Pink Guava',  sku:'CREATPG', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
-  {label:'Collagen Unflavoured', sku:'COLUN',   pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
+  // 1 unit in Odoo = 1 front+back pair. stickersPerPack:1 throughout.
+  // odooProductId: product.product id from Odoo (confirmed via diagStickerProducts Oct 2026)
+  // Protein (large bag — 1 pair per pack)
+  {label:'CE Banana',             sku:'CEBAN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:264},
+  {label:'CE Birthday Cake',      sku:'CEVBC',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:266},
+  {label:'CE Vanilla Chai',       sku:'CEVCHAI', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:267},
+  {label:'CE Salted Caramel',     sku:'CESC',    pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:2590},
+  {label:'Economy+ Vanilla',      sku:'ECOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:273},
+  {label:'Economy+ Banana',       sku:'ECOBAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:275},
+  {label:'BioBalance Vanilla',    sku:'BIOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:295},
+  {label:'IsoPro Vanilla',        sku:'ISPVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:284},
+  {label:'IsoPro Unflavoured',    sku:'ISPUN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:290},
+  {label:'PureForm Unflavoured',  sku:'PureForm',pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:312},
+  // Protein (medium bag — 1 pair per pack)
+  {label:'Economy+ Choc',         sku:'ECOCHOC', pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:362},
+  {label:'CE Choc (500g)',        sku:'CECHOC',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:351},
+  {label:'CE Banana (500g)',      sku:'CEBAN',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:352},
+  {label:'CE Birthday (500g)',    sku:'CEVBC',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:354},
+  {label:'BioBalance Unflavoured',sku:'BIOUN',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:389},
+  // Bulk supplements (small sticker — 1 pair per pack)
+  {label:'PreWorkout Watermelon', sku:'PWORKWM', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:511},
+  {label:'PreWorkout Green Apple',sku:'PWORKGA', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:514},
+  {label:'BCAAs Unflavoured',     sku:'BCAA',    pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:521},
+  {label:'Creatine Unflavoured',  sku:'CREATUN', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:499},
+  {label:'Creatine Fruit Punch',  sku:'CREATFP', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:502},
+  {label:'Creatine Pink Guava',   sku:'CREATPG', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:501},
+  {label:'Collagen Unflavoured',  sku:'COLUN',   pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:3873},
 ];
 
 // Look up stock using pkgKey via pkgCosts — populated by applyPayload from Odoo
@@ -7010,16 +7026,43 @@ function renderPackaging() {
   el('pkgCalendar').innerHTML=calHtml;
 
   // ── China stickers ────────────────────────────────────────────────────────
-  el('chinaStickerTable').innerHTML='<thead><tr><th>Sticker</th><th style="text-align:right">This order</th><th style="text-align:right">Unit cost</th></tr></thead><tbody>'+
-    CHINA_STICKERS.map(function(s){return '<tr><td>'+s.label+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">'+s.orderQty.toLocaleString()+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">$'+s.usdUnit.toFixed(2)+' (Ksh '+Math.round(s.usdUnit*usdKes)+')</td></tr>';}).join('')+'</tbody>';
+  var _cgf = getGrowthFactor ? getGrowthFactor() : 1;
+  el('chinaStickerTable').innerHTML='<thead><tr>'
+    +'<th>SKU</th><th>Sticker</th>'
+    +'<th style="text-align:right">Monthly need</th>'
+    +'<th style="text-align:right">This order</th>'
+    +'<th style="text-align:right">Unit cost</th>'
+    +'</tr></thead><tbody>'
+    +CHINA_STICKERS.map(function(s){
+      var moNeed=Math.round((SALES[s.sku]||0)*_cgf*(s.stickersPerPack||1));
+      return '<tr>'
+        +'<td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text2)">'+(s.sku||'—')+'</td>'
+        +'<td>'+s.label+'</td>'
+        +'<td style="text-align:right;font-family:var(--font-mono)">'+(moNeed>0?moNeed.toLocaleString():'—')+'</td>'
+        +'<td style="text-align:right;font-family:var(--font-mono);font-weight:600">'+s.orderQty.toLocaleString()+'</td>'
+        +'<td style="text-align:right;font-family:var(--font-mono)">$'+s.usdUnit.toFixed(2)+' (Ksh '+Math.round(s.usdUnit*usdKes)+')</td>'
+        +'</tr>';}).join('')+'</tbody>';
 
   // ── Kenya stickers ────────────────────────────────────────────────────────
-  el('kenyaStickerTable').innerHTML='<thead><tr><th>Sticker</th><th style="text-align:right">Unit cost</th><th>Note</th></tr></thead><tbody>'+
-    KENYA_STICKERS.map(function(s){return '<tr><td>'+s.label+'</td>'+
-      '<td style="text-align:right;font-family:var(--font-mono)">Ksh '+s.kshUnit+'</td>'+
-      '<td style="font-size:10px;color:var(--text3)">Print Knight · 7-day lead</td></tr>';}).join('')+'</tbody>';
+  var _kgf = getGrowthFactor ? getGrowthFactor() : 1;
+  el('kenyaStickerTable').innerHTML='<thead><tr>'
+    +'<th>SKU</th><th>Sticker</th><th>Size</th>'
+    +'<th style="text-align:right">Monthly need</th>'
+    +'<th style="text-align:right">Unit cost (Ksh)</th>'
+    +'<th style="text-align:right">Monthly cost (Ksh)</th>'
+    +'</tr></thead><tbody>'
+    +KENYA_STICKERS.map(function(s){
+      var sz=s.pkgKey==='large_sticker'?'Large':s.pkgKey==='small_sticker'?'Small':'Medium';
+      var moNeed=Math.round((SALES[s.sku]||0)*_kgf*(s.stickersPerPack||1));
+      var moCost=moNeed*s.kshUnit;
+      return '<tr>'
+        +'<td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text2)">'+(s.sku||'—')+'</td>'
+        +'<td>'+s.label+'</td>'
+        +'<td><span class="badge" style="font-size:9px;padding:2px 5px">'+sz+'</span></td>'
+        +'<td style="text-align:right;font-family:var(--font-mono)">'+(moNeed>0?moNeed.toLocaleString():'—')+'</td>'
+        +'<td style="text-align:right;font-family:var(--font-mono)">'+s.kshUnit.toFixed(2)+'</td>'
+        +'<td style="text-align:right;font-family:var(--font-mono);font-weight:600">'+(moCost>0?Math.round(moCost).toLocaleString():'—')+'</td>'
+        +'</tr>';}).join('')+'</tbody>';
 
   // ── Shaker summary ────────────────────────────────────────────────────────
   if(el('shakerSummary')) el('shakerSummary').innerHTML=shkTot>0?
@@ -7582,9 +7625,9 @@ function renderStickerHealth() {
 
   // Summary table rows
   var sizes = [
-    {key:'large_sticker',  label:'Large',  note:'1 per protein bag — used for CE, Economy+, BioBalance, IsoPro, PureForm flavours'},
-    {key:'medium_sticker', label:'Medium', note:'1 per medium bag — used for Economy+ Choc, CE Choc/Banana/Birthday, BioBalance Unfl'},
-    {key:'small_sticker',  label:'Small',  note:'1 per bulk-supp bag — used for PreWorkout, BCAAs, Creatine variants'},
+    {key:'large_sticker',  label:'Large',  note:'1 pair per 1kg protein bag — CE, Economy+, BioBalance, IsoPro, PureForm (Kenya & China)'},
+    {key:'medium_sticker', label:'Medium', note:'1 pair per 500g medium bag — Economy+ Choc, CE Choc/Banana/Birthday, BioBalance Unfl (Kenya)'},
+    {key:'small_sticker',  label:'Small',  note:'1 pair per bulk-supp bag — PreWorkout, BCAAs, Creatine, Collagen (Kenya & China)'},
   ];
 
   var summaryRows = sizes.map(function(sz) {
@@ -7628,36 +7671,71 @@ function renderStickerHealth() {
   }).join('');
   summaryTbody.innerHTML = summaryRows || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">No sticker data — refresh dashboard</td></tr>';
 
-  // Kenya variants table
-  var kenyaRows = KENYA_STICKERS.map(function(s) {
-    var sizeLabel = s.pkgKey === 'large_sticker' ? 'Large' : s.pkgKey === 'small_sticker' ? 'Small' : 'Medium';
-    return '<tr>'
-      + '<td>' + s.label + '</td>'
-      + '<td><span class="badge" style="font-size:9px;padding:2px 5px">' + sizeLabel + '</span></td>'
-      + '<td style="text-align:right;font-family:var(--font-mono)">Ksh ' + s.kshUnit.toFixed(2) + '</td>'
-      + '<td style="font-size:10px;color:var(--text3)">Print-on-demand · no MOQ · short lead time</td>'
-      + '</tr>';
-  }).join('');
-  kenyaTbody.innerHTML = kenyaRows;
+  var gf = getGrowthFactor ? getGrowthFactor() : 1;
+  var usdKes = (pkgCosts && pkgCosts._usdKes) || 130;
 
-  // China variants table
-  var chinaRows = CHINA_STICKERS.map(function(s) {
-    var sizeLabel = s.label.toLowerCase().includes('large') ? 'Large' : 'Small';
-    var estCost = (s.usdUnit * s.orderQty).toFixed(0);
+  // Per-variant Odoo stock lookup (from pkgStock.stickerVariants in payload)
+  var stickerVar = (_memCache && _memCache.pkgStock && _memCache.pkgStock.stickerVariants) || {};
+
+  // Helper: build a coverage row for any sticker variant
+  // leadDays: 14 for Kenya (Print Knight), 120 for China (CAIYUNTIAN)
+  function stickerRow(s, leadDays) {
+    var sizeLabel = s.pkgKey === 'large_sticker' ? 'Large' : s.pkgKey === 'small_sticker' ? 'Small' : 'Medium';
+    var moNeed = Math.round((SALES[s.sku] || 0) * gf * (s.stickersPerPack || 1));
+    var onHand  = s.odooProductId ? Math.round(stickerVar[s.odooProductId] || 0) : null;
+    var surplus = onHand !== null ? onHand - moNeed : null;
+    var covMo   = (moNeed > 0 && onHand !== null) ? onHand / moNeed : null;
+    var MS_PER_DAY = 86400000;
+    var MS_PER_MO  = 30.44 * MS_PER_DAY;
+    var runOutDt   = (covMo !== null && moNeed > 0) ? new Date(today.getTime() + covMo * MS_PER_MO) : null;
+    var orderDl    = runOutDt ? new Date(runOutDt.getTime() - leadDays * MS_PER_DAY) : null;
+    var daysToOrder = orderDl ? Math.round((orderDl - today) / MS_PER_DAY) : null;
+
+    var severity, badgeClass, badgeLabel;
+    if (moNeed <= 0 || onHand === null) {
+      severity = 'ok'; badgeClass = ''; badgeLabel = onHand === null ? 'No ID' : 'No rate';
+    } else if (daysToOrder !== null && daysToOrder <= 0) {
+      severity = 'critical'; badgeClass = 'critical'; badgeLabel = 'Order now';
+    } else if (leadDays <= 30 ? (covMo !== null && covMo < 1) : (daysToOrder !== null && daysToOrder <= 30)) {
+      severity = 'low'; badgeClass = 'low'; badgeLabel = 'Order soon';
+    } else {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'OK';
+    }
+
+    var covColor  = severity === 'critical' ? 'var(--crit-txt)' : severity === 'low' ? 'var(--low-txt)' : 'var(--ok-txt)';
+    var dlColor   = daysToOrder !== null && daysToOrder <= 0 ? ';color:var(--crit-txt);font-weight:600'
+                  : daysToOrder !== null && daysToOrder <= leadDays ? ';color:var(--low-txt);font-weight:600' : '';
+    var surpStr   = surplus === null ? '<span style="color:var(--text3)">—</span>'
+                  : surplus >= 0
+                    ? '<span style="color:var(--ok-txt)">+' + surplus.toLocaleString() + '</span>'
+                    : '<span style="color:var(--crit-txt)">' + surplus.toLocaleString() + '</span>';
+
     return '<tr>'
+      + '<td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text2)">' + (s.sku || '—') + '</td>'
       + '<td>' + s.label + '</td>'
       + '<td><span class="badge" style="font-size:9px;padding:2px 5px">' + sizeLabel + '</span></td>'
-      + '<td style="text-align:right;font-family:var(--font-mono)">$' + s.usdUnit.toFixed(2) + '</td>'
-      + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600">' + s.orderQty.toLocaleString() + '</td>'
-      + '<td style="text-align:right;font-family:var(--font-mono)">$' + Number(estCost).toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + (onHand !== null ? onHand.toLocaleString() : '<span style="color:var(--text3)">—</span>') + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + (moNeed > 0 ? moNeed.toLocaleString() : '<span style="color:var(--text3)">—</span>') + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + surpStr + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600;color:' + covColor + '">' + (covMo !== null ? covMo.toFixed(1) + ' mo' : '—') + '</td>'
+      + '<td style="text-align:right;font-size:10px;color:var(--text2)">' + (runOutDt ? fmtDate(runOutDt) : '—') + '</td>'
+      + '<td style="text-align:right;font-size:10px' + dlColor + '">' + (orderDl ? fmtDate(orderDl) : '—') + '</td>'
+      + '<td style="text-align:center"><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>'
       + '</tr>';
-  }).join('');
-  chinaTbody.innerHTML = chinaRows;
+  }
+
+  // Kenya variants table — per SKU stock, monthly need, surplus, coverage, order deadline
+  var kenyaRows = KENYA_STICKERS.map(function(s) { return stickerRow(s, 14); }).join('');
+  kenyaTbody.innerHTML = kenyaRows || '<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">No sticker data</td></tr>';
+
+  // China variants table — per SKU stock, monthly need, surplus, coverage, order deadline (120-day lead)
+  var chinaRows = CHINA_STICKERS.map(function(s) { return stickerRow(s, 120); }).join('');
+  chinaTbody.innerHTML = chinaRows || '<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">No sticker data</td></tr>';
 
   if (tfoot) {
     var ts = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
       ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
-    tfoot.textContent = 'Stock from Odoo via pkgCosts · China lead time ~120 days · Medium sticker monthly rate = 0 (not currently modelled)' + ts;
+    tfoot.textContent = 'Stock from Odoo · 1 Odoo sticker unit = 1 front+back pair · medium sticker rate = 0 (medium bag SKUs not fully modelled yet)' + ts;
   }
 }
 
