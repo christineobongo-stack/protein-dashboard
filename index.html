@@ -6699,33 +6699,41 @@ function computeChinaOrderSchedule(monthlyRates) {
 }
 
 const CHINA_STICKERS = [
-  {label:'CE Vanilla (large)',           usdUnit:0.07, orderQty:2500},
-  {label:'CE Chocolate (large)',         usdUnit:0.07, orderQty:2500},
-  {label:'CE Cookies & Cream (large)',   usdUnit:0.07, orderQty:1000},
-  {label:'Creatine Unflavoured (small)', usdUnit:0.04, orderQty:2500},
-  {label:'Creatine Fruit Punch (small)', usdUnit:0.04, orderQty:1000},
-  {label:'Creatine Pink Guava (small)',  usdUnit:0.04, orderQty:1000},
+  // 1 unit in Odoo = 1 front+back pair. stickersPerPack:1 throughout.
+  {label:'CE Vanilla',         sku:'CEVAN',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1},
+  {label:'CE Chocolate (1kg)',sku:'CECHOC',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1},
+  {label:'CE Cookies & Cream',sku:'CECNC',    pkgKey:'large_sticker', usdUnit:0.07, orderQty:1000, stickersPerPack:1},
+  {label:'Creatine Unflav',   sku:'CREATUN',  pkgKey:'small_sticker', usdUnit:0.04, orderQty:2500, stickersPerPack:1},
+  {label:'Creatine Fruit Punch',sku:'CREATFP',pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1},
+  {label:'Creatine Pink Guava',sku:'CREATPG', pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1},
 ];
 
 const KENYA_STICKERS = [
-  {label:'CE Banana (large)',             pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'CE Birthday Cake (large)',      pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'CE Vanilla Chai (large)',       pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'CE Salted Caramel (large)',     pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'Economy+ Vanilla (large)',      pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'Economy+ Banana (large)',       pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'Economy+ Choc (medium)',        pkgKey:'medium_sticker',kshUnit:34},
-  {label:'CE Choc (medium)',              pkgKey:'medium_sticker',kshUnit:34},
-  {label:'CE Banana (medium)',            pkgKey:'medium_sticker',kshUnit:34},
-  {label:'CE Birthday (medium)',          pkgKey:'medium_sticker',kshUnit:34},
-  {label:'BioBalance Vanilla (large)',    pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'BioBalance Unflavoured (med)',  pkgKey:'medium_sticker',kshUnit:34},
-  {label:'IsoPro Vanilla (large)',        pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'IsoPro Unflavoured (large)',    pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'PureForm Unflavoured (large)',  pkgKey:'large_sticker', kshUnit:40.76},
-  {label:'PreWorkout WM (small)',         pkgKey:'small_sticker', kshUnit:15.12},
-  {label:'PreWorkout GA (small)',         pkgKey:'small_sticker', kshUnit:15.12},
-  {label:'BCAAs Unflavoured (small)',     pkgKey:'small_sticker', kshUnit:15.12},
+  // Protein (large bag — 2 large stickers per pack)
+  {label:'CE Banana',            sku:'CEBAN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'CE Birthday Cake',     sku:'CEVBC',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'CE Vanilla Chai',      sku:'CEVCHAI', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'CE Salted Caramel',    sku:'CESC',    pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'Economy+ Vanilla',     sku:'ECOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'Economy+ Banana',      sku:'ECOBAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'BioBalance Vanilla',   sku:'BIOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'IsoPro Vanilla',       sku:'ISPVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'IsoPro Unflavoured',   sku:'ISPUN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  {label:'PureForm Unflavoured', sku:'PureForm',pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:2},
+  // Protein (medium bag — 2 medium stickers per pack)
+  {label:'Economy+ Choc',        sku:'ECOCHOC', pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
+  {label:'CE Choc',              sku:'CECHOC',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
+  {label:'CE Banana (500g)',     sku:'CEBAN',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
+  {label:'CE Birthday (500g)',   sku:'CEVBC',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
+  {label:'BioBalance Unflavoured',sku:'BIOUN',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:2},
+  // Bulk supplements (small sticker — 2 per pack)
+  {label:'PreWorkout Watermelon',sku:'PWORKWM', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
+  {label:'PreWorkout Green Apple',sku:'PWORKGA',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
+  {label:'BCAAs Unflavoured',    sku:'BCAA',    pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
+  {label:'Creatine Unflavoured', sku:'CREATUN', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
+  {label:'Creatine Fruit Punch', sku:'CREATFP', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
+  {label:'Creatine Pink Guava',  sku:'CREATPG', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
+  {label:'Collagen Unflavoured', sku:'COLUN',   pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:2},
 ];
 
 // Look up stock using pkgKey via pkgCosts — populated by applyPayload from Odoo
