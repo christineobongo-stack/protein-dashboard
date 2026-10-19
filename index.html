@@ -7680,6 +7680,7 @@ function renderStickerHealth() {
   // Helper: build a coverage row for any sticker variant
   // leadDays: 14 for Kenya (Print Knight), 120 for China (CAIYUNTIAN)
   function stickerRow(s, leadDays) {
+    var now = new Date();  // defined locally — avoids any scope-capture issue
     var sizeLabel = s.pkgKey === 'large_sticker' ? 'Large' : s.pkgKey === 'small_sticker' ? 'Small' : 'Medium';
     var moNeed = Math.round((SALES[s.sku] || 0) * gf * (s.stickersPerPack || 1));
     var onHand  = s.odooProductId ? Math.round(stickerVar[s.odooProductId] || 0) : null;
@@ -7687,9 +7688,9 @@ function renderStickerHealth() {
     var covMo   = (moNeed > 0 && onHand !== null) ? onHand / moNeed : null;
     var MS_PER_DAY = 86400000;
     var MS_PER_MO  = 30.44 * MS_PER_DAY;
-    var runOutDt   = (covMo !== null && moNeed > 0) ? new Date(today.getTime() + covMo * MS_PER_MO) : null;
+    var runOutDt   = (covMo !== null && moNeed > 0) ? new Date(now.getTime() + covMo * MS_PER_MO) : null;
     var orderDl    = runOutDt ? new Date(runOutDt.getTime() - leadDays * MS_PER_DAY) : null;
-    var daysToOrder = orderDl ? Math.round((orderDl - today) / MS_PER_DAY) : null;
+    var daysToOrder = orderDl ? Math.round((orderDl - now) / MS_PER_DAY) : null;
 
     var severity, badgeClass, badgeLabel;
     if (moNeed <= 0 || onHand === null) {
