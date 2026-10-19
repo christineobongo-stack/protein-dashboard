@@ -1446,6 +1446,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
       <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-rm',this)">🧪 Raw Materials</button>
       <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-pkg',this)">📦 Packaging &amp; China</button>
       <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-bulk',this)">💊 Bulk Supplements</button>
+      <button class="sub-tab-btn" onclick="switchSubTab('stockhealth','sh-sticker',this)">🏷 Stickers</button>
     </div>
 
     <!-- ── FG sub-section ──────────────────────────────────────────────────── -->
@@ -1591,6 +1592,74 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         <div class="tfoot" id="sh-bulk-tfoot"></div>
       </div>
     </div><!-- /sh-bulk -->
+
+    <!-- ── Stickers sub-section ───────────────────────────────────────────── -->
+    <div class="sub-section" id="page-sh-sticker">
+      <div class="toolbar" style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">🏷 Stickers — Coverage by Size</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="chip active" onclick="shStickerSetFilter('all',this)">All</button>
+          <button class="chip"        onclick="shStickerSetFilter('critical',this)">🔴 Critical</button>
+          <button class="chip"        onclick="shStickerSetFilter('low',this)">🟡 Low</button>
+          <button class="chip"        onclick="shStickerSetFilter('ok',this)">🟢 OK</button>
+          <button class="fbtn" style="margin-left:6px" onclick="safeRender('sh-sticker',renderStickerHealth)">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="metrics" id="sh-sticker-metrics">
+        <div class="metric"><div class="mlabel">Large sticker — on hand</div><div class="mval" id="sh-sticker-m-large">—</div></div>
+        <div class="metric"><div class="mlabel">Medium sticker — on hand</div><div class="mval" id="sh-sticker-m-medium">—</div></div>
+        <div class="metric"><div class="mlabel">Small sticker — on hand</div><div class="mval" id="sh-sticker-m-small">—</div></div>
+        <div class="metric"><div class="mlabel">Incoming (any size)</div><div class="mval" id="sh-sticker-m-incoming">—</div></div>
+      </div>
+
+      <!-- Coverage summary table (by size bucket) -->
+      <div class="tcard" style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px 4px">Coverage summary — by size</div>
+        <table>
+          <thead><tr>
+            <th>Size</th>
+            <th style="text-align:right">On hand (pcs)</th>
+            <th style="text-align:right">Monthly rate</th>
+            <th style="text-align:right">Cover</th>
+            <th style="text-align:right">Incoming</th>
+            <th style="text-align:right">Run-out</th>
+            <th style="text-align:center">Status</th>
+          </tr></thead>
+          <tbody id="sh-sticker-summary-tbody"><tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+        </table>
+        <div class="tfoot" id="sh-sticker-tfoot"></div>
+      </div>
+
+      <!-- Kenya (Print Knight) sticker variants -->
+      <div class="tcard" style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px 4px">🇰🇪 Kenya stickers — Print Knight (print-on-demand, short lead time)</div>
+        <table>
+          <thead><tr>
+            <th>Variant</th>
+            <th>Size</th>
+            <th style="text-align:right">Unit cost (Ksh)</th>
+            <th>Note</th>
+          </tr></thead>
+          <tbody id="sh-sticker-kenya-tbody"><tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- China sticker variants -->
+      <div class="tcard">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px 4px">🇨🇳 China stickers — Shenzhen/CAIYUNTIAN (4-month lead time, MOQ applies)</div>
+        <table>
+          <thead><tr>
+            <th>Variant</th>
+            <th>Size</th>
+            <th style="text-align:right">Unit cost (USD)</th>
+            <th style="text-align:right">MOQ (pcs)</th>
+            <th style="text-align:right">Est. order cost (USD)</th>
+          </tr></thead>
+          <tbody id="sh-sticker-china-tbody"><tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text3)">Loading…</td></tr></tbody>
+        </table>
+        <div class="tfoot">China lead time ~120 days (4 months) · Order well ahead of run-out · Excess stickers should be rejected at invoice — confirm MOQ with supplier before placing order</div>
+      </div>
+    </div><!-- /sh-sticker -->
 
   </div><!-- /page-stockhealth -->
 
@@ -2657,12 +2726,42 @@ function getSt(stock,rq){const d=rq*2-stock;if(d>0&&stock===0)return'critical';i
 function pkgNeeds(){
   const gf=getGrowthFactor();
   const prot=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0)*gf;
-  const bulk=Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0)*gf;
+
+  // Derive bulk packaging demand from reorderPlan (highest-of-3-months×1.2 buffer),
+  // matching the methodology used by the Reorder Calculator for raw materials.
+  // Falls back to static SALES constants if reorderPlan isn't loaded yet.
+  let bulkPacks = null;
+  let sachetMo  = null;
+  if (typeof reorderPlan !== 'undefined' && reorderPlan && reorderPlan.length) {
+    const planByMat = {};
+    reorderPlan.forEach(function(p) {
+      if (p.material && p.bufferedMonthlyRateKg != null) {
+        planByMat[p.material.toLowerCase().trim()] = p.bufferedMonthlyRateKg;
+      }
+    });
+    let totalPacks = 0, preworkoutPacks = 0, anyFound = false;
+    Object.entries(BULK_CFG).forEach(function([sku, cfg]) {
+      const rateKg = planByMat[(cfg.ingKey || '').toLowerCase().trim()];
+      if (rateKg != null && cfg.kgPerPack) {
+        const packs = rateKg / cfg.kgPerPack;
+        totalPacks += packs;
+        if (SILICON_SKUs && SILICON_SKUs[sku]) preworkoutPacks += packs;
+        anyFound = true;
+      }
+    });
+    if (anyFound) {
+      bulkPacks = totalPacks;
+      sachetMo  = totalPacks * 2; // 2 silicon sachets per pack, ALL bulk supplement SKUs
+    }
+  }
+  const bulk = bulkPacks !== null ? bulkPacks
+             : Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0)*gf;
+  const sachet = sachetMo !== null ? sachetMo : bulk*2; // 2 sachets per pack, all bulk SKUs
   return{
     large_bag:prot, small_bag:bulk,
     large_sticker:prot*2, small_sticker:bulk*2,
     scoop_30g:prot, scoop_5g:bulk,
-    sachet:bulk*2,
+    sachet:sachet,
     medium_bag:0, medium_sticker:0, scoop_50g:0,
   };
 }
@@ -3125,9 +3224,9 @@ function procIncomingKey(name) {
   return undefined;
 }
 
-// SKUs that physically require silicon desiccant sachets (2 per pack)
-// cfg.sachets is a drum-level field and means something different on preworkout
-var SILICON_SKUs = { PWORKWM: true, PWORKGA: true };
+// SKUs that physically require silicon desiccant sachets (2 per pack).
+// All bulk supplement packs get 2 sachets — creatine, BCAAs, collagen, preworkout.
+var SILICON_SKUs = Object.fromEntries(Object.keys(BULK_CFG).map(function(k){ return [k,true]; }));
 
 function renderWheyCapacity() {
   var el = document.getElementById('wheyCapacityTbody');
@@ -3242,7 +3341,7 @@ function renderRepacking() {
 
     // Resources for target run
     var bulkNeeded   = target * cfg.kgPerPack;
-    var sachetsNeeded = SILICON_SKUs[sku] ? target * 2 : 0; // 2 sachets per 200g pack (preworkout only)
+    var sachetsNeeded = SILICON_SKUs[sku] ? target * 2 : 0; // 2 sachets per pack, all bulk supplements
 
     // Monthly sales and coverage
     var monthlySalesAmt = getAvgSales(sku) || SALES[sku] || 0;
@@ -5541,10 +5640,34 @@ function switchSubTab(parentId, sectionId, btn) {
   if (sectionId === 'sh-fg')   safeRender('sh-fg',   renderStockHealth);
   if (sectionId === 'sh-rm')   safeRender('sh-rm',   renderRMCoverage);
   if (sectionId === 'sh-pkg')  safeRender('sh-pkg',  renderPkgCoverage);
-  if (sectionId === 'sh-bulk') safeRender('sh-bulk', renderBulkCoverage);
+  if (sectionId === 'sh-bulk')    safeRender('sh-bulk',    renderBulkCoverage);
+  if (sectionId === 'sh-sticker') safeRender('sh-sticker', renderStickerHealth);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── Procurement step label helper ────────────────────────────────────────────
+// Returns a human-readable label for where each PO is stuck in the pipeline.
+function procStepLabel(o, todayStr) {
+  if (o.status === 'Draft') {
+    if (!o.orderDeadline)               return {label:'Set deadline & send RFQ',    cls:'critical', icon:'⚠️'};
+    if (o.orderDeadline <= todayStr)    return {label:'Send RFQ — overdue',         cls:'critical', icon:'🔴'};
+    var daysUntil = Math.round((new Date(o.orderDeadline)-Date.now())/864e5);
+    if (daysUntil <= 3)                 return {label:'Send RFQ in '+daysUntil+'d', cls:'low',      icon:'🟡'};
+                                        return {label:'Send RFQ by '+o.orderDeadline.substring(5,10), cls:'',  icon:'📝'};
+  }
+  if (o.status === 'Sent') {
+    if (o.expectedArrival && o.expectedArrival < todayStr)
+                                        return {label:'Vendor quote — confirm to PO', cls:'critical', icon:'⚠️'};
+                                        return {label:'Awaiting vendor quote / confirm to PO', cls:'low', icon:'📨'};
+  }
+  if (o.status === 'Confirmed' || o.status === 'Purchase Order') {
+    if (o.expectedArrival && o.expectedArrival < todayStr)
+                                        return {label:'Goods overdue — chase supplier', cls:'critical', icon:'🟠'};
+                                        return {label:'Goods incoming — receive in Odoo', cls:'ok', icon:'🚚'};
+  }
+  return {label:o.status, cls:'', icon:'📋'};
+}
+
 // ORDER TRACKER — live view of every open Odoo PO (upcomingOrders payload field)
 // Distinct from Order Sheet, which is a modelled/projected document, not an
 // actual PO list.
@@ -5565,16 +5688,25 @@ function renderOrderTracker() {
   const comingUp = [];
   const others   = [];
 
+  // Extra buckets
+  const sentAwaitingConfirm = [];  // Sent RFQs where vendor has responded but PO not confirmed in Odoo
+  const draftNoDeadline     = [];  // Draft RFQs with no deadline set at all
+
   list.forEach(function(o) {
     const dl = o.orderDeadline;
     if (o.status === 'Draft') {
-      if (!dl) { others.push(o); return; }
+      if (!dl) { draftNoDeadline.push(o); return; }
       const daysUntil = Math.round((new Date(dl).getTime() - Date.now()) / 864e5);
       if (daysUntil <= 0)      sendNow.push(o);
       else if (daysUntil <= 7) comingUp.push(o);
       else                     others.push(o);
-    } else if (o.status === 'Confirmed' || o.status === 'Sent') {
-      // Confirmed/Sent: flag if expected arrival is already past
+    } else if (o.status === 'Sent') {
+      // Sent = RFQ was emailed to vendor; if arrival date is past, vendor likely responded — needs PO confirmation
+      if (o.expectedArrival && o.expectedArrival < todayStr) sentAwaitingConfirm.push(o);
+      else if (o.expectedArrival && o.expectedArrival < todayStr) followUp.push(o);
+      else sentAwaitingConfirm.push(o);  // All sent RFQs need confirmation or follow-up
+    } else if (o.status === 'Confirmed' || o.status === 'Purchase Order') {
+      // Confirmed: flag if expected arrival is already past
       if (o.expectedArrival && o.expectedArrival < todayStr) followUp.push(o);
       else others.push(o);
     } else {
@@ -5597,6 +5729,8 @@ function renderOrderTracker() {
     slackLines.push('');
   };
   appendSlackSection('🔴','SEND NOW — dispatch these RFQs today', sendNow);
+  appendSlackSection('⚠️','CONFIRM TO PO — vendor quote received, not confirmed in Odoo (action: Mwongola to confirm + upload invoice)', sentAwaitingConfirm);
+  appendSlackSection('⚙️','SET DEADLINE — draft RFQs with no send date set', draftNoDeadline);
   appendSlackSection('🟠','FOLLOW UP — arrival overdue, chase supplier', followUp);
   appendSlackSection('🟡','COMING UP — send within 7 days', comingUp);
   slackLines.push('_Dashboard: https://christineobongo-stack.github.io/protein-dashboard/_');
@@ -5619,7 +5753,9 @@ function renderOrderTracker() {
       const dateCell = o.status === 'Draft'
         ? '<td>' + (o.orderDeadline ? '<span class="badge critical" style="font-size:9px">Send by ' + fmtDate(o.orderDeadline) + '</span>' : '—') + '</td>'
         : '<td>' + (o.expectedArrival ? '<span class="badge low" style="font-size:9px">Expected ' + fmtDate(o.expectedArrival) + '</span>' : '—') + '</td>';
-      return '<tr><td style="font-weight:600;white-space:nowrap">' + o.po + '</td>' +
+      const step = procStepLabel(o, todayStr);
+      const stepHtml = '<div style="margin-top:3px;font-size:9px;color:var(--text3);letter-spacing:.02em">📍 Step: ' + step.icon + ' ' + step.label + '</div>';
+      return '<tr><td style="font-weight:600;white-space:nowrap">' + o.po + stepHtml + '</td>' +
         '<td>' + o.supplier + '</td>' +
         matsCell +
         dateCell +
@@ -5646,8 +5782,9 @@ function renderOrderTracker() {
           o.notes.replace(/\n/g, '<br>') + '</div>'
         : '';
       const statusClass = o.status === 'Confirmed' ? 'ok' : o.status === 'Sent' ? 'low' : '';
+      const stepO = procStepLabel(o, todayStr);
       return '<tr>' +
-        '<td style="font-weight:600;white-space:nowrap">' + o.po + '</td>' +
+        '<td style="font-weight:600;white-space:nowrap">' + o.po + '<div style="font-size:9px;color:var(--text3);margin-top:2px">📍 ' + stepO.icon + ' ' + stepO.label + '</div></td>' +
         '<td>' + o.supplier + '</td>' +
         '<td style="font-size:11px;line-height:1.6">' + mats + notesHtml + '</td>' +
         '<td>' + fmtDate(o.orderDeadline) + '</td>' +
@@ -5663,7 +5800,7 @@ function renderOrderTracker() {
   }
 
   // ── Assemble ──────────────────────────────────────────────────────────────
-  const needsAction = sendNow.length + followUp.length + comingUp.length;
+  const needsAction = sendNow.length + followUp.length + comingUp.length + sentAwaitingConfirm.length + draftNoDeadline.length;
   const totalOutstanding = list.reduce(function(s,o){ return s + (o.estCostKes||0); }, 0);
 
   const copyBtnId = 'ot-copy-btn';
@@ -5696,6 +5833,10 @@ function renderOrderTracker() {
 
   el.innerHTML =
     makeSection('🔴','#c0392b','Send now — dispatch these RFQs today', sendNow, '') +
+    makeSection('⚠️','#8e44ad','Confirm to PO — vendor quote received, not yet confirmed in Odoo', sentAwaitingConfirm,
+      'Ask Mwongola to open in Odoo → confirm → upload vendor invoice') +
+    makeSection('⚙️','#7f8c8d','Set deadline — draft RFQs with no send date', draftNoDeadline,
+      'Set an order deadline so these don\'t get lost') +
     makeSection('🟠','#e67e22','Follow up — arrival is overdue, chase the supplier', followUp, '') +
     makeSection('🟡','#f39c12','Coming up — send within the next 7 days', comingUp, '') +
     othersHtml;
@@ -5735,7 +5876,7 @@ function renderActionBanner() {
 
   const parts = [];
   if (sendNow.length) {
-    const names = sendNow.slice(0,3).map(o => '<b>' + o.po + '</b> (' + o.supplier + ')').join(', ');
+    const names = sendNow.slice(0,3).map(o => '<b>' + o.po + '</b> (' + o.supplier + ') — Step: Send RFQ').join(', ');
     parts.push('🔴 <b>' + sendNow.length + ' RFQ' + (sendNow.length>1?'s':'') + ' to send:</b> ' + names + (sendNow.length>3?' + '+(sendNow.length-3)+' more':''));
   }
   if (arrivals.length) {
@@ -6919,13 +7060,41 @@ function renderStockHealth() {
       var runOut = sales > 0 ? new Date(Date.now() + coverDays * 864e5) : null;
       var status = coverDays === null ? 'ok' : coverDays < 7 ? 'critical' : coverDays < 30 ? 'low' : 'ok';
       items.push({
-        ref: item.ref, name: item.ref, unitsOnShelf: stock,
+        ref: item.ref, sku: item.sku, name: item.ref, unitsOnShelf: stock,
         salesRate30d: sales, runOutDate: runOut ? runOut.toISOString().substring(0,10) : null,
         producibleUnits: null, bottleneck: null, status: status
       });
     });
-    items.sort(function(a,b){ var s={critical:0,low:1,ok:2}; return (s[a.status]||2)-(s[b.status]||2); });
   }
+
+  // ── v30: Build ref→SKU lookup for grouping ────────────────────────────────
+  var FG_REF_MAP = {};
+  Object.entries(PROT_ODOO_REFS).forEach(function([sku, variants]) {
+    var lineEntry = Object.entries(FORM_TABS).find(function([k, cfg]) { return cfg.skus.indexOf(sku) !== -1; });
+    var line = lineEntry ? lineEntry[0] : 'Other';
+    variants.forEach(function(v) {
+      FG_REF_MAP[v.ref] = {sku: sku, line: line, sales: SALES[sku] || 0};
+    });
+  });
+
+  // Group items by product line, sort within each group: critical first, then by SKU sales desc
+  var lineOrder = ['CORE ESSENTIAL', 'ECONOMY+', 'ISOPRO', 'BIOBALANCE', 'Other'];
+  var severityRank = {critical: 0, low: 1, ok: 2};
+  var grouped = {};
+  lineOrder.forEach(function(l) { grouped[l] = []; });
+  items.forEach(function(i) {
+    var meta = FG_REF_MAP[i.ref] || FG_REF_MAP[i.name] || {};
+    var line = meta.line || (i.sku ? (Object.entries(FORM_TABS).find(function([k,c]){return c.skus.indexOf(i.sku)!==-1;})||[,'Other'])[0] : 'Other');
+    if (!grouped[line]) grouped[line] = [];
+    i._skuSales = meta.sales || SALES[i.sku] || i.salesRate30d || 0;
+    grouped[line].push(i);
+  });
+  lineOrder.forEach(function(l) {
+    grouped[l].sort(function(a, b) {
+      var sS = (severityRank[a.status] || 2) - (severityRank[b.status] || 2);
+      return sS !== 0 ? sS : (b._skuSales || 0) - (a._skuSales || 0);
+    });
+  });
 
   var fmtDate = function(d) {
     if (!d) return '—';
@@ -6959,16 +7128,21 @@ function renderStockHealth() {
     return;
   }
 
-  var rows = items.map(function(i) {
-    var today = new Date();
+  // Build rows with product-line group headers
+  var today2 = new Date();
+  var LINE_LABELS = {
+    'CORE ESSENTIAL': '🟣 Core Essential',
+    'ECONOMY+':       '🔵 Economy+',
+    'ISOPRO':         '🟢 IsoPro',
+    'BIOBALANCE':     '🟡 BioBalance',
+    'Other':          '⚪ Other',
+  };
+  function makeFGRow(i) {
     var runOut = i.runOutDate ? new Date(i.runOutDate) : null;
-    // salesRate30d is units/month; run-out date comes from server — just show days remaining
-    var coverDays = runOut
-      ? Math.max(0, Math.round((runOut - today) / 864e5))
-      : null;
+    var coverDays = runOut ? Math.max(0, Math.round((runOut - today2) / 864e5)) : null;
     var statusClass = i.status === 'critical' ? 'critical' : i.status === 'low' ? 'low' : 'ok';
     var statusLabel = i.status === 'critical' ? 'Critical' : i.status === 'low' ? 'Low' : 'OK';
-    return '<tr data-severity="' + statusClass + '">' +
+    return '<tr data-severity="' + statusClass + '" style="' + (_shFilter !== 'all' && _shFilter !== statusClass ? 'display:none' : '') + '">' +
       '<td><div class="iname">' + (i.name||i.ref||'—') + '</div>' +
         (i.ref && i.ref !== i.name ? '<div class="imeta">' + i.ref + '</div>' : '') + '</td>' +
       '<td class="mono strong">' + fmtN(i.unitsOnShelf) + '</td>' +
@@ -6979,8 +7153,16 @@ function renderStockHealth() {
       '<td style="font-size:11px;color:var(--text3)">' + (i.bottleneck||'—') + '</td>' +
       '<td style="text-align:center"><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
       '</tr>';
+  }
+  var rows = lineOrder.map(function(line) {
+    var grp = grouped[line] || [];
+    if (!grp.length) return '';
+    var headerRow = '<tr class="sh-group-header" style="background:var(--surface2,#f5f5f5)">'
+      + '<td colspan="8" style="padding:6px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.04em;text-transform:uppercase">'
+      + LINE_LABELS[line] + '</td></tr>';
+    return headerRow + grp.map(makeFGRow).join('');
   }).join('');
-  tbody.innerHTML = rows;
+  tbody.innerHTML = rows || '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3)">No FG stock data — click Refresh to load live data from Odoo.</td></tr>';
   if (tfoot) {
     var generatedAt = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
       ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB')
@@ -7049,6 +7231,13 @@ function renderRMCoverage() {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
   };
+
+  // Sort by RQ descending (highest demand first) — items with no RQ go last
+  allItems.sort(function(a, b) {
+    var rqA = a._rq !== undefined ? a._rq : computeRQ(a.name);
+    var rqB = b._rq !== undefined ? b._rq : computeRQ(b.name);
+    return rqB - rqA;
+  });
 
   var rows = allItems.map(function(item) {
     var rq = item._rq !== undefined ? item._rq : computeRQ(item.name);
@@ -7159,6 +7348,11 @@ function renderPkgCoverage() {
   // Build rows from the packaging array (payload field is pkgKey, not key)
   var items = (packaging || []).filter(function(p) { return p && p.pkgKey; });
 
+  // Sort by monthly need descending (highest demand first)
+  items.sort(function(a, b) {
+    return (needs[b.pkgKey] || 0) - (needs[a.pkgKey] || 0);
+  });
+
   var rows = items.map(function(p) {
     var key   = p.pkgKey;
     var stock = p.stock || 0;
@@ -7248,6 +7442,9 @@ function renderBulkCoverage() {
 
   var skus = Object.keys(BULK_CFG);
 
+  // Sort by SALES descending (highest-selling bulk SKU first)
+  skus.sort(function(a, b) { return (SALES[b] || 0) - (SALES[a] || 0); });
+
   var rows = skus.map(function(sku) {
     var cfg   = BULK_CFG[sku];
     var itm   = (procItems.bulk || {})[sku] || {};
@@ -7306,6 +7503,153 @@ function renderBulkCoverage() {
     var ts = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
       ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
     tfoot.textContent = skus.length + ' bulk supplement SKUs' + ts;
+  }
+}
+
+// ── v29: Sticker Health ───────────────────────────────────────────────────────
+var _shStickerFilter = 'all';
+function shStickerSetFilter(f, btn) {
+  _shStickerFilter = f;
+  document.querySelectorAll('#page-sh-sticker .chip').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('#sh-sticker-summary-tbody tr[data-severity]').forEach(function(row) {
+    row.style.display = (f === 'all' || row.dataset.severity === f) ? '' : 'none';
+  });
+}
+
+// Tracks each sticker size bucket (large/medium/small) against monthly usage,
+// plus a breakdown of all Kenya and China sticker variants with MOQs.
+// On-hand stock comes from pkgCosts (same source as Packaging & China tab).
+// Monthly rate: large = protMo*2, small = bulkMo*2, medium = 0 (not currently used).
+// China stickers have a 4-month lead time — critical threshold is 4 months, low is 5.
+function renderStickerHealth() {
+  var summaryTbody = document.getElementById('sh-sticker-summary-tbody');
+  var kenyaTbody   = document.getElementById('sh-sticker-kenya-tbody');
+  var chinaTbody   = document.getElementById('sh-sticker-china-tbody');
+  var tfoot        = document.getElementById('sh-sticker-tfoot');
+  var mLarge   = document.getElementById('sh-sticker-m-large');
+  var mMedium  = document.getElementById('sh-sticker-m-medium');
+  var mSmall   = document.getElementById('sh-sticker-m-small');
+  var mInc     = document.getElementById('sh-sticker-m-incoming');
+  if (!summaryTbody) return;
+
+  var fmtDate = function(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+  };
+
+  // Monthly usage rates (re-derive from same formula as renderPackaging / pkgNeeds)
+  var needs = pkgNeeds ? pkgNeeds() : {};
+  var rates = {
+    large_sticker:  needs.large_sticker  || 0,
+    medium_sticker: needs.medium_sticker || 0,
+    small_sticker:  needs.small_sticker  || 0,
+  };
+
+  // On-hand stock from pkgCosts
+  var stock = {
+    large_sticker:  (pkgCosts && pkgCosts.large_sticker  ? pkgCosts.large_sticker.stock  || 0 : 0),
+    medium_sticker: (pkgCosts && pkgCosts.medium_sticker ? pkgCosts.medium_sticker.stock || 0 : 0),
+    small_sticker:  (pkgCosts && pkgCosts.small_sticker  ? pkgCosts.small_sticker.stock  || 0 : 0),
+  };
+
+  // Incoming from PROC_INCOMING_MAP pipeline
+  var incoming = {
+    large_sticker:  totalIncomingQty('large_sticker'),
+    medium_sticker: totalIncomingQty('medium_sticker'),
+    small_sticker:  totalIncomingQty('small_sticker'),
+  };
+  var incomingDates = {
+    large_sticker:  earliestIncomingDate('large_sticker'),
+    medium_sticker: earliestIncomingDate('medium_sticker'),
+    small_sticker:  earliestIncomingDate('small_sticker'),
+  };
+
+  // Metric chips
+  if (mLarge)  mLarge.textContent  = Math.round(stock.large_sticker).toLocaleString() + ' pcs';
+  if (mMedium) mMedium.textContent = Math.round(stock.medium_sticker).toLocaleString() + ' pcs';
+  if (mSmall)  mSmall.textContent  = Math.round(stock.small_sticker).toLocaleString() + ' pcs';
+  var totalInc = incoming.large_sticker + incoming.medium_sticker + incoming.small_sticker;
+  if (mInc) mInc.textContent = totalInc > 0 ? Math.round(totalInc).toLocaleString() + ' pcs' : '—';
+
+  // Summary table rows
+  var sizes = [
+    {key:'large_sticker',  label:'Large',  note:'1 per protein bag — used for CE, Economy+, BioBalance, IsoPro, PureForm flavours'},
+    {key:'medium_sticker', label:'Medium', note:'1 per medium bag — used for Economy+ Choc, CE Choc/Banana/Birthday, BioBalance Unfl'},
+    {key:'small_sticker',  label:'Small',  note:'1 per bulk-supp bag — used for PreWorkout, BCAAs, Creatine variants'},
+  ];
+
+  var summaryRows = sizes.map(function(sz) {
+    var s   = stock[sz.key];
+    var rq  = rates[sz.key];
+    var inc = incoming[sz.key];
+    var incDt = incomingDates[sz.key];
+    var covMo = rq > 0 ? s / rq : (s > 0 ? 99 : 0);
+    var covWithInc = rq > 0 ? (s + inc) / rq : covMo;
+
+    var severity, badgeClass, badgeLabel;
+    if (rq <= 0 && s <= 0) {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'No rate';
+    } else if (covMo < 4) {
+      severity = 'critical'; badgeClass = 'critical'; badgeLabel = 'Critical';
+    } else if (covMo < 5) {
+      severity = 'low'; badgeClass = 'low'; badgeLabel = 'Low';
+    } else {
+      severity = 'ok'; badgeClass = ''; badgeLabel = 'OK';
+    }
+
+    var covColor = covMo < 4 ? 'var(--crit-txt)' : covMo < 5 ? 'var(--low-txt)' : 'var(--ok-txt)';
+    var covStr   = rq > 0 ? covMo.toFixed(1) + ' mo' : (s > 0 ? '— (no rate)' : '—');
+    var stockoutDt = rq > 0 ? stockoutDate(s, rq) : null;
+
+    var incomingCell = inc > 0
+      ? '<span style="color:var(--ok-txt);font-weight:600">' + Math.round(inc).toLocaleString() + ' pcs</span>'
+        + (incDt ? '<div style="font-size:9px;color:var(--text3)">' + fmtDate(incDt) + '</div>' : '')
+        + (covWithInc > covMo ? '<div style="font-size:9px;color:var(--text3)">→ ' + covWithInc.toFixed(1) + ' mo w/ incoming</div>' : '')
+      : '<span style="color:var(--text3)">—</span>';
+
+    return '<tr data-severity="' + severity + '" style="' + (_shStickerFilter !== 'all' && _shStickerFilter !== severity ? 'display:none' : '') + '">'
+      + '<td><div class="iname">' + sz.label + '</div><div style="font-size:9px;color:var(--text3)">' + sz.note + '</div></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + Math.round(s).toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">' + (rq > 0 ? Math.round(rq).toLocaleString() + '/mo' : '—') + '</td>'
+      + '<td style="text-align:right"><span style="font-family:var(--font-mono);font-weight:600;color:' + covColor + '">' + covStr + '</span></td>'
+      + '<td style="text-align:right">' + incomingCell + '</td>'
+      + '<td style="text-align:right;font-size:10px;color:var(--text2)">' + (stockoutDt ? fmtDate(stockoutDt) : '—') + '</td>'
+      + '<td style="text-align:center"><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>'
+      + '</tr>';
+  }).join('');
+  summaryTbody.innerHTML = summaryRows || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">No sticker data — refresh dashboard</td></tr>';
+
+  // Kenya variants table
+  var kenyaRows = KENYA_STICKERS.map(function(s) {
+    var sizeLabel = s.pkgKey === 'large_sticker' ? 'Large' : s.pkgKey === 'small_sticker' ? 'Small' : 'Medium';
+    return '<tr>'
+      + '<td>' + s.label + '</td>'
+      + '<td><span class="badge" style="font-size:9px;padding:2px 5px">' + sizeLabel + '</span></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">Ksh ' + s.kshUnit.toFixed(2) + '</td>'
+      + '<td style="font-size:10px;color:var(--text3)">Print-on-demand · no MOQ · short lead time</td>'
+      + '</tr>';
+  }).join('');
+  kenyaTbody.innerHTML = kenyaRows;
+
+  // China variants table
+  var chinaRows = CHINA_STICKERS.map(function(s) {
+    var sizeLabel = s.label.toLowerCase().includes('large') ? 'Large' : 'Small';
+    var estCost = (s.usdUnit * s.orderQty).toFixed(0);
+    return '<tr>'
+      + '<td>' + s.label + '</td>'
+      + '<td><span class="badge" style="font-size:9px;padding:2px 5px">' + sizeLabel + '</span></td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">$' + s.usdUnit.toFixed(2) + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono);font-weight:600">' + s.orderQty.toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-family:var(--font-mono)">$' + Number(estCost).toLocaleString() + '</td>'
+      + '</tr>';
+  }).join('');
+  chinaTbody.innerHTML = chinaRows;
+
+  if (tfoot) {
+    var ts = (_memCache && _memCache.meta && _memCache.meta.generatedAt)
+      ? ' · data from ' + new Date(_memCache.meta.generatedAt).toLocaleTimeString('en-GB') : '';
+    tfoot.textContent = 'Stock from Odoo via pkgCosts · China lead time ~120 days · Medium sticker monthly rate = 0 (not currently modelled)' + ts;
   }
 }
 
@@ -8967,7 +9311,14 @@ const COV_DEFAULT_CHANNELS = [
 ];
 let covFilter = 'all';
 
+// In-memory cache — shared by all users via Apps Script PropertiesService.
+// Null means not yet loaded; initialised by covInitChannels() at page load.
+let _covChannels = null;
+
 function covLoadChannels() {
+  // Return in-memory cache if populated (fast path)
+  if (_covChannels !== null) return _covChannels;
+  // While the async fetch is in flight, fall back to localStorage or defaults
   try {
     const raw = localStorage.getItem(COV_CHANNEL_KEY);
     if (raw) return JSON.parse(raw);
@@ -8976,7 +9327,32 @@ function covLoadChannels() {
 }
 
 function covSaveChannels(channels) {
+  // 1. Update in-memory cache immediately so the UI reflects the change at once
+  _covChannels = channels;
+  // 2. Persist to localStorage as a local fallback
   try { localStorage.setItem(COV_CHANNEL_KEY, JSON.stringify(channels)); } catch(e) {}
+  // 3. Persist to Apps Script PropertiesService so all users (Christine + Shelly) see the change
+  const url = SCRIPT_URL + '?action=setChannelData&data=' + encodeURIComponent(JSON.stringify(channels));
+  fetch(url).catch(function(e) { console.warn('[cov] backend save failed:', e); });
+}
+
+// Called once at page load — fetches the shared channel data from the backend
+// and updates the in-memory cache and localStorage. Re-renders the Coverage tab
+// and channel editor if they are currently visible.
+function covInitChannels() {
+  fetch(SCRIPT_URL + '?action=getChannelData')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || !Array.isArray(data)) return; // backend returned null (no data yet)
+      _covChannels = data;
+      try { localStorage.setItem(COV_CHANNEL_KEY, JSON.stringify(data)); } catch(e) {}
+      // Re-render live views if open
+      const covPage = document.getElementById('page-coverage');
+      if (covPage && covPage.style.display !== 'none') safeRender('coverage', renderCoverage);
+      const editor = document.getElementById('cov-channel-editor');
+      if (editor && editor.style.display !== 'none') covRenderChannelEditor();
+    })
+    .catch(function(e) { console.warn('[cov] covInitChannels failed:', e); });
 }
 
 function covSetFilter(f, btn) {
@@ -9266,6 +9642,9 @@ function covResetChannels() {
 }
 
 loadAll();
+// Fetch shared commercial pipeline channels from Apps Script PropertiesService
+// so Christine and Shelly always see the same committed order quantities.
+covInitChannels();
 // Initialize the 5-tab layout — default to Action Today
 switchMainTab('action', document.querySelector('.tab-btn'));
 </script>
