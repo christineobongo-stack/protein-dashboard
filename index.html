@@ -6714,42 +6714,44 @@ function computeChinaOrderSchedule(monthlyRates) {
 const CHINA_STICKERS = [
   // 1 unit in Odoo = 1 front+back pair. stickersPerPack:1 throughout.
   // odooProductId: product.product id from Odoo (confirmed via diagStickerProducts Oct 2026)
-  {label:'CE Vanilla',          sku:'CEVAN',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1, odooProductId:262},
-  {label:'CE Chocolate (1kg)',  sku:'CECHOC',  pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1, odooProductId:263},
-  {label:'CE Cookies & Cream',  sku:'CECNC',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:1000, stickersPerPack:1, odooProductId:265},
-  {label:'Creatine Unflav',     sku:'CREATUN', pkgKey:'small_sticker', usdUnit:0.04, orderQty:2500, stickersPerPack:1, odooProductId:499},
-  {label:'Creatine Fruit Punch',sku:'CREATFP', pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1, odooProductId:502},
-  {label:'Creatine Pink Guava', sku:'CREATPG', pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1, odooProductId:501},
+  // odooRef: specific Odoo product ref for demand lookup (avgSales[odooRef] = packs of THAT size only)
+  {label:'CE Vanilla',          odooRef:'CEVAN30',   pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1, odooProductId:262},
+  {label:'CE Chocolate (1kg)',  odooRef:'CECHOC30',  pkgKey:'large_sticker', usdUnit:0.07, orderQty:2500, stickersPerPack:1, odooProductId:263},
+  {label:'CE Cookies & Cream',  odooRef:'CECREAM30', pkgKey:'large_sticker', usdUnit:0.07, orderQty:1000, stickersPerPack:1, odooProductId:265},
+  {label:'Creatine Unflav',     odooRef:'CREATUN200',pkgKey:'small_sticker', usdUnit:0.04, orderQty:2500, stickersPerPack:1, odooProductId:499},
+  {label:'Creatine Fruit Punch',odooRef:'CREATFP200',pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1, odooProductId:502},
+  {label:'Creatine Pink Guava', odooRef:'CREATPG200',pkgKey:'small_sticker', usdUnit:0.04, orderQty:1000, stickersPerPack:1, odooProductId:501},
 ];
 
 const KENYA_STICKERS = [
   // 1 unit in Odoo = 1 front+back pair. stickersPerPack:1 throughout.
   // odooProductId: product.product id from Odoo (confirmed via diagStickerProducts Oct 2026)
-  // Protein (large bag — 1 pair per pack)
-  {label:'CE Banana',             sku:'CEBAN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:264},
-  {label:'CE Birthday Cake',      sku:'CEVBC',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:266},
-  {label:'CE Vanilla Chai',       sku:'CEVCHAI', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:267},
-  {label:'CE Salted Caramel',     sku:'CESC',    pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:2590},
-  {label:'Economy+ Vanilla',      sku:'ECOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:273},
-  {label:'Economy+ Banana',       sku:'ECOBAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:275},
-  {label:'BioBalance Vanilla',    sku:'BIOVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:295},
-  {label:'IsoPro Vanilla',        sku:'ISPVAN',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:284},
-  {label:'IsoPro Unflavoured',    sku:'ISPUN',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:290},
-  {label:'PureForm Unflavoured',  sku:'PureForm',pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:312},
-  // Protein (medium bag — 1 pair per pack)
-  {label:'Economy+ Choc',         sku:'ECOCHOC', pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:362},
-  {label:'CE Choc (500g)',        sku:'CECHOC',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:351},
-  {label:'CE Banana (500g)',      sku:'CEBAN',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:352},
-  {label:'CE Birthday (500g)',    sku:'CEVBC',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:354},
-  {label:'BioBalance Unflavoured',sku:'BIOUN',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:389},
-  // Bulk supplements (small sticker — 1 pair per pack)
-  {label:'PreWorkout Watermelon', sku:'PWORKWM', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:511},
-  {label:'PreWorkout Green Apple',sku:'PWORKGA', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:514},
-  {label:'BCAAs Unflavoured',     sku:'BCAA',    pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:521},
-  {label:'Creatine Unflavoured',  sku:'CREATUN', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:499},
-  {label:'Creatine Fruit Punch',  sku:'CREATFP', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:502},
-  {label:'Creatine Pink Guava',   sku:'CREATPG', pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:501},
-  {label:'Collagen Unflavoured',  sku:'COLUN',   pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:3873},
+  // odooRef: specific Odoo product ref → avgSales[odooRef] = packs of THAT size sold/mo (not aggregate)
+  // Large stickers go on 1kg bags only (30-serve CE/BioBalance, 28-serve Economy+/IsoPro, 30-serve PureForm)
+  {label:'CE Banana',             odooRef:'CEBAN30',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:264},
+  {label:'CE Birthday Cake',      odooRef:'CEVBC30',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:266},
+  {label:'CE Vanilla Chai',       odooRef:'CEVCHAI30', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:267},
+  {label:'CE Salted Caramel',     odooRef:'CESC30',    pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:2590},
+  {label:'Economy+ Vanilla',      odooRef:'ECOVAN28',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:273},
+  {label:'Economy+ Banana',       odooRef:'ECOBAN28',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:275},
+  {label:'BioBalance Vanilla',    odooRef:'BIOVAN30',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:295},
+  {label:'IsoPro Vanilla',        odooRef:'ISPVAN28',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:284},
+  {label:'IsoPro Unflavoured',    odooRef:'ISPUN28',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:290},
+  {label:'PureForm Unflavoured',  odooRef:'PFORMUN30', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:312},
+  // Medium stickers go on 500g bags (15-serve CE/BioBalance, 14-serve Economy+)
+  {label:'Economy+ Choc',         odooRef:'ECOCHOC14', pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:362},
+  {label:'CE Choc (500g)',        odooRef:'CECHOC15',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:351},
+  {label:'CE Banana (500g)',      odooRef:'CEBAN15',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:352},
+  {label:'CE Birthday (500g)',    odooRef:'CEVBC15',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:354},
+  {label:'BioBalance Unflavoured',odooRef:'BIOUN15',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:389},
+  // Small stickers go on 200g supplement pouches (creatine/preworkout/BCAA/collagen)
+  {label:'PreWorkout Watermelon', odooRef:'PWORKWM200',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:511},
+  {label:'PreWorkout Green Apple',odooRef:'PWORKGA200',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:514},
+  {label:'BCAAs Unflavoured',     odooRef:'BCAA200',   pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:521},
+  {label:'Creatine Unflavoured',  odooRef:'CREATUN200',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:499},
+  {label:'Creatine Fruit Punch',  odooRef:'CREATFP200',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:502},
+  {label:'Creatine Pink Guava',   odooRef:'CREATPG200',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:501},
+  {label:'Collagen Unflavoured',  odooRef:'COLPG18',   pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:3873},
 ];
 
 // Look up stock using pkgKey via pkgCosts — populated by applyPayload from Odoo
@@ -7034,9 +7036,9 @@ function renderPackaging() {
     +'<th style="text-align:right">Unit cost</th>'
     +'</tr></thead><tbody>'
     +CHINA_STICKERS.map(function(s){
-      var moNeed=Math.round((SALES[s.sku]||0)*_cgf*(s.stickersPerPack||1));
+      var moNeed=Math.round((avgSales[s.odooRef]||0)*_cgf*(s.stickersPerPack||1));
       return '<tr>'
-        +'<td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text2)">'+(s.sku||'—')+'</td>'
+        +'<td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text2)">'+(s.odooRef||'—')+'</td>'
         +'<td>'+s.label+'</td>'
         +'<td style="text-align:right;font-family:var(--font-mono)">'+(moNeed>0?moNeed.toLocaleString():'—')+'</td>'
         +'<td style="text-align:right;font-family:var(--font-mono);font-weight:600">'+s.orderQty.toLocaleString()+'</td>'
@@ -7053,10 +7055,10 @@ function renderPackaging() {
     +'</tr></thead><tbody>'
     +KENYA_STICKERS.map(function(s){
       var sz=s.pkgKey==='large_sticker'?'Large':s.pkgKey==='small_sticker'?'Small':'Medium';
-      var moNeed=Math.round((SALES[s.sku]||0)*_kgf*(s.stickersPerPack||1));
+      var moNeed=Math.round((avgSales[s.odooRef]||0)*_kgf*(s.stickersPerPack||1));
       var moCost=moNeed*s.kshUnit;
       return '<tr>'
-        +'<td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text2)">'+(s.sku||'—')+'</td>'
+        +'<td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text2)">'+(s.odooRef||'—')+'</td>'
         +'<td>'+s.label+'</td>'
         +'<td><span class="badge" style="font-size:9px;padding:2px 5px">'+sz+'</span></td>'
         +'<td style="text-align:right;font-family:var(--font-mono)">'+(moNeed>0?moNeed.toLocaleString():'—')+'</td>'
@@ -7682,7 +7684,7 @@ function renderStickerHealth() {
   function stickerRow(s, leadDays) {
     var now = new Date();  // defined locally — avoids any scope-capture issue
     var sizeLabel = s.pkgKey === 'large_sticker' ? 'Large' : s.pkgKey === 'small_sticker' ? 'Small' : 'Medium';
-    var moNeed = Math.round((SALES[s.sku] || 0) * gf * (s.stickersPerPack || 1));
+    var moNeed = Math.round((avgSales[s.odooRef] || 0) * gf * (s.stickersPerPack || 1));
     var onHand  = s.odooProductId ? Math.round(stickerVar[s.odooProductId] || 0) : null;
     var surplus = onHand !== null ? onHand - moNeed : null;
     var covMo   = (moNeed > 0 && onHand !== null) ? onHand / moNeed : null;
