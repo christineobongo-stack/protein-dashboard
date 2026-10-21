@@ -5637,176 +5637,309 @@ function switchSubTab(parentId, sectionId, btn) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ── Procurement step label helper ────────────────────────────────────────────
 // Returns a human-readable label for where each PO is stuck in the pipeline.
+// ── procStepLabel: returns the single most urgent action label for a PO ──────
+// Based ONLY on confirmed Odoo data — no assumptions about which operational
+// stage the goods are currently in. Delay risk is flagged separately by
+// compareTheoToPlanned() where we have supplier timeline data.
 function procStepLabel(o, todayStr) {
   if (o.status === 'Draft') {
-    if (!o.orderDeadline)               return {label:'Set deadline & send RFQ',    cls:'critical', icon:'⚠️'};
+    if (!o.orderDeadline)               return {label:'Set deadline & send RFQ',    cls:'critical', icon:'⚙️'};
     if (o.orderDeadline <= todayStr)    return {label:'Send RFQ — overdue',         cls:'critical', icon:'🔴'};
     var daysUntil = Math.round((new Date(o.orderDeadline)-Date.now())/864e5);
     if (daysUntil <= 3)                 return {label:'Send RFQ in '+daysUntil+'d', cls:'low',      icon:'🟡'};
-                                        return {label:'Send RFQ by '+o.orderDeadline.substring(5,10), cls:'',  icon:'📝'};
+                                        return {label:'Send RFQ by '+o.orderDeadline.substring(5,10), cls:'', icon:'📝'};
   }
   if (o.status === 'Sent') {
-    if (o.expectedArrival && o.expectedArrival < todayStr)
-                                        return {label:'Vendor quote — confirm to PO', cls:'critical', icon:'⚠️'};
-                                        return {label:'Awaiting vendor quote / confirm to PO', cls:'low', icon:'📨'};
+                                        return {label:'Awaiting supplier confirmation', cls:'low', icon:'🟠'};
   }
+  // PO confirmed (purchase state)
   if (o.status === 'Confirmed' || o.status === 'Purchase Order') {
+    // Step 1: check if goods already partially/fully received
+    if (o.hasReceipt && !o.hasBill && o.paymentTrack === 'on_delivery') {
+                                        return {label:'Upload supplier invoice & create bill', cls:'low', icon:'📥'};
+    }
+    // Step 2: bill exists — check payment
+    if (o.hasBill && !o.billPaid)       return {label:'Bill pending payment', cls:'low', icon:'💳'};
+    if (o.hasBill && o.billPaid) {
+      // Paid — check if goods arrived yet
+      if (!o.hasReceipt) {
+        if (o.expectedArrival && o.expectedArrival < todayStr)
+                                        return {label:'Goods overdue — chase supplier', cls:'critical', icon:'⚠️'};
+                                        return {label:'Goods in transit — receive in Odoo on arrival', cls:'ok', icon:'🚢'};
+      }
+                                        return {label:'Receive in Odoo (partial receipt)', cls:'ok', icon:'📦'};
+    }
+    // No bill yet — Track 1 (pfi): check overdue
+    if (o.paymentTrack === 'pfi') {
+      if (o.pfiOverdue)                 return {label:'PFI overdue — follow up with supplier', cls:'critical', icon:'🚨'};
+                                        return {label:'Awaiting PFI from supplier', cls:'low', icon:'⏳'};
+    }
+    // Track 2, no bill yet — goods should arrive before invoice
     if (o.expectedArrival && o.expectedArrival < todayStr)
-                                        return {label:'Goods overdue — chase supplier', cls:'critical', icon:'🟠'};
-                                        return {label:'Goods incoming — receive in Odoo', cls:'ok', icon:'🚚'};
+                                        return {label:'Goods overdue — chase supplier', cls:'critical', icon:'⚠️'};
+                                        return {label:'Goods in transit — receive in Odoo on arrival', cls:'ok', icon:'🚢'};
   }
   return {label:o.status, cls:'', icon:'📋'};
+}
+
+// ── compareTheoToPlanned: delay-risk flag comparing theoretical timeline to Odoo date_planned ──
+// Returns null if no comparison is possible, or an object:
+//   { daysOff, label, severity }  where severity is 'ok'|'warn'|'critical'
+// daysOff > 0 means theoretical arrival is LATER than Odoo's planned date → delay risk.
+function compareTheoToPlanned(o) {
+  if (!o.theoArrivalDate || !o.expectedArrival || o.status === 'Draft' || o.status === 'Sent') return null;
+  var theoMs    = new Date(o.theoArrivalDate).getTime();
+  var plannedMs = new Date(o.expectedArrival).getTime();
+  var daysOff   = Math.round((theoMs - plannedMs) / 864e5);
+  if (daysOff <= 0) return { daysOff: daysOff, label: 'On track', severity: 'ok' };
+  if (daysOff <= 14) return { daysOff: daysOff, label: daysOff + 'd behind schedule — monitor', severity: 'warn' };
+  return { daysOff: daysOff, label: daysOff + 'd behind schedule — action needed', severity: 'critical' };
 }
 
 // ORDER TRACKER — live view of every open Odoo PO (upcomingOrders payload field)
 // Distinct from Order Sheet, which is a modelled/projected document, not an
 // actual PO list.
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── Order Tracker — 3-section layout ─────────────────────────────────────────
-// Section 1: SEND NOW   — Draft RFQs with deadline today or past
-// Section 2: FOLLOW UP  — Confirmed/Sent POs overdue on arrival (arrival date past)
-// Section 3: COMING UP  — Draft RFQs with deadline within 7 days
-// All other open POs with no urgent action appear in a collapsible "All open POs" table.
+// ── Order Tracker — 5-step linear procurement pipeline ───────────────────────
+// Step 1: SEND RFQ        — Draft, deadline past or no deadline
+// Step 2: CONFIRM TO PO   — Sent to supplier, not yet confirmed in Odoo
+// Step 3: CREATE BILL     — PO confirmed, no bill/invoice uploaded yet
+// Step 4: PAY BILL        — Bill exists, payment not recorded
+// Step 5: CHASE SUPPLIER  — Bill paid, goods in transit, receipt overdue
+// Monitoring:             — Bill paid, goods in transit, arrival not yet due
+// All based on confirmed Odoo data only — no assumptions about current stage.
 function renderOrderTracker() {
   const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+  const today   = new Date();
+  const todayStr = today.toISOString().substring(0,10);
   const list = upcomingOrders || [];
-  const todayStr = new Date().toISOString().substring(0,10);
 
-  // Partition orders into the three action buckets + remainder.
-  const sendNow  = [];
-  const followUp = [];
-  const comingUp = [];
-  const others   = [];
-
-  // Extra buckets
-  const sentAwaitingConfirm = [];  // Sent RFQs where vendor has responded but PO not confirmed in Odoo
-  const draftNoDeadline     = [];  // Draft RFQs with no deadline set at all
+  // ── Bucket each PO into one stage ────────────────────────────────────────
+  const step1_sendNow   = [];  // Draft, deadline past or no deadline
+  const step1_sendSoon  = [];  // Draft, deadline ≤7 days (warn, not urgent)
+  const step2_confirm   = [];  // Sent (RFQ emailed to supplier, awaiting PO confirmation)
+  const step3_noBill    = [];  // Confirmed, no bill/invoice in Odoo yet
+  const step4_payBill   = [];  // Bill created, not yet paid
+  const step5_overdue   = [];  // Bill paid, !hasReceipt, arrival date past
+  const monitoring      = [];  // Bill paid, !hasReceipt, arrival in future (or draft not due yet)
 
   list.forEach(function(o) {
-    const dl = o.orderDeadline;
+    const isConfirmed = o.status === 'Confirmed' || o.status === 'Purchase Order';
+
+    // Draft RFQs
     if (o.status === 'Draft') {
-      if (!dl) { draftNoDeadline.push(o); return; }
-      const daysUntil = Math.round((new Date(dl).getTime() - Date.now()) / 864e5);
-      if (daysUntil <= 0)      sendNow.push(o);
-      else if (daysUntil <= 7) comingUp.push(o);
-      else                     others.push(o);
-    } else if (o.status === 'Sent') {
-      // Sent = RFQ was emailed to vendor; if arrival date is past, vendor likely responded — needs PO confirmation
-      if (o.expectedArrival && o.expectedArrival < todayStr) sentAwaitingConfirm.push(o);
-      else if (o.expectedArrival && o.expectedArrival < todayStr) followUp.push(o);
-      else sentAwaitingConfirm.push(o);  // All sent RFQs need confirmation or follow-up
-    } else if (o.status === 'Confirmed' || o.status === 'Purchase Order') {
-      // Confirmed: flag if expected arrival is already past
-      if (o.expectedArrival && o.expectedArrival < todayStr) followUp.push(o);
-      else others.push(o);
-    } else {
-      others.push(o);
+      const dl = o.orderDeadline;
+      if (!dl) { step1_sendNow.push(o); return; }
+      const daysUntil = Math.round((new Date(dl).getTime() - today.getTime()) / 864e5);
+      if (daysUntil <= 0)      step1_sendNow.push(o);
+      else if (daysUntil <= 7) step1_sendSoon.push(o);
+      else                     monitoring.push(o);
+      return;
     }
+
+    // Sent RFQs — step 2
+    if (o.status === 'Sent') { step2_confirm.push(o); return; }
+
+    // Confirmed POs — walk down the pipeline
+    if (isConfirmed) {
+      // Step 3: no bill yet. Covers both:
+      //   - Import suppliers (PFI paid before shipment): supplier should have sent PFI
+      //   - Local/delivery suppliers (invoice on receipt): goods may or may not be here yet
+      if (!o.hasBill && !o.hasReceipt) { step3_noBill.push(o); return; }
+      if (!o.hasBill && o.hasReceipt)  { step3_noBill.push(o); return; } // goods received, invoice not yet uploaded
+
+      // Step 4: bill exists, not paid
+      if (o.hasBill && !o.billPaid) { step4_payBill.push(o); return; }
+
+      // Bill paid (step 4 done) — check if goods arrived
+      if (o.billPaid && !o.hasReceipt) {
+        const arrDate = o.theoArrivalDate || o.expectedArrival;
+        if (arrDate && arrDate < todayStr) step5_overdue.push(o);
+        else                               monitoring.push(o);
+        return;
+      }
+      // Fully complete (hasReceipt && billPaid) — shouldn't appear (fetchUpcomingOrders filters)
+      return;
+    }
+
+    monitoring.push(o);
   });
 
-  // Build Slack-ready text for the Copy button
-  const slackLines = ['*📋 Protein.ke Procurement – ' + new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) + '*',''];
-  const appendSlackSection = function(emoji, title, items) {
+  // ── Delay cascade helper ──────────────────────────────────────────────────
+  // For a confirmed PO that hasn't been received yet, compute how many days behind
+  // the original theoArrivalDate we are, and what the adjusted arrival looks like.
+  const delayInfo = function(o) {
+    const ref = o.theoArrivalDate || o.expectedArrival;
+    if (!ref || o.hasReceipt) return null;
+    const refMs   = new Date(ref).getTime();
+    const daysLate = Math.round((today.getTime() - refMs) / 864e5);
+    if (daysLate <= 0) return null;  // still on time
+    // Adjusted: today + remaining transit days (use expectedArrival - today if that's still in future;
+    // otherwise signal fully overdue)
+    return {
+      daysLate: daysLate,
+      ref: ref,
+      odooPlanned: o.expectedArrival
+    };
+  };
+
+  // ── Build timeline footer for a PO row ───────────────────────────────────
+  const timelineFooter = function(o) {
+    const parts = [];
+    const arrDate = o.theoArrivalDate || o.expectedArrival;
+    if (arrDate)          parts.push('Expected arrival: <b>' + fmtDate(arrDate) + '</b>');
+    if (o.theoReadyDate)  parts.push('Ready for sale: <b>' + fmtDate(o.theoReadyDate) + '</b>');
+    if (o.totalLeadDays)  parts.push('Full lead time: <b>' + o.totalLeadDays + 'd</b>');
+    if (o.expectedArrival && o.theoArrivalDate && o.expectedArrival !== o.theoArrivalDate)
+      parts.push('Odoo date_planned: ' + fmtDate(o.expectedArrival));
+    const di = delayInfo(o);
+    if (di) parts.push('<span style="color:#c0392b;font-weight:600">⚠ ' + di.daysLate + 'd behind original schedule</span>');
+    if (!parts.length) return '';
+    return '<div style="margin-top:5px;font-size:9px;color:var(--text3);line-height:1.8">' + parts.join(' · ') + '</div>';
+  };
+
+  // ── Slack digest builder ──────────────────────────────────────────────────
+  const slackLines = ['*📋 Protein.ke Procurement – ' + today.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) + '*',''];
+  const appendSlack = function(emoji, title, items) {
     if (!items.length) return;
     slackLines.push('*' + emoji + ' ' + title + ':*');
     items.forEach(function(o) {
       const mats = (o.materials||[]).map(m => m.name + ' (' + m.qty + ' kg)').join(', ');
-      const dateHint = o.status === 'Draft'
-        ? ' — send by ' + fmtDate(o.orderDeadline)
-        : ' — expected ' + fmtDate(o.expectedArrival);
-      slackLines.push('• ' + o.po + ' → ' + o.supplier + ': ' + mats + dateHint);
+      const hint = o.billAmountTotal ? ' — Ksh ' + o.billAmountTotal.toLocaleString() + ' to pay'
+        : (o.theoArrivalDate||o.expectedArrival) ? ' — arr. ' + fmtDate(o.theoArrivalDate||o.expectedArrival)
+        : o.orderDeadline ? ' — send by ' + fmtDate(o.orderDeadline) : '';
+      slackLines.push('• ' + o.po + ' → ' + o.supplier + ': ' + mats + hint);
     });
     slackLines.push('');
   };
-  appendSlackSection('🔴','SEND NOW — dispatch these RFQs today', sendNow);
-  appendSlackSection('⚠️','CONFIRM TO PO — vendor quote received, not confirmed in Odoo (action: Mwongola to confirm + upload invoice)', sentAwaitingConfirm);
-  appendSlackSection('⚙️','SET DEADLINE — draft RFQs with no send date set', draftNoDeadline);
-  appendSlackSection('🟠','FOLLOW UP — arrival overdue, chase supplier', followUp);
-  appendSlackSection('🟡','COMING UP — send within 7 days', comingUp);
+  appendSlack('🔴','STEP 1 — SEND RFQ (overdue)',           step1_sendNow);
+  appendSlack('🟡','STEP 1 — SEND RFQ SOON (within 7 days)',step1_sendSoon);
+  appendSlack('🟠','STEP 2 — CONFIRM TO PO (awaiting supplier)', step2_confirm);
+  appendSlack('📄','STEP 3 — CREATE BILL (upload invoice in Odoo)', step3_noBill);
+  appendSlack('💳','STEP 4 — PAY BILL',                     step4_payBill);
+  appendSlack('⚠️','STEP 5 — CHASE SUPPLIER (arrival overdue)', step5_overdue);
   slackLines.push('_Dashboard: https://christineobongo-stack.github.io/protein-dashboard/_');
   const slackText = slackLines.join('\n');
 
-  // ── Build a compact table for a given section ─────────────────────────────
-  const isFreightPO = function(o) {
-    return /evolve/i.test(o.supplier) || /freight|clearing|logistics|forwarding/i.test(o.supplier);
-  };
-  const makeSection = function(emoji, colour, title, items, hint) {
+  // ── Section table builder ─────────────────────────────────────────────────
+  const isFreightPO = o => /evolve/i.test(o.supplier) || /freight|clearing|logistics|forwarding/i.test(o.supplier);
+
+  const makeSection = function(stepLabel, emoji, colour, title, items, hint) {
     if (!items.length) return '';
+
     const rows = items.map(function(o) {
-      const mats = (o.materials||[]).map(m => m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>').join('<br>');
-      // For freight/clearing agents, show the PO notes (which link the freight to the product being cleared)
+      const mats = (o.materials||[]).map(m =>
+        m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>'
+      ).join('<br>');
       const notesHtml = (isFreightPO(o) && o.notes)
         ? '<div style="margin-top:4px;font-size:10px;color:var(--text2);border-left:2px solid var(--accent);padding-left:6px;line-height:1.5">' +
           o.notes.replace(/\n/g, '<br>') + '</div>'
         : '';
-      const matsCell = '<td style="font-size:11px;line-height:1.6">' + mats + notesHtml + '</td>';
-      const dateCell = o.status === 'Draft'
-        ? '<td>' + (o.orderDeadline ? '<span class="badge critical" style="font-size:9px">Send by ' + fmtDate(o.orderDeadline) + '</span>' : '—') + '</td>'
-        : '<td>' + (o.expectedArrival ? '<span class="badge low" style="font-size:9px">Expected ' + fmtDate(o.expectedArrival) + '</span>' : '—') + '</td>';
+
+      // Action column: what to do next
       const step = procStepLabel(o, todayStr);
-      const stepHtml = '<div style="margin-top:3px;font-size:9px;color:var(--text3);letter-spacing:.02em">📍 Step: ' + step.icon + ' ' + step.label + '</div>';
-      return '<tr><td style="font-weight:600;white-space:nowrap">' + o.po + stepHtml + '</td>' +
-        '<td>' + o.supplier + '</td>' +
-        matsCell +
-        dateCell +
-        '<td style="text-align:right;font-family:var(--font-mono);font-size:11px">Ksh ' + (o.estCostKes||0).toLocaleString() + '</td></tr>';
+      const actionHtml = '<div style="margin-top:3px;font-size:9px;color:var(--text3)">→ ' + step.icon + ' ' + step.label + '</div>';
+
+      // Bill amount (step 4)
+      const billAmt = (o.billAmountTotal && !o.billPaid)
+        ? '<div style="font-size:10px;font-weight:700;color:#2980b9;margin-top:3px">Ksh ' + o.billAmountTotal.toLocaleString() + ' due</div>'
+        : '';
+
+      // Confirmation-overdue flag (step 2)
+      const confirmFlag = (o.status === 'Sent' && o.daysSinceOrder > (o.confirmNormDays || 3))
+        ? '<div style="font-size:9px;color:#e67e22;font-weight:600;margin-top:2px">⚠ ' +
+          o.daysSinceOrder + 'd since sent (norm: ' + (o.confirmNormDays||3) + 'd)</div>'
+        : '';
+
+      // Date column
+      let dateHtml;
+      if (o.status === 'Draft') {
+        dateHtml = o.orderDeadline
+          ? '<span class="badge critical" style="font-size:9px">Send by ' + fmtDate(o.orderDeadline) + '</span>'
+          : '<span class="badge critical" style="font-size:9px">No deadline set</span>';
+      } else {
+        const arrDate = o.theoArrivalDate || o.expectedArrival;
+        const isLate  = arrDate && arrDate < todayStr && !o.hasReceipt;
+        dateHtml = arrDate
+          ? '<span class="badge ' + (isLate ? 'critical' : 'low') + '" style="font-size:9px">' + fmtDate(arrDate) + '</span>'
+          : '—';
+      }
+
+      const di = (!o.hasReceipt && (o.status==='Confirmed'||o.status==='Purchase Order')) ? delayInfo(o) : null;
+      const delayBadge = di
+        ? '<div style="font-size:9px;color:#c0392b;font-weight:600;margin-top:2px">⚠ ' + di.daysLate + 'd late</div>'
+        : '';
+
+      return '<tr>' +
+        '<td style="font-weight:600;white-space:nowrap">' + o.po + confirmFlag + actionHtml + billAmt + '</td>' +
+        '<td style="white-space:nowrap">' + o.supplier + '</td>' +
+        '<td style="font-size:11px;line-height:1.6">' + mats + notesHtml + timelineFooter(o) + '</td>' +
+        '<td>' + dateHtml + delayBadge + '</td>' +
+        '<td style="text-align:right;font-family:var(--font-mono);font-size:11px">Ksh ' + (o.estCostKes||0).toLocaleString() + '</td>' +
+        '</tr>';
     }).join('');
-    return '<div style="margin-bottom:14px">' +
-      '<div style="font-size:12px;font-weight:700;color:' + colour + ';margin-bottom:6px;display:flex;align-items:center;gap:8px">' +
-      emoji + ' ' + title + ' <span style="background:' + colour + ';color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700">' + items.length + '</span>' +
-      (hint ? '<span style="font-size:10px;font-weight:400;color:var(--text3)">' + hint + '</span>' : '') +
+
+    return '<div style="margin-bottom:18px">' +
+      '<div style="font-size:12px;font-weight:700;color:' + colour + ';margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+      (stepLabel ? '<span style="font-size:9px;font-weight:700;background:' + colour + ';color:#fff;border-radius:3px;padding:1px 5px">' + stepLabel + '</span> ' : '') +
+      emoji + ' ' + title +
+      ' <span style="background:' + colour + ';color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700">' + items.length + '</span>' +
+      (hint ? ' <span style="font-size:10px;font-weight:400;color:var(--text3)">' + hint + '</span>' : '') +
       '</div>' +
-      '<div style="overflow-x:auto">' +
-      '<table class="comparison-table" style="font-size:12px"><thead><tr>' +
-      '<th>PO</th><th>Supplier</th><th>Material(s)</th><th>Date</th><th style="text-align:right">Est. cost</th>' +
+      '<div style="overflow-x:auto"><table class="comparison-table" style="font-size:12px"><thead><tr>' +
+      '<th>PO / Action</th><th>Supplier</th><th>Material(s)</th><th>Expected arrival</th><th style="text-align:right">Est. cost</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   };
 
-  // ── Other open POs (no urgent action) ────────────────────────────────────
-  let othersHtml = '';
-  if (others.length) {
-    const rows = others.map(function(o) {
-      const mats = (o.materials||[]).map(m => m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>').join('<br>');
-      const notesHtml = (isFreightPO(o) && o.notes)
-        ? '<div style="margin-top:4px;font-size:10px;color:var(--text2);border-left:2px solid var(--accent);padding-left:6px;line-height:1.5">' +
-          o.notes.replace(/\n/g, '<br>') + '</div>'
-        : '';
-      const statusClass = o.status === 'Confirmed' ? 'ok' : o.status === 'Sent' ? 'low' : '';
-      const stepO = procStepLabel(o, todayStr);
-      return '<tr>' +
-        '<td style="font-weight:600;white-space:nowrap">' + o.po + '<div style="font-size:9px;color:var(--text3);margin-top:2px">📍 ' + stepO.icon + ' ' + stepO.label + '</div></td>' +
-        '<td>' + o.supplier + '</td>' +
-        '<td style="font-size:11px;line-height:1.6">' + mats + notesHtml + '</td>' +
-        '<td>' + fmtDate(o.orderDeadline) + '</td>' +
-        '<td>' + fmtDate(o.expectedArrival) + '</td>' +
-        '<td>' + (statusClass ? '<span class="badge ' + statusClass + '">' + o.status + '</span>' : '<span class="badge">' + o.status + '</span>') + '</td>' +
-        '<td style="text-align:right;font-family:var(--font-mono);font-size:11px">Ksh ' + (o.estCostKes||0).toLocaleString() + '</td></tr>';
-    }).join('');
-    othersHtml = '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:var(--text3);padding:6px 0;list-style:none">' +
-      '▸ All other open POs (' + others.length + ') — no immediate action</summary>' +
-      '<div style="overflow-x:auto;margin-top:8px"><table class="comparison-table" style="font-size:11px"><thead><tr>' +
-      '<th>PO</th><th>Supplier</th><th>Material(s)</th><th>Order deadline</th><th>Expected arrival</th><th>Status</th><th style="text-align:right">Est. cost</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+  // ── Monitoring / in-transit (collapsible) ─────────────────────────────────
+  let monitoringHtml = '';
+  if (monitoring.length) {
+    const inTransit = monitoring.filter(o => (o.status==='Confirmed'||o.status==='Purchase Order') && o.billPaid && !o.hasReceipt);
+    const draftLater = monitoring.filter(o => o.status==='Draft');
+    const label = [
+      inTransit.length  ? '🚢 In transit (' + inTransit.length + ')' : '',
+      draftLater.length ? 'Drafts not due yet (' + draftLater.length + ')' : ''
+    ].filter(Boolean).join('  ·  ');
+    if (label) {
+      const rows = monitoring.map(function(o) {
+        const mats = (o.materials||[]).map(m => m.name + ' <span style="color:var(--text3)">(' + m.qty + ' kg)</span>').join('<br>');
+        const arrDate = o.theoArrivalDate || o.expectedArrival;
+        return '<tr>' +
+          '<td style="font-weight:600;white-space:nowrap">' + o.po + '</td>' +
+          '<td>' + o.supplier + '</td>' +
+          '<td style="font-size:11px;line-height:1.6">' + mats + timelineFooter(o) + '</td>' +
+          '<td>' + fmtDate(o.orderDeadline || null) + '</td>' +
+          '<td>' + (arrDate ? fmtDate(arrDate) : '—') + '</td>' +
+          '<td style="text-align:right;font-family:var(--font-mono);font-size:11px">Ksh ' + (o.estCostKes||0).toLocaleString() + '</td>' +
+          '</tr>';
+      }).join('');
+      monitoringHtml = '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:var(--text3);padding:6px 0;list-style:none">▸ ' + label + ' — no action needed</summary>' +
+        '<div style="overflow-x:auto;margin-top:8px"><table class="comparison-table" style="font-size:11px"><thead><tr>' +
+        '<th>PO</th><th>Supplier</th><th>Material(s)</th><th>Order deadline</th><th>Expected arrival</th><th style="text-align:right">Est. cost</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+    }
   }
 
-  // ── Assemble ──────────────────────────────────────────────────────────────
-  const needsAction = sendNow.length + followUp.length + comingUp.length + sentAwaitingConfirm.length + draftNoDeadline.length;
+  // ── Summary bar ───────────────────────────────────────────────────────────
+  const urgentCount = step1_sendNow.length + step3_noBill.length + step4_payBill.length + step5_overdue.length;
+  const watchCount  = step1_sendSoon.length + step2_confirm.length;
   const totalOutstanding = list.reduce(function(s,o){ return s + (o.estCostKes||0); }, 0);
+  const totalBillsDue    = step4_payBill.reduce(function(s,o){ return s + (o.billAmountTotal||0); }, 0);
 
-  const copyBtnId = 'ot-copy-btn';
   const summaryEl = document.getElementById('ot-summary');
   if (summaryEl) {
     summaryEl.innerHTML = list.length
-      ? `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;font-size:11px;color:var(--text2)">
-           <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-             ${sendNow.length ? '<span class="badge critical">' + sendNow.length + ' to send now</span>' : ''}
-             ${followUp.length ? '<span class="badge" style="background:var(--warn-bg,#fff3cd);color:var(--warn-txt,#856404);border-color:var(--warn-bdr,#ffc107)">' + followUp.length + ' overdue arrival</span>' : ''}
-             ${comingUp.length ? '<span class="badge low">' + comingUp.length + ' due within 7 days</span>' : ''}
-             ${!needsAction ? '<span style="color:var(--ok-txt)">✓ No urgent actions</span>' : ''}
-             <span style="color:var(--text3)">${list.length} open PO${list.length===1?'':'s'} · Ksh ${Math.round(totalOutstanding).toLocaleString()} outstanding</span>
-           </div>
-           ${needsAction ? '<button class="fbtn" id="' + copyBtnId + '" onclick="otCopySlack()" style="font-size:11px">📋 Copy Slack message</button>' : ''}
-         </div>`
+      ? '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;font-size:11px;color:var(--text2)">' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+        (urgentCount ? '<span class="badge critical">' + urgentCount + ' need action now</span>' : '') +
+        (watchCount  ? '<span class="badge low">' + watchCount + ' to watch</span>' : '') +
+        (!urgentCount && !watchCount ? '<span style="color:var(--ok-txt)">✓ No urgent actions</span>' : '') +
+        (totalBillsDue ? '<span style="font-weight:600;color:#2980b9;margin-left:4px">💳 Bills due: Ksh ' + Math.round(totalBillsDue).toLocaleString() + '</span>' : '') +
+        '<span style="color:var(--text3)">' + list.length + ' open PO' + (list.length===1?'':'s') +
+        ' · Ksh ' + Math.round(totalOutstanding).toLocaleString() + ' outstanding</span>' +
+        '</div>' +
+        (urgentCount ? '<button class="fbtn" id="ot-copy-btn" onclick="otCopySlack()" style="font-size:11px">📋 Copy Slack digest</button>' : '') +
+        '</div>'
       : '';
   }
 
@@ -5818,18 +5951,28 @@ function renderOrderTracker() {
     return;
   }
 
-  // Store slack text for copy button
   window._otSlackText = slackText;
 
   el.innerHTML =
-    makeSection('🔴','#c0392b','Send now — dispatch these RFQs today', sendNow, '') +
-    makeSection('⚠️','#8e44ad','Confirm to PO — vendor quote received, not yet confirmed in Odoo', sentAwaitingConfirm,
-      'Ask Mwongola to open in Odoo → confirm → upload vendor invoice') +
-    makeSection('⚙️','#7f8c8d','Set deadline — draft RFQs with no send date', draftNoDeadline,
-      'Set an order deadline so these don\'t get lost') +
-    makeSection('🟠','#e67e22','Follow up — arrival is overdue, chase the supplier', followUp, '') +
-    makeSection('🟡','#f39c12','Coming up — send within the next 7 days', comingUp, '') +
-    othersHtml;
+    makeSection('STEP 1','🔴','#c0392b',
+      'Send RFQ — overdue or no deadline set', step1_sendNow,
+      'Open in Odoo → set deadline → send to supplier') +
+    makeSection('STEP 1','🟡','#e67e22',
+      'Send RFQ soon — deadline within 7 days', step1_sendSoon, '') +
+    makeSection('STEP 2','🟠','#d35400',
+      'Awaiting PO confirmation', step2_confirm,
+      'RFQ sent — once supplier replies, confirm to PO in Odoo') +
+    makeSection('STEP 3','📄','#8e44ad',
+      'Create bill — upload supplier invoice in Odoo', step3_noBill,
+      o => o && o.hasReceipt
+        ? 'Goods received — upload delivery invoice to create bill'
+        : 'PO confirmed — upload supplier invoice/PFI to create bill') +
+    makeSection('STEP 4','💳','#2980b9',
+      'Pay bill', step4_payBill, 'Bill amount shown per PO below') +
+    makeSection('STEP 5','⚠️','#c0392b',
+      'Arrival overdue — chase supplier', step5_overdue,
+      'Bill paid but goods not yet received in Odoo') +
+    monitoringHtml;
 }
 
 function otCopySlack() {
@@ -5859,22 +6002,32 @@ function renderActionBanner() {
   const list = upcomingOrders || [];
   const todayStr = new Date().toISOString().substring(0,10);
 
-  const sendNow  = list.filter(o => o.status === 'Draft' && o.orderDeadline && o.orderDeadline <= todayStr);
-  const arrivals = list.filter(o => (o.status === 'Confirmed' || o.status === 'Sent') && o.expectedArrival && o.expectedArrival < todayStr);
+  const sendNow      = list.filter(o => o.status === 'Draft' && (!o.orderDeadline || o.orderDeadline <= todayStr));
+  const pfiOverdue   = list.filter(o => o.pfiOverdue);
+  const payBill      = list.filter(o => o.hasBill && !o.billPaid);
+  const arrivals     = list.filter(o => (o.status === 'Confirmed' || o.status === 'Purchase Order') && !o.hasReceipt && o.expectedArrival && o.expectedArrival < todayStr && !o.pfiOverdue && !(o.hasBill && !o.billPaid));
 
-  if (!sendNow.length && !arrivals.length) { el.style.display = 'none'; return; }
+  if (!sendNow.length && !pfiOverdue.length && !payBill.length && !arrivals.length) { el.style.display = 'none'; return; }
 
   const parts = [];
   if (sendNow.length) {
-    const names = sendNow.slice(0,3).map(o => '<b>' + o.po + '</b> (' + o.supplier + ') — Step: Send RFQ').join(', ');
+    const names = sendNow.slice(0,3).map(o => '<b>' + o.po + '</b> (' + o.supplier + ')').join(', ');
     parts.push('🔴 <b>' + sendNow.length + ' RFQ' + (sendNow.length>1?'s':'') + ' to send:</b> ' + names + (sendNow.length>3?' + '+(sendNow.length-3)+' more':''));
+  }
+  if (pfiOverdue.length) {
+    const names = pfiOverdue.slice(0,2).map(o => '<b>' + o.po + '</b> (' + o.supplier + ')').join(', ');
+    parts.push('🚨 <b>' + pfiOverdue.length + ' PFI overdue:</b> ' + names + (pfiOverdue.length>2?' + '+(pfiOverdue.length-2)+' more':''));
+  }
+  if (payBill.length) {
+    const totalDue = payBill.reduce(function(s,o){ return s + (o.billAmountTotal||0); }, 0);
+    parts.push('💳 <b>' + payBill.length + ' bill' + (payBill.length>1?'s':'') + ' pending payment</b> — Ksh ' + Math.round(totalDue).toLocaleString());
   }
   if (arrivals.length) {
     const names = arrivals.slice(0,2).map(o => '<b>' + o.po + '</b>').join(', ');
-    parts.push('🟠 <b>' + arrivals.length + ' arrival' + (arrivals.length>1?'s':'') + ' overdue:</b> ' + names + (arrivals.length>2?' + '+(arrivals.length-2)+' more':''));
+    parts.push('⚠️ <b>' + arrivals.length + ' arrival' + (arrivals.length>1?'s':'') + ' overdue:</b> ' + names + (arrivals.length>2?' + '+(arrivals.length-2)+' more':''));
   }
 
-  const isRed = sendNow.length > 0;
+  const isRed = sendNow.length > 0 || pfiOverdue.length > 0;
   el.style.display = 'block';
   el.innerHTML = '<div style="background:' + (isRed ? 'var(--crit-bg,#fee2e2)' : '#fff3cd') + ';color:' + (isRed ? 'var(--crit-txt,#7f1d1d)' : '#664d03') + ';border-bottom:1px solid ' + (isRed ? 'var(--crit-bdr,#fca5a5)' : '#ffc107') + ';padding:8px 16px;font-size:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">' +
     '<span style="flex:1">' + parts.join('&ensp;·&ensp;') + '</span>' +
@@ -8000,20 +8153,26 @@ function todayPipeline() {
     } else if (st === 'Sent') {
       sentWaiting.push(o);
     } else {
-      // Confirmed — walk sub-stages in priority order
+      // Confirmed — walk sub-stages in priority order:
+      // 1. Bill posted but unpaid → Finance must act NOW (regardless of arrival)
+      // 2. No bill + arrival date has passed → someone needs to upload the invoice
+      // 3. Arrival overdue + no bill → chase supplier AND get invoice ready
+      // 4. Everything else → on order, nothing to do yet
       var overdue = arr && arr < todayStr;
 
-      if (overdue) {
-        // Arrival is past — always the loudest signal regardless of billing state
-        overdueArr.push(o);
-      } else if (o.hasReceipt && !o.hasBill) {
-        // Goods have partially or fully arrived but no vendor invoice yet
-        awaitingBill.push(o);
-      } else if (o.billPosted && !o.billPaid) {
-        // Bill confirmed in Odoo but payment not done yet
+      if (o.billPosted && !o.billPaid) {
+        // Vendor bill confirmed in Odoo but not yet paid → Finance action
         billUnpaid.push(o);
+      } else if (o.hasBill && !o.billPosted) {
+        // Bill exists in Odoo as a DRAFT — needs to be confirmed/posted before payment
+        awaitingBill.push(o);
+      } else if (!o.hasBill && overdue) {
+        // Arrival date has passed AND no bill exists yet.
+        // Goods may have arrived without being received in Odoo, or supplier delayed.
+        // Either way: chase supplier for delivery status AND/OR their invoice.
+        overdueArr.push(o);
       } else {
-        // Nothing outstanding — goods haven't arrived, or bill is already paid
+        // Delivery still expected in future, bill not yet needed → nothing to do
         confirmed.push(o);
       }
     }
@@ -8105,20 +8264,20 @@ function todayPipeline() {
     null
   );
 
-  // D: Overdue arrival (most urgent — show before billing stages)
+  // D: Overdue arrival + no bill — needs both logistics chase AND invoice
   html += stageCard(
-    '⚠️', 'Overdue arrival — chase supplier / freight',
-    'Expected receipt date has passed — contact supplier for status update',
+    '⚠️', 'Overdue — no delivery & no bill',
+    'Expected receipt date has passed and no vendor bill exists. Chase supplier on delivery status and request their invoice.',
     '#8e44ad', 'rgba(142,68,173,.08)', '#8e44ad',
     overdueArr,
     'Expected', function(o){ return o.expectedArrival; },
     function(){ return '#8e44ad'; }
   );
 
-  // E: Received but no bill yet — finance stage
+  // E: Draft bill exists but not yet confirmed in Odoo — finance stage
   html += stageCard(
-    '🧾', 'Goods received — awaiting vendor bill',
-    'Goods have arrived. Request invoice from supplier, then create the bill in Odoo.',
+    '🧾', 'Draft bill — needs confirming in Odoo',
+    'A vendor bill has been created in Odoo but is still a draft. Open it and click Confirm to post it before paying.',
     '#1a6fa8', 'rgba(26,111,168,.08)', '#1a6fa8',
     awaitingBill,
     'Expected', function(o){ return o.expectedArrival; },
