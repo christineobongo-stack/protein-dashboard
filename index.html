@@ -347,11 +347,11 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <div class="debug-box" id="debugBox"></div>
   <div class="err-box" id="errBox"></div>
 
-  <!-- TAB 0: TODAY — landing screen -->
+  <!-- TAB 0: TODAY — procurement pipeline status -->
   <div class="tab-page active" id="page-today">
     <div style="margin-top:4px">
 
-      <!-- Header row: last updated + refresh hint -->
+      <!-- Header row -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div>
           <div style="font-size:18px;font-weight:700;color:var(--text)" id="today-greeting">Good morning</div>
@@ -363,52 +363,16 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
         </div>
       </div>
 
-      <!-- Critical alerts: ingredients needing action -->
-      <div style="margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-          <span>⚠️ Raw material alerts</span>
-          <span id="today-alert-count" style="background:var(--crit-bg);color:var(--crit-txt);border:1px solid var(--crit-bdr);border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;display:none"></span>
-        </div>
-        <div id="today-alerts">
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
-        </div>
+      <!-- Pipeline summary chips (populated by renderToday) -->
+      <div id="today-pipeline-summary" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+
+      <!-- Procurement pipeline: one card per stage -->
+      <div id="today-pipeline">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
       </div>
 
-      <!-- Two-column below alerts: FG coverage + order deadlines -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-
-        <!-- FG coverage for top SKUs -->
-        <div>
-          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">📦 Finished goods coverage</div>
-          <div id="today-fg" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-            <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
-          </div>
-        </div>
-
-        <!-- Order deadlines coming up -->
-        <div>
-          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">📅 Order deadlines</div>
-          <div id="today-deadlines" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-            <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Supplement stock snapshot -->
-      <div style="margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">💊 Supplement coverage</div>
-        <div id="today-supps" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
-        </div>
-      </div>
-
-      <!-- Cycle commitment -->
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">💰 This cycle's cash commitment</div>
-        <div id="today-commitment" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
-        </div>
-      </div>
+      <!-- hidden span kept for backward-compat with renderActionBanner -->
+      <span id="today-alert-count" style="display:none"></span>
 
     </div>
   </div>
@@ -2737,7 +2701,19 @@ function getSt(stock,rq){const d=rq*2-stock;if(d>0&&stock===0)return'critical';i
 // ═══════════════════════════════════════════════════════════════════════════════
 function pkgNeeds(){
   const gf=getGrowthFactor();
-  const prot=PROT_SKUS.reduce((s,sku)=>s+(SALES[sku]||0),0)*gf;
+  // Size-specific rates: large=30/28-serve, medium=15/14-serve, small=taster+bulk supplements.
+  const largeMo=Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
+    return s+kv[1].filter(function(v){return v.serves>=28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
+  },0)*gf;
+  const medMo=Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
+    return s+kv[1].filter(function(v){return v.serves>=14&&v.serves<28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
+  },0)*gf;
+  const tasMo=Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
+    return s+kv[1].filter(function(v){return v.serves<=4;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
+  },0)*gf;
+  const bulkSuppMo=Object.values(BULK_ODOO_REFS).reduce(function(s,ref){return s+(avgSales[ref]||0);},0)*gf;
+  // prot kept for backward compatibility with callers that use it for large-bag/scoop rates
+  const prot=largeMo;
 
   // Derive bulk packaging demand from reorderPlan (highest-of-3-months×1.2 buffer),
   // matching the methodology used by the Reorder Calculator for raw materials.
@@ -2767,15 +2743,16 @@ function pkgNeeds(){
     }
   }
   const bulk = bulkPacks !== null ? bulkPacks
-             : Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0)*gf;
+             : bulkSuppMo;
   const sachet = sachetMo !== null ? sachetMo : bulk*2; // 2 sachets per pack, all bulk SKUs
+  const smallStickerMo = tasMo + bulk; // 4-serve tasters + all bulk supplement packs
   return{
-    large_bag:prot, small_bag:bulk,
-    // 1 Odoo sticker unit = 1 front+back pair; 1 pair used per pack
-    large_sticker:prot, small_sticker:bulk,
+    large_bag:prot, medium_bag:medMo, small_bag:tasMo+bulk,
+    // 1 Odoo sticker unit = 1 front+back pair; 1 pair used per pack; size matches bag size
+    large_sticker:prot, medium_sticker:medMo, small_sticker:smallStickerMo,
     scoop_30g:prot, scoop_5g:bulk,
     sachet:sachet,
-    medium_bag:0, medium_sticker:0, scoop_50g:0,
+    scoop_50g:0,
   };
 }
 
@@ -6773,14 +6750,26 @@ function renderPackaging() {
   const fmtD = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 
   const gf = getGrowthFactor();
-  const protMo = Object.values(FORM_TABS).flatMap(c=>c.skus).reduce((s,sku)=>s+(SALES[sku]||0),0) * gf;
-  const bulkMo = Object.keys(BULK_CFG).reduce((s,sku)=>s+(SALES[sku]||0),0) * gf;
+  // Size-specific protein monthly rates from avgSales (per-variant, not SALES aggregates).
+  // serves>=28 → large (1kg) bags/stickers; serves 14-27 → medium (500g) bags/stickers;
+  // serves<=4 → taster bags/small stickers; bulk supplements → small bags/stickers.
+  const largeBagMo = Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
+    return s + kv[1].filter(function(v){return v.serves>=28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
+  },0) * gf;
+  const medBagMo = Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
+    return s + kv[1].filter(function(v){return v.serves>=14&&v.serves<28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
+  },0) * gf;
+  const tasMo = Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
+    return s + kv[1].filter(function(v){return v.serves<=4;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
+  },0) * gf;
+  const bulkSuppMo = Object.values(BULK_ODOO_REFS).reduce(function(s,ref){return s+(avgSales[ref]||0);},0) * gf;
+  const smallBagMo = tasMo + bulkSuppMo;
   // Shakers: real consumption from FG leaving Baobab+SCNB (avgShipments, wired in
   // Sep 15 2026 — previously hardcoded to 0 here even though Code.gs already
-  // computed it correctly). medium_bag stays 0 until Christine confirms which
-  // SKUs use medium-format packaging (see PKG_ITEMS.medium_bag.usageTBC).
+  // computed it correctly).
   const monthly = {
-    large_bag: protMo, medium_bag: 0, small_bag: bulkMo, scoop_30g: protMo, scoop_5g: bulkMo, silicon: bulkMo*2,
+    large_bag: largeBagMo, medium_bag: medBagMo, small_bag: smallBagMo,
+    scoop_30g: largeBagMo, scoop_5g: bulkSuppMo, silicon: bulkSuppMo*2,
     shaker_blk: (avgShipments['PROTSHAKBLK']||0) * gf,
     shaker_wht: (avgShipments['PROTSHAKWT']||0) * gf,
     shaker_clr: (avgShipments['PROTSHAKCLR']||0) * gf,
@@ -7599,11 +7588,22 @@ function renderStickerHealth() {
     small_sticker:  needs.small_sticker  || 0,
   };
 
-  // On-hand stock from pkgCosts
+  // On-hand stock from stickerVariants (location 19 via sharedQuants — correct for stickers).
+  // pkgCosts reads location 114 (packaging) which does NOT stock stickers — always wrong here.
+  // Deduplicate by odooProductId since the same sticker variant may appear in both
+  // KENYA_STICKERS and CHINA_STICKERS arrays (e.g. Creatine variants).
+  var stickerVar = (_memCache && _memCache.pkgStock && _memCache.pkgStock.stickerVariants) || {};
+  var _stkByKey = {}, _stkSeen = {};
+  [].concat(CHINA_STICKERS, KENYA_STICKERS).forEach(function(s) {
+    var pid = s.odooProductId;
+    if (!pid || _stkSeen[pid]) return;
+    _stkSeen[pid] = true;
+    _stkByKey[s.pkgKey] = (_stkByKey[s.pkgKey] || 0) + (stickerVar[pid] || 0);
+  });
   var stock = {
-    large_sticker:  (pkgCosts && pkgCosts.large_sticker  ? pkgCosts.large_sticker.stock  || 0 : 0),
-    medium_sticker: (pkgCosts && pkgCosts.medium_sticker ? pkgCosts.medium_sticker.stock || 0 : 0),
-    small_sticker:  (pkgCosts && pkgCosts.small_sticker  ? pkgCosts.small_sticker.stock  || 0 : 0),
+    large_sticker:  _stkByKey['large_sticker']  || 0,
+    medium_sticker: _stkByKey['medium_sticker'] || 0,
+    small_sticker:  _stkByKey['small_sticker']  || 0,
   };
 
   // Incoming from PROC_INCOMING_MAP pipeline
@@ -7910,20 +7910,11 @@ function renderCogs() {
 }
 
 function renderToday() {
-  todayGreeting();
-  todayAlerts();
-  todayFG();
-  todayDeadlines();
-  todaySupps();
-  todayCommitment();
-}
-
-function todayGreeting() {
+  // Greeting + data timestamp
   var h = new Date().getHours();
   var greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  var el = document.getElementById('today-greeting');
-  if (el) el.textContent = greet + ', Christine';
-
+  var greetEl = document.getElementById('today-greeting');
+  if (greetEl) greetEl.textContent = greet + ', Christine';
   var sub = document.getElementById('today-subtitle');
   var meta = (_memCache || {}).meta || {};
   if (sub) {
@@ -7937,9 +7928,252 @@ function todayGreeting() {
       sub.textContent = 'Awaiting data…';
     }
   }
+
+  // Pipeline
+  todayPipeline();
 }
 
-function todayAlerts() {
+// ── Procurement pipeline status — the single view on the Action Today tab ─────
+// Shows every open RFQ/PO bucketed by the step it is stuck at, so it's clear
+// at a glance what needs action and what is just waiting.
+//
+// Stages (in order of urgency):
+//   A: 🔴 RFQ not sent — Draft, deadline already passed or no deadline set
+//   B: 🟡 RFQ sending soon — Draft, deadline within 7 days
+//   C: 🟠 Sent — awaiting supplier PO confirmation
+//   D: 🟢 Confirmed PO — on order, awaiting arrival
+//   E: ⚠️ Overdue arrival — Confirmed, expected arrival date has passed
+//
+// "Bill not created" and "bill paid but not received" require account.move
+// data not yet in the payload — planned as a future Code.gs enhancement.
+function todayPipeline() {
+  var el = document.getElementById('today-pipeline');
+  var summaryEl = document.getElementById('today-pipeline-summary');
+  if (!el) return;
+
+  var list = (upcomingOrders || []).slice(); // copy so we don't mutate
+  if (!list.length) {
+    el.innerHTML = '<div style="background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:8px;padding:20px;display:flex;align-items:center;gap:12px">'
+      + '<span style="font-size:22px">✅</span>'
+      + '<div><div style="font-size:12px;font-weight:700;color:var(--ok-txt)">All clear — no open purchase orders</div>'
+      + '<div style="font-size:10px;color:var(--ok-txt);opacity:.85;margin-top:3px">No outstanding quantities found in Odoo.</div></div></div>';
+    if (summaryEl) summaryEl.innerHTML = '';
+    return;
+  }
+
+  var todayStr = new Date().toISOString().substring(0,10);
+  var in7 = new Date(); in7.setDate(in7.getDate() + 7);
+  var in7Str = in7.toISOString().substring(0,10);
+
+  // ── Stage buckets ────────────────────────────────────────────────────────────
+  // Stage A — RFQ not sent (Draft, deadline past or no deadline)
+  var notSent      = [];
+  // Stage B — Send soon (Draft, deadline within 7 days)
+  var sendingSoon  = [];
+  // Stage C — Sent, awaiting supplier confirmation
+  var sentWaiting  = [];
+  // Stage D — Overdue arrival, needs chasing (Confirmed, arrival date past)
+  var overdueArr   = [];
+  // Stage E — Received but no vendor bill yet — finance needs invoice from supplier
+  //           Condition: Confirmed + hasReceipt + !hasBill
+  //           (Bills in Odoo should be created AFTER goods arrive; flagging "no bill"
+  //            only makes sense once something has physically landed)
+  var awaitingBill = [];
+  // Stage F — Bill exists but not yet paid (Confirmed + billPosted + !billPaid)
+  var billUnpaid   = [];
+  // Stage G — On order, no action needed yet (Confirmed, future arrival, no issues)
+  var confirmed    = [];
+
+  list.forEach(function(o) {
+    var st  = o.status;           // 'Draft' | 'Sent' | 'Confirmed'
+    var dl  = o.orderDeadline  || null;
+    var arr = o.expectedArrival|| null;
+
+    if (st === 'Draft') {
+      if (dl && dl > in7Str) {
+        notSent.push(o);        // deadline well ahead but still draft
+      } else if (dl && dl > todayStr) {
+        sendingSoon.push(o);    // deadline within 7 days
+      } else {
+        notSent.push(o);        // no deadline or deadline passed
+      }
+    } else if (st === 'Sent') {
+      sentWaiting.push(o);
+    } else {
+      // Confirmed — walk sub-stages in priority order
+      var overdue = arr && arr < todayStr;
+
+      if (overdue) {
+        // Arrival is past — always the loudest signal regardless of billing state
+        overdueArr.push(o);
+      } else if (o.hasReceipt && !o.hasBill) {
+        // Goods have partially or fully arrived but no vendor invoice yet
+        awaitingBill.push(o);
+      } else if (o.billPosted && !o.billPaid) {
+        // Bill confirmed in Odoo but payment not done yet
+        billUnpaid.push(o);
+      } else {
+        // Nothing outstanding — goods haven't arrived, or bill is already paid
+        confirmed.push(o);
+      }
+    }
+  });
+
+  // Note: if hasBill/billPosted/billPaid are absent (older cached payload before
+  // Code.gs v29), all Confirmed POs fall to the confirmed bucket — graceful degradation.
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function fmtD(s) {
+    if (!s) return '—';
+    var d = new Date(s + 'T12:00:00');
+    return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  }
+  function daysUntil(s) {
+    if (!s) return null;
+    return Math.round((new Date(s + 'T12:00:00').getTime() - Date.now()) / 864e5);
+  }
+
+  function poRow(o, dateLabel, dateValue, dateColour) {
+    var mats = (o.materials || []).map(function(m) {
+      return '<span style="display:inline-block;margin-right:8px">' + m.name + ' <span style="color:var(--text3);font-size:10px">(' + m.qty + ' kg)</span></span>';
+    }).join('');
+    var cost = o.estCostKes ? 'Ksh ' + Math.round(o.estCostKes).toLocaleString() : '';
+    return '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:start;padding:10px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="min-width:80px">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap">' + o.po + '</div>'
+        + '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + o.supplier + '</div>'
+      + '</div>'
+      + '<div style="font-size:11px;line-height:1.7;color:var(--text2)">' + mats + '</div>'
+      + '<div style="text-align:right;white-space:nowrap">'
+        + (dateValue ? '<div style="font-size:10px;font-weight:600;color:' + (dateColour||'var(--text2)') + '">' + dateLabel + ' ' + fmtD(dateValue) + '</div>' : '')
+        + (cost ? '<div style="font-size:10px;color:var(--text3);margin-top:2px;font-family:var(--font-mono)">' + cost + '</div>' : '')
+      + '</div>'
+      + '</div>';
+  }
+
+  function stageCard(emoji, title, hint, colour, bgStyle, bdrStyle, items, dateLabel, dateFn, colFn) {
+    if (!items.length) return '';
+    var rows = items.map(function(o) {
+      var dv  = dateFn(o);
+      var col = colFn ? colFn(o) : colour;
+      return poRow(o, dateLabel, dv, col);
+    }).join('');
+    rows = rows.replace(/border-bottom:1px solid var\(--border\)(?=[^<]*<\/div><\/div>$)/, 'border-bottom:none');
+    return '<div style="background:' + bgStyle + ';border:1px solid ' + bdrStyle + ';border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'
+        + '<span style="font-size:16px">' + emoji + '</span>'
+        + '<span style="font-size:12px;font-weight:700;color:' + colour + '">' + title + '</span>'
+        + '<span style="background:' + colour + ';color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:2px">' + items.length + '</span>'
+      + '</div>'
+      + (hint ? '<div style="font-size:10px;color:var(--text3);margin-bottom:8px;padding-left:24px">' + hint + '</div>' : '<div style="margin-bottom:8px"></div>')
+      + rows
+      + '</div>';
+  }
+
+  // ── Build output ─────────────────────────────────────────────────────────────
+  var html = '';
+
+  // A: RFQ not sent
+  html += stageCard(
+    '🔴', 'RFQ not sent',
+    notSent.some(function(o){return !o.orderDeadline;})
+      ? 'Still drafts — set a deadline and send to supplier'
+      : 'Deadline has passed — send immediately',
+    '#c0392b', 'var(--crit-bg)', 'var(--crit-bdr)',
+    notSent,
+    'Send by', function(o){ return o.orderDeadline; },
+    function(o){ return o.orderDeadline && o.orderDeadline < todayStr ? '#c0392b' : 'var(--text3)'; }
+  );
+
+  // B: Send soon
+  html += stageCard(
+    '🟡', 'Send soon',
+    'Deadline within 7 days — send this week',
+    '#e6a817', 'var(--low-bg)', 'var(--low-bdr)',
+    sendingSoon,
+    'Send by', function(o){ return o.orderDeadline; },
+    function(o){ return daysUntil(o.orderDeadline) <= 2 ? '#c0392b' : '#e6a817'; }
+  );
+
+  // C: Sent, awaiting confirmation
+  html += stageCard(
+    '🟠', 'Sent — awaiting supplier confirmation',
+    'Follow up with supplier to confirm; then confirm the PO in Odoo',
+    '#e67e22', 'rgba(230,126,34,.08)', '#e67e22',
+    sentWaiting,
+    'Sent', function(o){ return o.orderDeadline; },
+    null
+  );
+
+  // D: Overdue arrival (most urgent — show before billing stages)
+  html += stageCard(
+    '⚠️', 'Overdue arrival — chase supplier / freight',
+    'Expected receipt date has passed — contact supplier for status update',
+    '#8e44ad', 'rgba(142,68,173,.08)', '#8e44ad',
+    overdueArr,
+    'Expected', function(o){ return o.expectedArrival; },
+    function(){ return '#8e44ad'; }
+  );
+
+  // E: Received but no bill yet — finance stage
+  html += stageCard(
+    '🧾', 'Goods received — awaiting vendor bill',
+    'Goods have arrived. Request invoice from supplier, then create the bill in Odoo.',
+    '#1a6fa8', 'rgba(26,111,168,.08)', '#1a6fa8',
+    awaitingBill,
+    'Expected', function(o){ return o.expectedArrival; },
+    function(){ return '#1a6fa8'; }
+  );
+
+  // F: Bill created but not yet paid — finance stage
+  html += stageCard(
+    '💳', 'Bill created — payment pending',
+    'Vendor bill is confirmed in Odoo. Arrange payment to complete the transaction.',
+    '#6d4c41', 'rgba(109,76,65,.08)', '#6d4c41',
+    billUnpaid,
+    'Expected', function(o){ return o.expectedArrival; },
+    function(){ return '#6d4c41'; }
+  );
+
+  // G: Confirmed, on order — no action needed yet
+  html += stageCard(
+    '🟢', 'On order — awaiting delivery',
+    'PO confirmed. No action needed until goods arrive.',
+    '#27ae60', 'var(--ok-bg)', 'var(--ok-bdr)',
+    confirmed,
+    'Expected', function(o){ return o.expectedArrival; },
+    function(){ return '#27ae60'; }
+  );
+
+  el.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">No open purchase orders found.</div>';
+
+  // ── Summary chips ─────────────────────────────────────────────────────────────
+  if (summaryEl) {
+    function chip(col, txt) {
+      return '<span style="display:inline-flex;align-items:center;gap:4px;background:' + col + '22;color:' + col
+        + ';border:1px solid ' + col + '55;border-radius:12px;padding:3px 10px;font-size:10px;font-weight:600">' + txt + '</span>';
+    }
+    var chips = '';
+    if (notSent.length)      chips += chip('#c0392b', '🔴 ' + notSent.length + ' not sent');
+    if (sendingSoon.length)  chips += chip('#e6a817', '🟡 ' + sendingSoon.length + ' due this week');
+    if (sentWaiting.length)  chips += chip('#e67e22', '🟠 ' + sentWaiting.length + ' awaiting confirmation');
+    if (overdueArr.length)   chips += chip('#8e44ad', '⚠️ ' + overdueArr.length + ' overdue arrival');
+    if (awaitingBill.length) chips += chip('#1a6fa8', '🧾 ' + awaitingBill.length + ' awaiting bill');
+    if (billUnpaid.length)   chips += chip('#6d4c41', '💳 ' + billUnpaid.length + ' payment pending');
+    if (confirmed.length)    chips += chip('#27ae60', '🟢 ' + confirmed.length + ' on order');
+    summaryEl.innerHTML = chips;
+  }
+}
+
+// ── REMOVED (content moved to other tabs, no longer duplicated here) ───────────
+// todayAlerts()    → see Raw materials tab
+// todayFG()        → see Stock Health tab
+// todayDeadlines() → see Reorder Calculator
+// todaySupps()     → see Raw materials tab
+// todayCommitment()→ see Repacking & capacity tab
+// ──────────────────────────────────────────────────────────────────────────────
+
+function todayAlerts_UNUSED() {
   var el = document.getElementById('today-alerts');
   var countEl = document.getElementById('today-alert-count');
   if (!el) return;
@@ -8106,7 +8340,7 @@ function todayAlerts() {
   el.innerHTML = html;
 }
 
-function todayFG() {
+function todayFG_UNUSED() {
   var el = document.getElementById('today-fg');
   if (!el) return;
 
@@ -8149,7 +8383,7 @@ function todayFG() {
   el.innerHTML = html;
 }
 
-function todayDeadlines() {
+function todayDeadlines_UNUSED() {
   var el = document.getElementById('today-deadlines');
   if (!el) return;
 
@@ -8212,7 +8446,7 @@ function todayDeadlines() {
   el.innerHTML = html;
 }
 
-function todaySupps() {
+function todaySupps_UNUSED() {
   var el = document.getElementById('today-supps');
   if (!el) return;
 
@@ -8251,7 +8485,7 @@ function todaySupps() {
   el.innerHTML = html;
 }
 
-function todayCommitment() {
+function todayCommitment_UNUSED() {
   var el = document.getElementById('today-commitment');
   if (!el) return;
 
