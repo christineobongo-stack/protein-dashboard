@@ -330,6 +330,9 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
   <div class="src"><span class="dot idle" id="dot-eco"></span><span id="lbl-eco">ECONOMY+</span></div>
   <div class="src"><span class="dot idle" id="dot-iso"></span><span id="lbl-iso">ISOPRO</span></div>
   <div class="src"><span class="dot idle" id="dot-bio"></span><span id="lbl-bio">BIOBALANCE</span></div>
+  <div class="src"><span class="dot idle" id="dot-mg"></span><span id="lbl-mg">MASS GAINER</span></div>
+  <div class="src"><span class="dot idle" id="dot-vp"></span><span id="lbl-vp">VEGAN PROTEIN</span></div>
+  <div class="src"><span class="dot idle" id="dot-mr"></span><span id="lbl-mr">MEAL REPL. WIMBI</span></div>
 </div>
 
 <div class="tabs">
@@ -1723,7 +1726,7 @@ tbody td{padding:7px 10px;vertical-align:middle;overflow:hidden}
     <!-- Header + controls -->
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <span style="font-size:14px;font-weight:700;color:var(--text)">💰 Unit Cost Tracker</span>
-      <span style="font-size:11px;color:var(--text3)">Source: Odoo stock valuation layers (actual FIFO cost + landed costs) · 2026 receipts</span>
+      <span id="cogs-source-note" style="font-size:11px;color:var(--text3)">Source: Odoo standard price (live) — or stock valuation layers if AVCO/FIFO is enabled</span>
       <button class="fbtn" style="margin-left:auto" onclick="safeRender('cogs',renderCogs)">↻ Refresh</button>
     </div>
 
@@ -1794,14 +1797,25 @@ const SALES = {
   ECOVAN:27, ECOCHOC:15, ECOBAN:6, ISPVAN:20, ISPUN:13, BIOVAN:28, BIOUN:11,
   CREATUN:126, CREATFP:49, CREATPG:37, PWORKWM:11, PWORKGA:19, BCAA:9, COLUN:37,
   'PANCAKE MIX':31,
+  // New pilot ranges — pilot volumes (Oct 2026): MG 70/mo, VP 50/mo, MR 50/mo.
+  // Split based on CE historical sales (57%/27%/16% V/C/C&C; 62%/29%/9% V/C/Banana).
+  // These are fallbacks only — Odoo live data will overwrite once shipments exist.
+  MGVAN:40, MGCHOC:19, MGCREAM:11,
+  VPVAN:29, VPCHOC:14, VPCREAM:7,
+  MRVAN:31, MRCHOC:15, MRBAN:4,
 };
 
 // Formulation tabs — each has a confirmed pack weight and serving size
 const FORM_TABS = {
-  'CORE ESSENTIAL': { gid:728498255,  skus:['CEVAN','CECHOC','CEBAN','CECREAM','CESC','CEVBC','CEVCHAI','PureForm'], packG:980, dot:'dot-ce',  lbl:'lbl-ce'  },
-  'ECONOMY+':       { gid:2113422397, skus:['ECOVAN','ECOCHOC','ECOBAN'],                                           packG:980, dot:'dot-eco', lbl:'lbl-eco' },
-  'ISOPRO':         { gid:96399364,   skus:['ISPVAN','ISPUN'],                                                      packG:810, dot:'dot-iso', lbl:'lbl-iso' },
-  'BIOBALANCE':     { gid:1097578210, skus:['BIOVAN','BIOUN'],                                                      packG:840, dot:'dot-bio', lbl:'lbl-bio' },
+  'CORE ESSENTIAL': { gid:728498255,  skus:['CEVAN','CECHOC','CEBAN','CECREAM','CESC','CEVBC','CEVCHAI','PureForm'], packG:980,  dot:'dot-ce',  lbl:'lbl-ce'  },
+  'ECONOMY+':       { gid:2113422397, skus:['ECOVAN','ECOCHOC','ECOBAN'],                                           packG:980,  dot:'dot-eco', lbl:'lbl-eco' },
+  'ISOPRO':         { gid:96399364,   skus:['ISPVAN','ISPUN'],                                                      packG:810,  dot:'dot-iso', lbl:'lbl-iso' },
+  'BIOBALANCE':     { gid:1097578210, skus:['BIOVAN','BIOUN'],                                                      packG:840,  dot:'dot-bio', lbl:'lbl-bio' },
+  // New pilot ranges — Oct 2026. gid:0 = placeholder (csvUrl/parseFormTab are unused dead code;
+  // formulation data comes from Apps Script backend LIVE_FORM_TABS, not from browser CSV fetch).
+  'MASS GAINER':    { gid:0,          skus:['MGVAN','MGCHOC','MGCREAM'],                                            packG:3000, dot:'dot-mg',  lbl:'lbl-mg'  },
+  'VEGAN PROTEIN':  { gid:0,          skus:['VPVAN','VPCHOC','VPCREAM'],                                            packG:810,  dot:'dot-vp',  lbl:'lbl-vp'  },
+  'MEAL REPL WIMBI':{ gid:0,          skus:['MRVAN','MRCHOC','MRBAN'],                                              packG:1000, dot:'dot-mr',  lbl:'lbl-mr'  },
 };
 const SERVING_G = 33;
 
@@ -1831,6 +1845,9 @@ const RQ_W = {
   CEVAN:.98,CECHOC:.98,CEBAN:.98,CECREAM:.98,CESC:.98,CEVBC:.98,CEVCHAI:.98,PureForm:.98,
   ECOVAN:.985,ECOCHOC:.985,ECOBAN:.985,ISPVAN:.815,ISPUN:.815,BIOVAN:.845,BIOUN:.845,
   'PANCAKE MIX':.6,'PFORM CALO':1,
+  MGVAN:3.0,MGCHOC:3.0,MGCREAM:3.0,
+  VPVAN:.81,VPCHOC:.81,VPCREAM:.81,
+  MRVAN:1.0,MRCHOC:1.0,MRBAN:1.0,
 };
 
 // SKU → tab config lookup
@@ -1843,6 +1860,9 @@ const PROT_INFO = {
   CESC:'CE Salted Caramel', CEVBC:'CE Birthday Cake', CEVCHAI:'CE Vanilla Chai', PureForm:'PureForm',
   ECOVAN:'ECO Vanilla', ECOCHOC:'ECO Chocolate', ECOBAN:'ECO Banana',
   ISPVAN:'ISOPRO Vanilla', ISPUN:'ISOPRO Unflavoured', BIOVAN:'BIOBALANCE Vanilla', BIOUN:'BIOBALANCE Unflav.',
+  MGVAN:'MG Vanilla', MGCHOC:'MG Chocolate', MGCREAM:'MG Cookies & Cream',
+  VPVAN:'VP Vanilla', VPCHOC:'VP Chocolate', VPCREAM:'VP Cookies & Cream',
+  MRVAN:'MR Wimbi Vanilla', MRCHOC:'MR Wimbi Chocolate', MRBAN:'MR Wimbi Banana',
 };
 
 // Bulk supplement config
@@ -2711,40 +2731,23 @@ function pkgNeeds(){
   const tasMo=Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
     return s+kv[1].filter(function(v){return v.serves<=4;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
   },0)*gf;
-  const bulkSuppMo=Object.values(BULK_ODOO_REFS).reduce(function(s,ref){return s+(avgSales[ref]||0);},0)*gf;
+  // Bulk supplement small-bag demand: use avgSales directly (packs sold/month).
+  // NOTE: We do NOT use the reorderPlan path here even when it is available.
+  // reorderPlan derives rates from BOM consumption through Baobab dispatch
+  // locations 353/354, but bulk supplement packs (creatine, collagen, BCAA, etc.)
+  // are frequently dispatched from other locations — so the BOM-based rate is
+  // near-zero and silently overrides the correct sales-based figure, producing
+  // an undercount (observed: 125/mo vs actual 400+/mo for small bags).
+  //
+  // BULK_ODOO_REFS.COLUN is 'COLPG18' (pink guava collagen), so we add COLUN18
+  // (unflavoured collagen) explicitly so both collagen SKUs contribute.
+  const bulkSuppMo=(Object.values(BULK_ODOO_REFS).reduce(function(s,ref){return s+(avgSales[ref]||0);},0)
+                   +(avgSales['COLUN18']||0))*gf;
   // prot kept for backward compatibility with callers that use it for large-bag/scoop rates
   const prot=largeMo;
 
-  // Derive bulk packaging demand from reorderPlan (highest-of-3-months×1.2 buffer),
-  // matching the methodology used by the Reorder Calculator for raw materials.
-  // Falls back to static SALES constants if reorderPlan isn't loaded yet.
-  let bulkPacks = null;
-  let sachetMo  = null;
-  if (typeof reorderPlan !== 'undefined' && reorderPlan && reorderPlan.length) {
-    const planByMat = {};
-    reorderPlan.forEach(function(p) {
-      if (p.material && p.bufferedMonthlyRateKg != null) {
-        planByMat[p.material.toLowerCase().trim()] = p.bufferedMonthlyRateKg;
-      }
-    });
-    let totalPacks = 0, preworkoutPacks = 0, anyFound = false;
-    Object.entries(BULK_CFG).forEach(function([sku, cfg]) {
-      const rateKg = planByMat[(cfg.ingKey || '').toLowerCase().trim()];
-      if (rateKg != null && cfg.kgPerPack) {
-        const packs = rateKg / cfg.kgPerPack;
-        totalPacks += packs;
-        if (SILICON_SKUs && SILICON_SKUs[sku]) preworkoutPacks += packs;
-        anyFound = true;
-      }
-    });
-    if (anyFound) {
-      bulkPacks = totalPacks;
-      sachetMo  = totalPacks * 2; // 2 silicon sachets per pack, ALL bulk supplement SKUs
-    }
-  }
-  const bulk = bulkPacks !== null ? bulkPacks
-             : bulkSuppMo;
-  const sachet = sachetMo !== null ? sachetMo : bulk*2; // 2 sachets per pack, all bulk SKUs
+  const bulk   = bulkSuppMo;
+  const sachet = bulk * 2; // 2 silicon sachets per pack, all bulk supplement SKUs
   const smallStickerMo = tasMo + bulk; // 4-serve tasters + all bulk supplement packs
   return{
     large_bag:prot, medium_bag:medMo, small_bag:tasMo+bulk,
@@ -2767,7 +2770,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v21'; // bumped v20→v21: valuationLayers in payload for COGS unit cost tracker tab
+const CACHE_KEY_LS = 'pk_payload_v22'; // bumped v21→v22: standardPrices in payload as fallback for unit costs tab when AVCO/FIFO not enabled
 
 function lsCacheGet(){
   try{
@@ -3931,8 +3934,8 @@ async function loadAll(forceRefresh=false){
   formulations={}; ingCosts={}; pkgCosts={};
 
   setDot('dot-proc','lbl-proc','loading','Fetching data…');
-  ['dot-ce','dot-eco','dot-iso','dot-bio'].forEach((d,i)=>{
-    const lbls=['lbl-ce','lbl-eco','lbl-iso','lbl-bio'];
+  ['dot-ce','dot-eco','dot-iso','dot-bio','dot-mg','dot-vp','dot-mr'].forEach((d,i)=>{
+    const lbls=['lbl-ce','lbl-eco','lbl-iso','lbl-bio','lbl-mg','lbl-vp','lbl-mr'];
     setDot(d,lbls[i],'loading','…');
   });
 
@@ -7957,27 +7960,48 @@ function renderCogs() {
     Object.keys(prod.months || {}).forEach(function(m) { monthSet[m] = true; });
   });
   var months = Object.keys(monthSet).sort(); // ['2026-01', '2026-02', …]
+
+  // If no SVL data (Odoo uses Standard Price rather than AVCO/FIFO),
+  // fall back to standardPrices (fetched from product.template.standard_price)
+  var usingStdPrice = false;
   if (!months.length) {
-    thead.innerHTML = '<tr><th>Product</th><th>No data</th></tr>';
-    tbody.innerHTML = '<tr><td colspan="2" style="padding:16px;text-align:center;color:var(--text3)">No valuation layer data found. Redeploy Code.gs (v27) and refresh.</td></tr>';
-    return;
+    var stdPrices = payload.standardPrices || {};
+    if (Object.keys(stdPrices).length > 0) {
+      usingStdPrice = true;
+      layers = {};
+      Object.entries(stdPrices).forEach(function(entry) {
+        var id = entry[0]; var sp = entry[1];
+        layers[id] = { name: sp.name, categ: sp.categ, months: { 'current': { qty: 1, value: sp.kshUnitCost, unitCost: sp.kshUnitCost } } };
+      });
+      months = ['current'];
+      var noteEl = document.getElementById('cogs-source-note');
+      if (noteEl) noteEl.textContent = 'Source: Odoo standard price (live) — AVCO/FIFO not enabled, so no historical cost layers';
+    } else {
+      thead.innerHTML = '<tr><th>Product</th><th>No data</th></tr>';
+      tbody.innerHTML = '<tr><td colspan="2" style="padding:16px;text-align:center;color:var(--text3)">No cost data found. Redeploy Code.gs and hard-refresh (Ctrl+Shift+R).</td></tr>';
+      return;
+    }
+  } else {
+    var noteEl2 = document.getElementById('cogs-source-note');
+    if (noteEl2) noteEl2.textContent = 'Source: Odoo stock valuation layers (AVCO/FIFO actual cost + landed costs) · 2026 receipts';
   }
 
   // Month display labels
   var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   function monthLabel(ym) {
+    if (ym === 'current') return 'Current';
     var parts = ym.split('-');
     return MONTH_NAMES[parseInt(parts[1], 10) - 1] || ym;
   }
 
-  // Build header
+  // Build header — when using standard prices, hide the redundant "Latest" column
   thead.innerHTML = '<tr>'
     + '<th style="min-width:200px">Product</th>'
     + '<th style="text-align:center;font-size:10px;color:var(--text3)">Cat</th>'
     + months.map(function(m) {
         return '<th style="text-align:right;white-space:nowrap">' + monthLabel(m) + '</th>';
       }).join('')
-    + '<th style="text-align:right">Latest (KES)</th>'
+    + (usingStdPrice ? '' : '<th style="text-align:right">Latest (KES)</th>')
     + '</tr>';
 
   // Counters for metric cards
@@ -8046,7 +8070,7 @@ function renderCogs() {
       + '<td style="font-size:11px">' + name + '</td>'
       + '<td style="text-align:center;font-size:12px" title="' + cat + '">' + (catLabels[cat] || '—') + '</td>'
       + cellsHtml.join('')
-      + '<td style="text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600">' + latestStr + '</td>'
+      + (usingStdPrice ? '' : '<td style="text-align:right;font-family:var(--font-mono);font-size:11px;font-weight:600">' + latestStr + '</td>')
       + '</tr>';
   }).join('');
 
