@@ -2839,19 +2839,35 @@ function pkgNeeds(){
   Object.entries(PROT_ODOO_REFS).forEach(function(e) {
     var sku = e[0]; var variants = e[1];
     var liveTotal = variants.reduce(function(s,v){ return s+(avgSales[v.ref]||0); },0);
+    // SALES[sku] is the confirmed minimum floor (actual known business volume).
+    // Use it whenever Odoo's live figure is missing or below that floor.
+    var salesFloor = SALES[sku] || 0;
 
     if (liveTotal > 0) {
-      // Per-variant live data — use directly (correct per-size bag split)
-      variants.forEach(function(v) {
-        var pkg = PKG_MAP[v.ref];
-        if (pkg) accum(pkg, (avgSales[v.ref]||0) * gf);
-        protHandledRefs[v.ref] = true;
-      });
+      if (liveTotal >= salesFloor) {
+        // Live Odoo data meets or exceeds floor — use it (correct per-size bag split)
+        variants.forEach(function(v) {
+          var pkg = PKG_MAP[v.ref];
+          if (pkg) accum(pkg, (avgSales[v.ref]||0) * gf);
+          protHandledRefs[v.ref] = true;
+        });
+      } else {
+        // Live data is below the confirmed floor — use floor, allocated to main packs.
+        // This handles cases where Odoo only captures some sales channels/months.
+        var fallback = salesFloor * gf;
+        var mainVars = variants.filter(function(v){ return v.serves > 4; });
+        var n = mainVars.length || 1;
+        mainVars.forEach(function(v) {
+          var pkg = PKG_MAP[v.ref];
+          if (pkg) accum(pkg, fallback / n);
+        });
+        variants.forEach(function(v){ protHandledRefs[v.ref] = true; });
+      }
     } else {
       // No live data — fall back to SALES[sku] total, allocated to main packs.
       // Taster packs (4-serving) represent <5% of sales and don't drive bag reorders,
       // so allocating only to serves>4 variants is intentionally conservative.
-      var fallback = (SALES[sku] || 0) * gf;
+      var fallback = salesFloor * gf;
       var mainVars = variants.filter(function(v){ return v.serves > 4; });
       var n = mainVars.length || 1;
       mainVars.forEach(function(v) {
@@ -2886,7 +2902,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v25'; // bumped v24→v25: fixed CEVBC*→CEBC* and PFORMUN30→PFORM refs throughout to match Odoo
+const CACHE_KEY_LS = 'pk_payload_v26'; // bumped v25→v26: pkgNeeds() now uses SALES[sku] as a minimum floor — Odoo live data only used when it meets/exceeds the confirmed volume
 
 function lsCacheGet(){
   try{
