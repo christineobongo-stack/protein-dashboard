@@ -1793,7 +1793,7 @@ const FORM_ID  = '1RMgl19REv-_w_4bJGgWlNgCkA3VlmJlKcxMPgUZDi9c';
 
 // Monthly sales — fallback values only (overwritten at runtime by live 3-month rolling avg from Odoo)
 const SALES = {
-  CEVAN:182, CECHOC:86, CEBAN:26, CECREAM:51, CESC:24, CEVBC:15, CEVCHAI:25, PureForm:23,
+  CEVAN:182, CECHOC:86, CEBAN:26, CECREAM:51, CESC:24, CEVBC:15, CEVCHAI:25, PureForm:150, // PureForm updated to Christine's confirmed ~150/mo
   ECOVAN:27, ECOCHOC:15, ECOBAN:6, ISPVAN:20, ISPUN:13, BIOVAN:28, BIOUN:11,
   CREATUN:126, CREATFP:49, CREATPG:37, PWORKWM:11, PWORKGA:19, BCAA:9, COLUN:37,
   'PANCAKE MIX':31,
@@ -1957,9 +1957,9 @@ const PROT_ODOO_REFS = {
   CEBAN:   [{ref:'CEBAN30',  serves:30},{ref:'CEBAN15',  serves:15},{ref:'CEBAN04',  serves:4}],
   CECREAM: [{ref:'CECREAM30',serves:30},{ref:'CECREAM15',serves:15},{ref:'CECREAM04',serves:4}],
   CESC:    [{ref:'CESC30',   serves:30},{ref:'CESC15',   serves:15},{ref:'CESC04',   serves:4}],
-  CEVBC:   [{ref:'CEVBC30',  serves:30},{ref:'CEVBC15',  serves:15},{ref:'CEVBC04',  serves:4}],
+  CEVBC:   [{ref:'CEBC30',   serves:30},{ref:'CEBC15',   serves:15},{ref:'CEBC04',   serves:4}], // Odoo refs are CEBC* not CEVBC*
   CEVCHAI: [{ref:'CEVCHAI30',serves:30},{ref:'CEVCHAI15',serves:15},{ref:'CEVCHAI04',serves:4}],
-  PureForm:[{ref:'PFORMUN30',serves:30}],
+  PureForm:[{ref:'PFORM',    serves:30}], // Odoo ref is PFORM not PFORMUN30
   ECOVAN:  [{ref:'ECOVAN28', serves:28},{ref:'ECOVAN14', serves:14}],
   ECOCHOC: [{ref:'ECOCHOC28',serves:28},{ref:'ECOCHOC14',serves:14}],
   ECOBAN:  [{ref:'ECOBAN28', serves:28},{ref:'ECOBAN14', serves:14}],
@@ -2734,24 +2734,24 @@ const PKG_MAP = {
   'CEBAN30':   {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
   'CECREAM30': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
   'CESC30':    {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
-  'CEVBC30':   {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CEBC30':    {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'}, // was CEVBC30 — Odoo ref is CEBC*
   'CEVCHAI30': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
   'CEVAN15':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
   'CECHOC15':  {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
   'CEBAN15':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
   'CECREAM15': {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
   'CESC15':    {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
-  'CEVBC15':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CEBC15':    {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'}, // was CEVBC15
   'CEVCHAI15': {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
   'CEVAN04':   {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
   'CECHOC04':  {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
   'CEBAN04':   {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
   'CECREAM04': {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
   'CESC04':    {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
-  'CEVBC04':   {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'CEBC04':    {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'}, // was CEVBC04
   'CEVCHAI04': {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
   // ── PureForm Unflavoured ──────────────────────────────────────────────────
-  'PFORMUN30': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'PFORM':     {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'}, // was PFORMUN30 — Odoo ref is PFORM
   // ── Economy+ (ECO) ────────────────────────────────────────────────────────
   'ECOVAN28':  {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
   'ECOCHOC28': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
@@ -2812,29 +2812,67 @@ function pkgNeeds(){
   var sachet=0;
   var large_sticker=0, medium_sticker=0, small_sticker=0;
 
-  Object.entries(PKG_MAP).forEach(function(e){
-    var ref=e[0]; var pkg=e[1];
-    var sales=(avgSales[ref]||0)*gf;
-    if(!sales) return;
-    if(pkg.bag==='xl')     xl_bag     +=sales;
-    if(pkg.bag==='large')  large_bag  +=sales;
-    if(pkg.bag==='medium') medium_bag +=sales;
-    if(pkg.bag==='small')  small_bag  +=sales;
-    if(pkg.scoopG===30)    scoop_30g  +=sales*pkg.scoopN;
-    if(pkg.scoopG===50)    scoop_50g  +=sales*pkg.scoopN;
-    if(pkg.scoopG===5)     scoop_5g   +=sales*pkg.scoopN;
-    sachet+=sales*pkg.sachets;
-    if(pkg.sticker==='large')  large_sticker  +=sales;
-    if(pkg.sticker==='medium') medium_sticker +=sales;
-    if(pkg.sticker==='small')  small_sticker  +=sales;
+  function accum(pkg, qty) {
+    if(!qty) return;
+    if(pkg.bag==='xl')     xl_bag      += qty;
+    if(pkg.bag==='large')  large_bag   += qty;
+    if(pkg.bag==='medium') medium_bag  += qty;
+    if(pkg.bag==='small')  small_bag   += qty;
+    if(pkg.scoopG===30)    scoop_30g   += qty * pkg.scoopN;
+    if(pkg.scoopG===50)    scoop_50g   += qty * pkg.scoopN;
+    if(pkg.scoopG===5)     scoop_5g    += qty * pkg.scoopN;
+    sachet += qty * pkg.sachets;
+    if(pkg.sticker==='large')  large_sticker  += qty;
+    if(pkg.sticker==='medium') medium_sticker += qty;
+    if(pkg.sticker==='small')  small_sticker  += qty;
+  }
+
+  // ── 1. Protein SKUs via PROT_ODOO_REFS ──────────────────────────────────
+  // Uses the same data source as the FG (Stock Health) tab:
+  //   • If avgSales has live per-variant data (product has [REF] brackets in Odoo),
+  //     use those directly — this gives the correct large/medium/small bag split.
+  //   • If avgSales returns 0 for ALL variants (product name has no [REF] bracket in
+  //     Odoo so fetchMonthlySales() never captured it), fall back to SALES[sku],
+  //     which the FG tab also uses. SALES holds live-data-backfilled values or
+  //     hardcoded estimates. Allocate the total to main packs (serves > 4).
+  var protHandledRefs = {};
+  Object.entries(PROT_ODOO_REFS).forEach(function(e) {
+    var sku = e[0]; var variants = e[1];
+    var liveTotal = variants.reduce(function(s,v){ return s+(avgSales[v.ref]||0); },0);
+
+    if (liveTotal > 0) {
+      // Per-variant live data — use directly (correct per-size bag split)
+      variants.forEach(function(v) {
+        var pkg = PKG_MAP[v.ref];
+        if (pkg) accum(pkg, (avgSales[v.ref]||0) * gf);
+        protHandledRefs[v.ref] = true;
+      });
+    } else {
+      // No live data — fall back to SALES[sku] total, allocated to main packs.
+      // Taster packs (4-serving) represent <5% of sales and don't drive bag reorders,
+      // so allocating only to serves>4 variants is intentionally conservative.
+      var fallback = (SALES[sku] || 0) * gf;
+      var mainVars = variants.filter(function(v){ return v.serves > 4; });
+      var n = mainVars.length || 1;
+      mainVars.forEach(function(v) {
+        var pkg = PKG_MAP[v.ref];
+        if (pkg) accum(pkg, fallback / n);
+      });
+      variants.forEach(function(v){ protHandledRefs[v.ref] = true; });
+    }
   });
 
-  return{
-    xl_bag, large_bag, medium_bag, small_bag,
-    large_sticker, medium_sticker, small_sticker,
-    scoop_30g, scoop_50g, scoop_5g,
-    sachet,
-  };
+  // ── 2. All other PKG_MAP entries (bulk supplements, abstract future SKUs) ─
+  Object.entries(PKG_MAP).forEach(function(e) {
+    var ref = e[0]; var pkg = e[1];
+    if (protHandledRefs[ref]) return;           // already handled above
+    var sales = (avgSales[ref]||0) * gf;
+    accum(pkg, sales);
+  });
+
+  return { xl_bag, large_bag, medium_bag, small_bag,
+           large_sticker, medium_sticker, small_sticker,
+           scoop_30g, scoop_50g, scoop_5g, sachet };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2848,7 +2886,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v23'; // bumped v22→v23: per-SKU PKG_MAP replacing category-based pkgNeeds()
+const CACHE_KEY_LS = 'pk_payload_v25'; // bumped v24→v25: fixed CEVBC*→CEBC* and PFORMUN30→PFORM refs throughout to match Odoo
 
 function lsCacheGet(){
   try{
@@ -6941,7 +6979,7 @@ const KENYA_STICKERS = [
   // odooRef: specific Odoo product ref → avgSales[odooRef] = packs of THAT size sold/mo (not aggregate)
   // Large stickers go on 1kg bags only (30-serve CE/BioBalance, 28-serve Economy+/IsoPro, 30-serve PureForm)
   {label:'CE Banana',             odooRef:'CEBAN30',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:264},
-  {label:'CE Birthday Cake',      odooRef:'CEVBC30',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:266},
+  {label:'CE Birthday Cake',      odooRef:'CEBC30',    pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:266},
   {label:'CE Vanilla Chai',       odooRef:'CEVCHAI30', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:267},
   {label:'CE Salted Caramel',     odooRef:'CESC30',    pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:2590},
   {label:'Economy+ Vanilla',      odooRef:'ECOVAN28',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:273},
@@ -6949,12 +6987,12 @@ const KENYA_STICKERS = [
   {label:'BioBalance Vanilla',    odooRef:'BIOVAN30',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:295},
   {label:'IsoPro Vanilla',        odooRef:'ISPVAN28',  pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:284},
   {label:'IsoPro Unflavoured',    odooRef:'ISPUN28',   pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:290},
-  {label:'PureForm Unflavoured',  odooRef:'PFORMUN30', pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:312},
+  {label:'PureForm Unflavoured',  odooRef:'PFORM',     pkgKey:'large_sticker',  kshUnit:40.76, stickersPerPack:1, odooProductId:312},
   // Medium stickers go on 500g bags (15-serve CE/BioBalance, 14-serve Economy+)
   {label:'Economy+ Choc',         odooRef:'ECOCHOC14', pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:362},
   {label:'CE Choc (500g)',        odooRef:'CECHOC15',  pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:351},
   {label:'CE Banana (500g)',      odooRef:'CEBAN15',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:352},
-  {label:'CE Birthday (500g)',    odooRef:'CEVBC15',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:354},
+  {label:'CE Birthday (500g)',    odooRef:'CEBC15',    pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:354},
   {label:'BioBalance Unflavoured',odooRef:'BIOUN15',   pkgKey:'medium_sticker', kshUnit:34,    stickersPerPack:1, odooProductId:389},
   // Small stickers go on 200g supplement pouches (creatine/preworkout/BCAA/collagen)
   {label:'PreWorkout Watermelon', odooRef:'PWORKWM200',pkgKey:'small_sticker',  kshUnit:15.12, stickersPerPack:1, odooProductId:511},
