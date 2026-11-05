@@ -2719,43 +2719,121 @@ function getSt(stock,rq){const d=rq*2-stock;if(d>0&&stock===0)return'critical';i
 // ═══════════════════════════════════════════════════════════════════════════════
 // PACKAGING MONTHLY NEEDS
 // ═══════════════════════════════════════════════════════════════════════════════
-function pkgNeeds(){
-  const gf=getGrowthFactor();
-  // Size-specific rates: large=30/28-serve, medium=15/14-serve, small=taster+bulk supplements.
-  const largeMo=Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
-    return s+kv[1].filter(function(v){return v.serves>=28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
-  },0)*gf;
-  const medMo=Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
-    return s+kv[1].filter(function(v){return v.serves>=14&&v.serves<28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
-  },0)*gf;
-  const tasMo=Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
-    return s+kv[1].filter(function(v){return v.serves<=4;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
-  },0)*gf;
-  // Bulk supplement small-bag demand: use avgSales directly (packs sold/month).
-  // NOTE: We do NOT use the reorderPlan path here even when it is available.
-  // reorderPlan derives rates from BOM consumption through Baobab dispatch
-  // locations 353/354, but bulk supplement packs (creatine, collagen, BCAA, etc.)
-  // are frequently dispatched from other locations — so the BOM-based rate is
-  // near-zero and silently overrides the correct sales-based figure, producing
-  // an undercount (observed: 125/mo vs actual 400+/mo for small bags).
-  //
-  // BULK_ODOO_REFS.COLUN is 'COLPG18' (pink guava collagen), so we add COLUN18
-  // (unflavoured collagen) explicitly so both collagen SKUs contribute.
-  const bulkSuppMo=(Object.values(BULK_ODOO_REFS).reduce(function(s,ref){return s+(avgSales[ref]||0);},0)
-                   +(avgSales['COLUN18']||0))*gf;
-  // prot kept for backward compatibility with callers that use it for large-bag/scoop rates
-  const prot=largeMo;
+// ── Per-SKU packaging map ─────────────────────────────────────────────────────
+// Keys are Odoo product refs (e.g. 'CEVAN30') for products in PROT/BULK_ODOO_REFS,
+// or abstract SKUs (e.g. 'MGVAN') for new product lines not yet in those tables.
+// bag:    'xl' | 'large' | 'medium' | 'small'
+// scoopG: 0 (none) | 5 | 30 | 50  — size in grams
+// scoopN: number of scoops per pack (1 normally; 2 for 45g collagen)
+// sachets: 0 | 2 | 4  — silicon/silica sachets per pack
+// sticker: 'large' | 'medium' | 'small'  — matches bag size (xl→large)
+const PKG_MAP = {
+  // ── Core Essential (CE) ───────────────────────────────────────────────────
+  'CEVAN30':   {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CECHOC30':  {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CEBAN30':   {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CECREAM30': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CESC30':    {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CEVBC30':   {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CEVCHAI30': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'CEVAN15':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CECHOC15':  {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CEBAN15':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CECREAM15': {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CESC15':    {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CEVBC15':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CEVCHAI15': {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'CEVAN04':   {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'CECHOC04':  {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'CEBAN04':   {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'CECREAM04': {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'CESC04':    {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'CEVBC04':   {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'CEVCHAI04': {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  // ── PureForm Unflavoured ──────────────────────────────────────────────────
+  'PFORMUN30': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  // ── Economy+ (ECO) ────────────────────────────────────────────────────────
+  'ECOVAN28':  {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'ECOCHOC28': {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'ECOBAN28':  {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'ECOVAN14':  {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'ECOCHOC14': {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'ECOBAN14':  {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  // ── IsoPro (ISP) ──────────────────────────────────────────────────────────
+  'ISPVAN28':  {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'ISPUN28':   {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'ISPVAN14':  {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'ISPUN14':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  // ── BioBalance (BIO) ──────────────────────────────────────────────────────
+  'BIOVAN30':  {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'BIOUN30':   {bag:'large',  scoopG:30, scoopN:1, sachets:0, sticker:'large'},
+  'BIOVAN15':  {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'BIOUN15':   {bag:'medium', scoopG:30, scoopN:1, sachets:0, sticker:'medium'},
+  'BIOVAN04':  {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  'BIOUN04':   {bag:'small',  scoopG:0,  scoopN:0, sachets:0, sticker:'small'},
+  // ── Bulk Supplements 200g (small bag, 5g scoop × 1, 2 sachets) ───────────
+  'CREATUN200':{bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  'CREATFP200':{bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  'CREATPG200':{bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  'PWORKWM200':{bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  'PWORKGA200':{bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  'BCAA200':   {bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  // ── Collagen 18-serving packs (small bag, 5g scoop × 1, 2 sachets) ───────
+  // Note: BULK_ODOO_REFS.COLUN → 'COLPG18', so both refs are listed here.
+  'COLPG18':   {bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  'COLUN18':   {bag:'small',  scoopG:5,  scoopN:1, sachets:2, sticker:'small'},
+  // ── Collagen 45g packs (medium bag, 2 × 5g scoops, 2 sachets) ────────────
+  'COLPG45':   {bag:'medium', scoopG:5,  scoopN:2, sachets:2, sticker:'medium'},
+  'COLUN45':   {bag:'medium', scoopG:5,  scoopN:2, sachets:2, sticker:'medium'},
+  // ── Mass Gainer 3kg (XL bag, 50g scoop × 1, 4 sachets) ───────────────────
+  // Note: 'MGVAN'/'MGCHOC'/'MGCREAM' are abstract SKU keys (no Odoo ref yet).
+  // xl bag → counted in xl_bag and large_sticker (closest sticker size in Odoo).
+  'MGVAN':     {bag:'xl',     scoopG:50, scoopN:1, sachets:4, sticker:'large'},
+  'MGCHOC':    {bag:'xl',     scoopG:50, scoopN:1, sachets:4, sticker:'large'},
+  'MGCREAM':   {bag:'xl',     scoopG:50, scoopN:1, sachets:4, sticker:'large'},
+  // ── Vegan Protein 810g (large bag, 30g scoop × 1, 2 sachets) ─────────────
+  // Note: 'VPVAN'/'VPCHOC'/'VPCREAM' are abstract SKU keys (no Odoo ref yet).
+  'VPVAN':     {bag:'large',  scoopG:30, scoopN:1, sachets:2, sticker:'large'},
+  'VPCHOC':    {bag:'large',  scoopG:30, scoopN:1, sachets:2, sticker:'large'},
+  'VPCREAM':   {bag:'large',  scoopG:30, scoopN:1, sachets:2, sticker:'large'},
+  // ── Meal Replacement Wimbi 1kg (large bag, 50g scoop × 1, 2 sachets) ─────
+  // Note: 'MRVAN'/'MRCHOC'/'MRBAN' are abstract SKU keys (no Odoo ref yet).
+  'MRVAN':     {bag:'large',  scoopG:50, scoopN:1, sachets:2, sticker:'large'},
+  'MRCHOC':    {bag:'large',  scoopG:50, scoopN:1, sachets:2, sticker:'large'},
+  'MRBAN':     {bag:'large',  scoopG:50, scoopN:1, sachets:2, sticker:'large'},
+  // ── Pancake Mix (PANVAN10) — medium bag, 50g scoop ───────────────────────
+  'PANVAN10':  {bag:'medium', scoopG:50, scoopN:1, sachets:0, sticker:'medium'},
+};
 
-  const bulk   = bulkSuppMo;
-  const sachet = bulk * 2; // 2 silicon sachets per pack, all bulk supplement SKUs
-  const smallStickerMo = tasMo + bulk; // 4-serve tasters + all bulk supplement packs
+function pkgNeeds(){
+  const gf = getGrowthFactor();
+  var xl_bag=0, large_bag=0, medium_bag=0, small_bag=0;
+  var scoop_30g=0, scoop_50g=0, scoop_5g=0;
+  var sachet=0;
+  var large_sticker=0, medium_sticker=0, small_sticker=0;
+
+  Object.entries(PKG_MAP).forEach(function(e){
+    var ref=e[0]; var pkg=e[1];
+    var sales=(avgSales[ref]||0)*gf;
+    if(!sales) return;
+    if(pkg.bag==='xl')     xl_bag     +=sales;
+    if(pkg.bag==='large')  large_bag  +=sales;
+    if(pkg.bag==='medium') medium_bag +=sales;
+    if(pkg.bag==='small')  small_bag  +=sales;
+    if(pkg.scoopG===30)    scoop_30g  +=sales*pkg.scoopN;
+    if(pkg.scoopG===50)    scoop_50g  +=sales*pkg.scoopN;
+    if(pkg.scoopG===5)     scoop_5g   +=sales*pkg.scoopN;
+    sachet+=sales*pkg.sachets;
+    if(pkg.sticker==='large')  large_sticker  +=sales;
+    if(pkg.sticker==='medium') medium_sticker +=sales;
+    if(pkg.sticker==='small')  small_sticker  +=sales;
+  });
+
   return{
-    large_bag:prot, medium_bag:medMo, small_bag:tasMo+bulk,
-    // 1 Odoo sticker unit = 1 front+back pair; 1 pair used per pack; size matches bag size
-    large_sticker:prot, medium_sticker:medMo, small_sticker:smallStickerMo,
-    scoop_30g:prot, scoop_5g:bulk,
-    sachet:sachet,
-    scoop_50g:0,
+    xl_bag, large_bag, medium_bag, small_bag,
+    large_sticker, medium_sticker, small_sticker,
+    scoop_30g, scoop_50g, scoop_5g,
+    sachet,
   };
 }
 
@@ -2770,7 +2848,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v22'; // bumped v21→v22: standardPrices in payload as fallback for unit costs tab when AVCO/FIFO not enabled
+const CACHE_KEY_LS = 'pk_payload_v23'; // bumped v22→v23: per-SKU PKG_MAP replacing category-based pkgNeeds()
 
 function lsCacheGet(){
   try{
@@ -7522,6 +7600,7 @@ function renderPkgCoverage() {
 
   // Packaging labels for display
   var PKG_LABELS = {
+    xl_bag:         'XL bag (Mass Gainer, 3kg)',
     large_bag:      'Large bag (protein, 1kg)',
     small_bag:      'Small bag (bulk supp, 200g)',
     medium_bag:     'Medium bag',
