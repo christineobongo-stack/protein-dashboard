@@ -6807,20 +6807,21 @@ function renderSupp(){
 // PKG_QUANT_MATCH. 'lead' here is no longer used for timing (see
 // computeChinaOrderSchedule) — kept only as informational metadata on the row.
 const PKG_ITEMS = {
-  large_bag:  {label:'Large bags',         pkgKey:'large_bag',  usdUnit:0.20,  cbmPer1000:0.06,  supplier:'Shenzhen Yes Pack'},
-  medium_bag: {label:'Medium bags',        pkgKey:'medium_bag', usdUnit:null,  cbmPer1000:0.04,  supplier:'Shenzhen Yes Pack',
-               costTBC:true, usageTBC:true}, // Odoo name confirmed ("Medium Packaging Bags") Sep 15 2026 —
-               // unit cost and which SKUs use medium-format packaging still need confirming; see renderPackaging()
-  small_bag:  {label:'Small bags',         pkgKey:'small_bag',  usdUnit:0.23,  cbmPer1000:0.02,  supplier:'Shenzhen Yes Pack'},
-  scoop_30g:  {label:'30g Scoop',          pkgKey:'scoop_30g',  kshUnit:12,    cbmPer1000:0.01,  supplier:'Ningbo P&M'},
-  scoop_5g:   {label:'5g Scoop',           pkgKey:'scoop_5g',   kshUnit:9,     cbmPer1000:0.005, supplier:'Ningbo P&M'},
-  silicon:    {label:'Silicon Packs',      pkgKey:'silicon',    kshUnit:1.5,   cbmPer1000:0.003, supplier:'AbsorbKing'},
-  shaker_blk: {label:'Shaker (black)',     pkgKey:'shaker_blk', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
-  shaker_wht: {label:'Shaker (white)',     pkgKey:'shaker_wht', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
-  shaker_clr: {label:'Shaker (clear)',     pkgKey:'shaker_clr', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
+  xl_bag:     {label:'XL bag (Mass Gainer, 3kg)', pkgKey:'xl_bag',    usdUnit:0.35,  cbmPer1000:0.12,  supplier:'Shenzhen Yes Pack'},
+  large_bag:  {label:'Large bag (protein, 1kg)',  pkgKey:'large_bag', usdUnit:0.20,  cbmPer1000:0.06,  supplier:'Caiyuntian Printing'},
+  medium_bag: {label:'Medium bag',               pkgKey:'medium_bag', usdUnit:null,  cbmPer1000:0.04,  supplier:'Caiyuntian Printing',
+               costTBC:true},
+  small_bag:  {label:'Small bag (bulk supp, 200g)', pkgKey:'small_bag', usdUnit:0.23, cbmPer1000:0.02, supplier:'Caiyuntian Printing'},
+  scoop_30g:  {label:'30g scoop',               pkgKey:'scoop_30g',  kshUnit:12,    cbmPer1000:0.01,  supplier:'Ningbo Plastic Scoops'},
+  scoop_50g:  {label:'50g scoop',               pkgKey:'scoop_50g',  kshUnit:14,    cbmPer1000:0.012, supplier:'Ningbo Plastic Scoops'},
+  scoop_5g:   {label:'5g scoop',                pkgKey:'scoop_5g',   kshUnit:9,     cbmPer1000:0.005, supplier:'Ningbo Plastic Scoops'},
+  silicon:    {label:'Silicon sachet (desiccant)', pkgKey:'silicon',  kshUnit:1.5,   cbmPer1000:0.003, supplier:'Shenzhen AbsorbKing'},
+  shaker_blk: {label:'Shaker (black)',           pkgKey:'shaker_blk', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
+  shaker_wht: {label:'Shaker (white)',           pkgKey:'shaker_wht', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
+  shaker_clr: {label:'Shaker (clear)',           pkgKey:'shaker_clr', usdUnit:1.00,  cbmPer1000:0.02,  supplier:'TBC'},
 };
 
-const PKG_INCOMING = {large_bag:7500, medium_bag:0, small_bag:3500, scoop_30g:0, scoop_5g:0, silicon:0, shaker_blk:0, shaker_wht:0, shaker_clr:0};
+const PKG_INCOMING = {xl_bag:0, large_bag:7500, medium_bag:0, small_bag:3500, scoop_30g:0, scoop_50g:2000, scoop_5g:2500, silicon:0, shaker_blk:0, shaker_wht:0, shaker_clr:0};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYNCHRONIZED CHINA ORDER SCHEDULE — 2 shipments/year, all items together
@@ -6984,26 +6985,18 @@ function renderPackaging() {
   const fmtD = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 
   const gf = getGrowthFactor();
-  // Size-specific protein monthly rates from avgSales (per-variant, not SALES aggregates).
-  // serves>=28 → large (1kg) bags/stickers; serves 14-27 → medium (500g) bags/stickers;
-  // serves<=4 → taster bags/small stickers; bulk supplements → small bags/stickers.
-  const largeBagMo = Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
-    return s + kv[1].filter(function(v){return v.serves>=28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
-  },0) * gf;
-  const medBagMo = Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
-    return s + kv[1].filter(function(v){return v.serves>=14&&v.serves<28;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
-  },0) * gf;
-  const tasMo = Object.entries(PROT_ODOO_REFS).reduce(function(s,kv){
-    return s + kv[1].filter(function(v){return v.serves<=4;}).reduce(function(a,v){return a+(avgSales[v.ref]||0);},0);
-  },0) * gf;
-  const bulkSuppMo = Object.values(BULK_ODOO_REFS).reduce(function(s,ref){return s+(avgSales[ref]||0);},0) * gf;
-  const smallBagMo = tasMo + bulkSuppMo;
-  // Shakers: real consumption from FG leaving Baobab+SCNB (avgShipments, wired in
-  // Sep 15 2026 — previously hardcoded to 0 here even though Code.gs already
-  // computed it correctly).
+  // Per-SKU packaging demand — derived from PKG_MAP × avgSales[ref].
+  // pkgNeeds() already applies getGrowthFactor() internally.
+  const pkgD = pkgNeeds();
   const monthly = {
-    large_bag: largeBagMo, medium_bag: medBagMo, small_bag: smallBagMo,
-    scoop_30g: largeBagMo, scoop_5g: bulkSuppMo, silicon: bulkSuppMo*2,
+    xl_bag:     pkgD.xl_bag,
+    large_bag:  pkgD.large_bag,
+    medium_bag: pkgD.medium_bag,
+    small_bag:  pkgD.small_bag,
+    scoop_30g:  pkgD.scoop_30g,
+    scoop_50g:  pkgD.scoop_50g,
+    scoop_5g:   pkgD.scoop_5g,
+    silicon:    pkgD.sachet,
     shaker_blk: (avgShipments['PROTSHAKBLK']||0) * gf,
     shaker_wht: (avgShipments['PROTSHAKWT']||0) * gf,
     shaker_clr: (avgShipments['PROTSHAKCLR']||0) * gf,
