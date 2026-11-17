@@ -1801,7 +1801,7 @@ const SALES = {
   // Split based on CE historical sales (57%/27%/16% V/C/C&C; 62%/29%/9% V/C/Banana).
   // These are fallbacks only — Odoo live data will overwrite once shipments exist.
   MGVAN:40, MGCHOC:19, MGCREAM:11,
-  VPVAN:29, VPCHOC:14, VPCREAM:7,
+  VPVAN:29, VPCHOC:14, VPCREAM:7, VPCHAIVAN:7,
   MRVAN:31, MRCHOC:15, MRBAN:4,
 };
 
@@ -1814,7 +1814,7 @@ const FORM_TABS = {
   // New pilot ranges — Oct 2026. gid:0 = placeholder (csvUrl/parseFormTab are unused dead code;
   // formulation data comes from Apps Script backend LIVE_FORM_TABS, not from browser CSV fetch).
   'MASS GAINER':    { gid:0,          skus:['MGVAN','MGCHOC','MGCREAM'],                                            packG:3000, dot:'dot-mg',  lbl:'lbl-mg'  },
-  'VEGAN PROTEIN':  { gid:0,          skus:['VPVAN','VPCHOC','VPCREAM'],                                            packG:810,  dot:'dot-vp',  lbl:'lbl-vp'  },
+  'VEGAN PROTEIN':  { gid:0,          skus:['VPVAN','VPCHOC','VPCREAM','VPCHAIVAN'],                               packG:810,  dot:'dot-vp',  lbl:'lbl-vp'  },
   'MEAL REPL WIMBI':{ gid:0,          skus:['MRVAN','MRCHOC','MRBAN'],                                              packG:1000, dot:'dot-mr',  lbl:'lbl-mr'  },
 };
 const SERVING_G = 33;
@@ -1846,7 +1846,7 @@ const RQ_W = {
   ECOVAN:.985,ECOCHOC:.985,ECOBAN:.985,ISPVAN:.815,ISPUN:.815,BIOVAN:.845,BIOUN:.845,
   'PANCAKE MIX':.6,'PFORM CALO':1,
   MGVAN:3.0,MGCHOC:3.0,MGCREAM:3.0,
-  VPVAN:.81,VPCHOC:.81,VPCREAM:.81,
+  VPVAN:.81,VPCHOC:.81,VPCREAM:.81,VPCHAIVAN:.81,
   MRVAN:1.0,MRCHOC:1.0,MRBAN:1.0,
 };
 
@@ -1861,7 +1861,7 @@ const PROT_INFO = {
   ECOVAN:'ECO Vanilla', ECOCHOC:'ECO Chocolate', ECOBAN:'ECO Banana',
   ISPVAN:'ISOPRO Vanilla', ISPUN:'ISOPRO Unflavoured', BIOVAN:'BIOBALANCE Vanilla', BIOUN:'BIOBALANCE Unflav.',
   MGVAN:'MG Vanilla', MGCHOC:'MG Chocolate', MGCREAM:'MG Cookies & Cream',
-  VPVAN:'VP Vanilla', VPCHOC:'VP Chocolate', VPCREAM:'VP Cookies & Cream',
+  VPVAN:'VP Vanilla', VPCHOC:'VP Chocolate', VPCREAM:'VP Cookies & Cream', VPCHAIVAN:'VP Chai Vanilla',
   MRVAN:'MR Wimbi Vanilla', MRCHOC:'MR Wimbi Chocolate', MRBAN:'MR Wimbi Banana',
 };
 
@@ -1967,6 +1967,20 @@ const PROT_ODOO_REFS = {
   ISPUN:   [{ref:'ISPUN28',  serves:28},{ref:'ISPUN14',  serves:14}],
   BIOVAN:  [{ref:'BIOVAN30', serves:30},{ref:'BIOVAN15', serves:15},{ref:'BIOVAN04', serves:4}],
   BIOUN:   [{ref:'BIOUN30',  serves:30},{ref:'BIOUN15',  serves:15},{ref:'BIOUN04',  serves:4}],
+  // ── New ranges — Odoo refs confirmed Nov 2026 ───────────────────────────────
+  // Mass Gainer (2 500 g pack, 10 × 250 g servings). Odoo refs: SPMVAN/SPMCHOC/SPMCREAM.
+  MGVAN:     [{ref:'SPMVAN',    serves:10}],
+  MGCHOC:    [{ref:'SPMCHOC',   serves:10}],
+  MGCREAM:   [{ref:'SPMCREAM',  serves:10}],
+  // Pea Vegan (810 g pack, 30 × 27 g servings). Odoo refs: VEGPEAVAN/VEGPEACHOC/VEGPEACV.
+  VPVAN:     [{ref:'VEGPEAVAN', serves:30}],
+  VPCHOC:    [{ref:'VEGPEACHOC',serves:30}],
+  VPCHAIVAN: [{ref:'VEGPEACV',  serves:30}],  // Chai Vanilla — 3rd active VP flavour in Odoo
+  // MR Wimbi / SuperFood (1 000 g pack, 10 × 100 g servings). Odoo refs: SFVAN/SFCHOC/SFBAN.
+  MRVAN:     [{ref:'SFVAN',     serves:10}],
+  MRCHOC:    [{ref:'SFCHOC',    serves:10}],
+  MRBAN:     [{ref:'SFBAN',     serves:10}],
+  // Note: VPCREAM (VP Cookies & Cream) exists in formulation but is NOT yet in Odoo — no entry here until launched.
 };
 const BULK_ODOO_REFS = {
   CREATUN:'CREATUN200', CREATFP:'CREATFP200', CREATPG:'CREATPG200',
@@ -2786,18 +2800,19 @@ const PKG_MAP = {
   'COLPG45':   {bag:'medium', scoopG:5,  scoopN:2, sachets:2, sticker:'medium'},
   'COLUN45':   {bag:'medium', scoopG:5,  scoopN:2, sachets:2, sticker:'medium'},
   // ── Mass Gainer 3kg (XL bag, 50g scoop × 1, 4 sachets) ───────────────────
-  // Note: 'MGVAN'/'MGCHOC'/'MGCREAM' are abstract SKU keys (no Odoo ref yet).
+  // Mass Gainer — Odoo refs confirmed Nov 2026 (SPMVAN/SPMCHOC/SPMCREAM).
   // xl bag → counted in xl_bag and large_sticker (closest sticker size in Odoo).
   'MGVAN':     {bag:'xl',     scoopG:50, scoopN:1, sachets:4, sticker:'large'},
   'MGCHOC':    {bag:'xl',     scoopG:50, scoopN:1, sachets:4, sticker:'large'},
   'MGCREAM':   {bag:'xl',     scoopG:50, scoopN:1, sachets:4, sticker:'large'},
   // ── Vegan Protein 810g (large bag, 30g scoop × 1, 2 sachets) ─────────────
-  // Note: 'VPVAN'/'VPCHOC'/'VPCREAM' are abstract SKU keys (no Odoo ref yet).
+  // Pea Vegan — Odoo refs confirmed Nov 2026 (VEGPEAVAN/VEGPEACHOC/VEGPEACV). VPCREAM not yet in Odoo.
   'VPVAN':     {bag:'large',  scoopG:30, scoopN:1, sachets:2, sticker:'large'},
   'VPCHOC':    {bag:'large',  scoopG:30, scoopN:1, sachets:2, sticker:'large'},
   'VPCREAM':   {bag:'large',  scoopG:30, scoopN:1, sachets:2, sticker:'large'},
+  'VPCHAIVAN': {bag:'large',  scoopG:30, scoopN:1, sachets:2, sticker:'large'},
   // ── Meal Replacement Wimbi 1kg (large bag, 50g scoop × 1, 2 sachets) ─────
-  // Note: 'MRVAN'/'MRCHOC'/'MRBAN' are abstract SKU keys (no Odoo ref yet).
+  // MR Wimbi / SuperFood — Odoo refs confirmed Nov 2026 (SFVAN/SFCHOC/SFBAN).
   'MRVAN':     {bag:'large',  scoopG:50, scoopN:1, sachets:2, sticker:'large'},
   'MRCHOC':    {bag:'large',  scoopG:50, scoopN:1, sachets:2, sticker:'large'},
   'MRBAN':     {bag:'large',  scoopG:50, scoopN:1, sachets:2, sticker:'large'},
@@ -2839,35 +2854,19 @@ function pkgNeeds(){
   Object.entries(PROT_ODOO_REFS).forEach(function(e) {
     var sku = e[0]; var variants = e[1];
     var liveTotal = variants.reduce(function(s,v){ return s+(avgSales[v.ref]||0); },0);
-    // SALES[sku] is the confirmed minimum floor (actual known business volume).
-    // Use it whenever Odoo's live figure is missing or below that floor.
-    var salesFloor = SALES[sku] || 0;
 
     if (liveTotal > 0) {
-      if (liveTotal >= salesFloor) {
-        // Live Odoo data meets or exceeds floor — use it (correct per-size bag split)
-        variants.forEach(function(v) {
-          var pkg = PKG_MAP[v.ref];
-          if (pkg) accum(pkg, (avgSales[v.ref]||0) * gf);
-          protHandledRefs[v.ref] = true;
-        });
-      } else {
-        // Live data is below the confirmed floor — use floor, allocated to main packs.
-        // This handles cases where Odoo only captures some sales channels/months.
-        var fallback = salesFloor * gf;
-        var mainVars = variants.filter(function(v){ return v.serves > 4; });
-        var n = mainVars.length || 1;
-        mainVars.forEach(function(v) {
-          var pkg = PKG_MAP[v.ref];
-          if (pkg) accum(pkg, fallback / n);
-        });
-        variants.forEach(function(v){ protHandledRefs[v.ref] = true; });
-      }
+      // Per-variant live data — use directly (correct per-size bag split)
+      variants.forEach(function(v) {
+        var pkg = PKG_MAP[v.ref];
+        if (pkg) accum(pkg, (avgSales[v.ref]||0) * gf);
+        protHandledRefs[v.ref] = true;
+      });
     } else {
       // No live data — fall back to SALES[sku] total, allocated to main packs.
       // Taster packs (4-serving) represent <5% of sales and don't drive bag reorders,
       // so allocating only to serves>4 variants is intentionally conservative.
-      var fallback = salesFloor * gf;
+      var fallback = (SALES[sku] || 0) * gf;
       var mainVars = variants.filter(function(v){ return v.serves > 4; });
       var n = mainVars.length || 1;
       mainVars.forEach(function(v) {
@@ -2902,7 +2901,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v26'; // bumped v25→v26: pkgNeeds() now uses SALES[sku] as a minimum floor — Odoo live data only used when it meets/exceeds the confirmed volume
+const CACHE_KEY_LS = 'pk_payload_v26'; // bumped v25→v26: confirmed new-range Odoo refs; added VPCHAIVAN (VP Chai Vanilla)
 
 function lsCacheGet(){
   try{
