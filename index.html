@@ -1813,7 +1813,7 @@ const FORM_TABS = {
   'BIOBALANCE':     { gid:1097578210, skus:['BIOVAN','BIOUN'],                                                      packG:840,  dot:'dot-bio', lbl:'lbl-bio' },
   // New pilot ranges — Oct 2026. gid:0 = placeholder (csvUrl/parseFormTab are unused dead code;
   // formulation data comes from Apps Script backend LIVE_FORM_TABS, not from browser CSV fetch).
-  'MASS GAINER':    { gid:0,          skus:['MGVAN','MGCHOC','MGCREAM'],                                            packG:3000, dot:'dot-mg',  lbl:'lbl-mg'  },
+  'MASS GAINER':    { gid:0,          skus:['MGVAN','MGCHOC','MGCREAM'],                                            packG:2500, dot:'dot-mg',  lbl:'lbl-mg'  }, // fixed Nov 2026: 10×250g = 2500g
   'VEGAN PROTEIN':  { gid:0,          skus:['VPVAN','VPCHOC','VPCREAM','VPCHAIVAN'],                               packG:810,  dot:'dot-vp',  lbl:'lbl-vp'  },
   'MEAL REPL WIMBI':{ gid:0,          skus:['MRVAN','MRCHOC','MRBAN'],                                              packG:1000, dot:'dot-mr',  lbl:'lbl-mr'  },
 };
@@ -2901,7 +2901,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v26'; // bumped v25→v26: confirmed new-range Odoo refs; added VPCHAIVAN (VP Chai Vanilla)
+const CACHE_KEY_LS = 'pk_payload_v27'; // bumped v26→v27: packG 2500 for MG, V10 formulation data
 
 function lsCacheGet(){
   try{
