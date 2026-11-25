@@ -2901,7 +2901,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzs1nVX_P8XGAOVIP9l9
 // Client-side cache: keeps payload in memory for current session
 // and in localStorage for up to 30 minutes across page reloads
 const CACHE_TTL = 30 * 60 * 1000;
-const CACHE_KEY_LS = 'pk_payload_v27'; // bumped v26→v27: packG 2500 for MG, V10 formulation data
+const CACHE_KEY_LS = 'pk_payload_v28'; // bumped v27→v28: new range product lines added to stock health render order
 
 function lsCacheGet(){
   try{
@@ -7400,7 +7400,7 @@ function renderStockHealth() {
   });
 
   // Group items by product line, sort within each group: critical first, then by SKU sales desc
-  var lineOrder = ['CORE ESSENTIAL', 'ECONOMY+', 'ISOPRO', 'BIOBALANCE', 'Other'];
+  var lineOrder = ['CORE ESSENTIAL', 'ECONOMY+', 'ISOPRO', 'BIOBALANCE', 'MASS GAINER', 'VEGAN PROTEIN', 'MEAL REPL WIMBI', 'Other'];
   var severityRank = {critical: 0, low: 1, ok: 2};
   var grouped = {};
   lineOrder.forEach(function(l) { grouped[l] = []; });
